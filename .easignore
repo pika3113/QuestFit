@@ -1,0 +1,6 @@
+# This file tells EAS Build to INCLUDE these files even though they're in .gitignore
+!google-services.json
+!GoogleService-Info.plist
+
+# Ignore the android folder to let EAS use Prebuild instead of the native folder
+android/
