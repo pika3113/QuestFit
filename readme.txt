@@ -147,7 +147,3 @@ The app uses Firebase Authentication with Google Sign-In:
 4. Add tests for new features
 5. Submit a pull request
 
-## License
-
-This project is licensed under the MIT License.is project integrates with the Polar Watch API to transform real-world physical training into an engaging, game-like experience. By tracking metrics such as heart rate, distance, and activity duration, users can “catch” virtual creatures, unlock rewards, and explore new levels based on their workout performance. The app gamifies fitness by blending data-driven training with interactive gameplay, motivating users to stay active and consistent through real-time feedback and progression tied directly to their Polar workouts.
-using axios, firebase, lottie-react-native, react-native-maps, react-native-paper
