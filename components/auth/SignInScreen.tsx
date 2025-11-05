@@ -1,8 +1,20 @@
 import React, { useState } from 'react';
 import { StyleSheet, View, Pressable, ActivityIndicator } from 'react-native';
 import { Text } from '@/components/Themed';
-import { signInAnonymously } from 'firebase/auth';
-import { auth } from '@/src/services/firebase';
+import { Picker } from '@react-native-picker/picker';
+import { db } from '@/src/services/firebase';
+import { doc, setDoc, getDoc } from 'firebase/firestore';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { notifyAuthChange } from '@/src/hooks/useAuth';
+
+// Predefined test users with fixed UIDs (stored locally)
+const TEST_USERS = [
+  { id: 'test1', label: 'Test User 1', uid: 'LOCAL_TEST_USER_1' },
+  { id: 'test2', label: 'Test User 2', uid: 'LOCAL_TEST_USER_2' },
+  { id: 'test3', label: 'Test User 3', uid: 'LOCAL_TEST_USER_3' },
+  { id: 'test4', label: 'Test User 4', uid: 'LOCAL_TEST_USER_4' },
+  { id: 'admin', label: 'Admin User', uid: 'LOCAL_ADMIN_USER' },
+];
 
 interface SignInScreenProps {
   onSignInSuccess?: () => void;
@@ -11,6 +23,7 @@ interface SignInScreenProps {
 export const SignInScreen: React.FC<SignInScreenProps> = ({ onSignInSuccess }) => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [selectedUser, setSelectedUser] = useState(TEST_USERS[0].id);
 
   const handleSignIn = async () => {
     try {
@@ -18,19 +31,48 @@ export const SignInScreen: React.FC<SignInScreenProps> = ({ onSignInSuccess }) =
       setError(null);
 
       console.log('🔵 Starting Sign In');
-      console.log('Auth object:', !!auth);
-      console.log('Auth config:', auth?.config);
+      console.log('Selected user:', selectedUser);
 
-      // Sign in anonymously (for Expo Go testing)
-      // In production, you'll replace this with proper Google OAuth
-      const result = await signInAnonymously(auth);
+      const selectedUserData = TEST_USERS.find(u => u.id === selectedUser);
       
-      console.log('✅ Signed in anonymously:', result.user.uid);
-      console.log('✅ User object:', {
-        uid: result.user.uid,
-        isAnonymous: result.user.isAnonymous,
-        email: result.user.email
-      });
+      if (!selectedUserData) {
+        throw new Error('Invalid user selection');
+      }
+
+      // Store the selected user ID locally
+      await AsyncStorage.setItem('CURRENT_TEST_USER', selectedUser);
+      await AsyncStorage.setItem('CURRENT_TEST_USER_UID', selectedUserData.uid);
+      
+      console.log('✅ Signed in as:', selectedUserData.label, '(UID:', selectedUserData.uid, ')');
+      
+      // Check if user profile exists, if not create it
+      const userDoc = await getDoc(doc(db, 'users', selectedUserData.uid));
+      if (!userDoc.exists()) {
+        console.log('Creating new user profile...');
+        try {
+          await setDoc(doc(db, 'users', selectedUserData.uid), {
+            userId: selectedUserData.uid,
+            username: selectedUser,
+            displayName: selectedUserData.label,
+            level: 1,
+            experience: 0,
+            totalWorkouts: 0,
+            totalCalories: 0,
+            totalDistance: 0,
+            capturedCreatures: [],
+            achievements: [],
+          });
+          console.log('✅ User profile initialized');
+        } catch (profileError) {
+          console.warn('⚠️ Could not create user profile:', profileError);
+        }
+      } else {
+        console.log('✅ User profile found');
+      }
+      
+      // Notify auth change listeners
+      notifyAuthChange();
+      
       onSignInSuccess?.();
     } catch (err: any) {
       console.error('🔴 Full error object:', err);
@@ -78,6 +120,22 @@ export const SignInScreen: React.FC<SignInScreenProps> = ({ onSignInSuccess }) =
           <View style={styles.featureItem}>
             <Text style={styles.featureEmoji}>🏆</Text>
             <Text style={styles.featureText}>Earn achievements</Text>
+          </View>
+        </View>
+
+        {/* User Selection Dropdown */}
+        <View style={styles.userSelectionContainer}>
+          <Text style={styles.userSelectionLabel}>Select User:</Text>
+          <View style={styles.pickerContainer}>
+            <Picker
+              selectedValue={selectedUser}
+              onValueChange={(itemValue: string) => setSelectedUser(itemValue)}
+              style={styles.picker}
+            >
+              {TEST_USERS.map((user) => (
+                <Picker.Item key={user.id} label={user.label} value={user.id} />
+              ))}
+            </Picker>
           </View>
         </View>
 
@@ -157,6 +215,29 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#374151',
     flex: 1,
+  },
+  userSelectionContainer: {
+    marginVertical: 20,
+  },
+  userSelectionLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#374151',
+    marginBottom: 8,
+  },
+  pickerContainer: {
+    backgroundColor: '#3B82F6',
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#D1D5DB',
+    overflow: 'hidden',
+    justifyContent: 'center',
+    paddingVertical: 4,
+  },
+  picker: {
+    color:'#ffffff',
+    height: 56,
+    marginVertical: -8,
   },
   errorContainer: {
     backgroundColor: '#FEE2E2',

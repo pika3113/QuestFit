@@ -1,9 +1,10 @@
-import { StyleSheet, ScrollView, Pressable } from 'react-native';
+import { ScrollView, Pressable } from 'react-native';
 import { Text, View } from '@/components/Themed';
 import { StatsDisplay } from '@/components/game/StatsDisplay';
 import { WorkoutCard } from '@/components/fitness/WorkoutCard';
 import { useGameProfile } from '@/src/hooks/useGameProfile';
 import { useAuth } from '@/src/hooks/useAuth';
+import { indexStyles as styles } from '@/src/styles';
 
 export default function HomeScreen() {
   const { user, signOut } = useAuth();
@@ -28,8 +29,8 @@ export default function HomeScreen() {
     startTime: new Date(Date.now() - 2 * 60 * 60 * 1000), // 2 hours ago
     endTime: new Date(Date.now() - 1 * 60 * 60 * 1000), // 1 hour ago
     calories: 420,
-    distance: 5200, // 5.2km in meters
-    duration: 45, // 45 minutes
+    distance: 5200,
+    duration: 45, 
     avgHeartRate: 152,
     maxHeartRate: 178,
     sport: 'RUNNING',
@@ -61,7 +62,7 @@ export default function HomeScreen() {
     <ScrollView style={styles.scrollView} contentContainerStyle={styles.container}>
       <View style={styles.headerContainer}>
         <View style={styles.headerContent}>
-          <Text style={styles.title}>Welcome to QuestFit!</Text>
+          <Text style={styles.title}>Welcome to QuestFit, {user?.displayName || 'User'}!</Text>
           <Text style={styles.subtitle}>Transform your workouts into epic adventures</Text>
         </View>
         <Pressable style={styles.signOutButton} onPress={handleSignOut}>
@@ -78,57 +79,3 @@ export default function HomeScreen() {
     </ScrollView>
   );
 }
-
-const styles = StyleSheet.create({
-  scrollView: {
-    flex: 1,
-    backgroundColor: '#F9FAFB',
-  },
-  container: {
-    flexGrow: 1,
-    padding: 16,
-  },
-  headerContainer: {
-    marginBottom: 24,
-    backgroundColor: '#ffffff',
-  },
-  headerContent: {
-    marginBottom: 16,
-    backgroundColor: '#ffffff',
-  },
-  title: {
-    fontSize: 28,
-    fontWeight: 'bold',
-    textAlign: 'left',
-    marginBottom: 8,
-    color: '#1F2937',
-  },
-  subtitle: {
-    fontSize: 16,
-    textAlign: 'left',
-    color: '#6B7280',
-  },
-  signOutButton: {
-    alignSelf: 'flex-start',
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    backgroundColor: '#EF4444',
-    borderRadius: 6,
-    marginTop: 12,
-  },
-  signOutText: {
-    color: '#FFFFFF',
-    fontSize: 12,
-    fontWeight: '600',
-  },
-  recentSection: {
-    marginTop: 24,
-  },
-  sectionTitle: {
-    fontSize: 20,
-    fontWeight: '600',
-    marginBottom: 16,
-    marginLeft: 16,
-    color: '#1F2937',
-  },
-});

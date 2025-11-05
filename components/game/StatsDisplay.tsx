@@ -10,6 +10,13 @@ export const StatsDisplay: React.FC<StatsDisplayProps> = ({ profile }) => {
   const experienceToNextLevel = (profile.level * 100) - profile.experience;
   const levelProgress = (profile.experience % 100) / 100;
 
+  // Safe defaults for potentially undefined fields
+  const totalWorkouts = profile.totalWorkouts ?? 0;
+  const totalCalories = profile.totalCalories ?? 0;
+  const totalDistance = profile.totalDistance ?? 0;
+  const capturedCreatures = profile.capturedCreatures ?? [];
+  const achievements = profile.achievements ?? [];
+
   return (
     <View style={styles.container}>
       <View style={styles.header}>
@@ -31,30 +38,30 @@ export const StatsDisplay: React.FC<StatsDisplayProps> = ({ profile }) => {
 
       <View style={styles.statsGrid}>
         <View style={styles.statItem}>
-          <Text style={styles.statValue}>{profile.totalWorkouts}</Text>
+          <Text style={styles.statValue}>{totalWorkouts}</Text>
           <Text style={styles.statLabel}>Workouts</Text>
         </View>
         
         <View style={styles.statItem}>
-          <Text style={styles.statValue}>{profile.totalCalories.toLocaleString()}</Text>
+          <Text style={styles.statValue}>{totalCalories.toLocaleString()}</Text>
           <Text style={styles.statLabel}>Calories</Text>
         </View>
         
         <View style={styles.statItem}>
-          <Text style={styles.statValue}>{(profile.totalDistance / 1000).toFixed(1)}km</Text>
+          <Text style={styles.statValue}>{(totalDistance / 1000).toFixed(1)}km</Text>
           <Text style={styles.statLabel}>Distance</Text>
         </View>
         
         <View style={styles.statItem}>
-          <Text style={styles.statValue}>{profile.capturedCreatures.length}</Text>
+          <Text style={styles.statValue}>{capturedCreatures.length}</Text>
           <Text style={styles.statLabel}>Creatures</Text>
         </View>
       </View>
 
       <View style={styles.achievementsSection}>
         <Text style={styles.sectionTitle}>Recent Achievements</Text>
-        {profile.achievements.length > 0 ? (
-          profile.achievements.slice(-3).map((achievement, index) => (
+        {achievements.length > 0 ? (
+          achievements.slice(-3).map((achievement, index) => (
             <View key={achievement.id} style={styles.achievementItem}>
               <Text style={styles.achievementName}>{achievement.name}</Text>
               <Text style={styles.achievementDescription}>{achievement.description}</Text>

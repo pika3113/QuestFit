@@ -1,10 +1,11 @@
 import React, { useEffect } from 'react';
-import { StyleSheet, ScrollView, Pressable, ActivityIndicator, Alert, FlatList } from 'react-native';
+import { ScrollView, Pressable, ActivityIndicator, Alert, FlatList } from 'react-native';
 import { Text, View } from '@/components/Themed';
 import { useLiveWorkout } from '@/src/hooks/useLiveWorkout';
 import Colors from '@/constants/Colors';
 import { useColorScheme } from '@/components/useColorScheme';
 import { Device } from 'react-native-ble-plx';
+import { liveStyles as styles } from '@/src/styles';
 
 export default function LiveWorkoutScreen() {
   const colorScheme = useColorScheme();
@@ -14,6 +15,9 @@ export default function LiveWorkoutScreen() {
     connectedDevice,
     currentHeartRate,
     workoutActive,
+    workoutPaused,
+    pauseReason,
+    countdown,
     workoutMetrics,
     error,
     bluetoothEnabled,
@@ -21,6 +25,8 @@ export default function LiveWorkoutScreen() {
     connectToDevice,
     disconnect,
     startWorkout,
+    pauseWorkout,
+    resumeWorkout,
     endWorkout,
     checkBluetoothStatus,
   } = useLiveWorkout();
@@ -155,7 +161,7 @@ export default function LiveWorkoutScreen() {
             disabled={isScanning || !bluetoothEnabled}
           >
             {isScanning ? (
-              <ActivityIndicator color="#fff" />
+              <ActivityIndicator color="#000000ff" />
             ) : (
               <Text style={styles.scanButtonText}>
                 {availableDevices.length > 0 ? 'Scan Again' : 'Scan for Polar Devices'}
@@ -212,19 +218,46 @@ export default function LiveWorkoutScreen() {
           {/* Workout Controls */}
           <View style={styles.section}>
             {!workoutActive ? (
-              <Pressable
-                style={[styles.workoutButton, styles.startButton]}
-                onPress={handleStartWorkout}
-              >
-                <Text style={styles.workoutButtonText}>▶️ Start Workout</Text>
-              </Pressable>
+              <>
+                <Pressable
+                  style={[styles.workoutButton, styles.startButton]}
+                  onPress={handleStartWorkout}
+                >
+                  <Text style={styles.workoutButtonText}>▶️ Start Workout</Text>
+                </Pressable>
+                <Text style={styles.autoStartHint}>
+                  💡 Tip: Workout will auto-start when you enable "HR sensor mode" on your watch
+                </Text>
+              </>
             ) : (
-              <Pressable
-                style={[styles.workoutButton, styles.endButton]}
-                onPress={handleEndWorkout}
-              >
-                <Text style={styles.workoutButtonText}>⏹️ End Workout</Text>
-              </Pressable>
+              <>
+                <View style={styles.buttonRow}>
+                  {workoutPaused ? (
+                    <Pressable
+                      style={[styles.workoutButton, styles.resumeButton]}
+                      onPress={resumeWorkout}
+                    >
+                      <Text style={styles.workoutButtonText}>▶️ Resume</Text>
+                    </Pressable>
+                  ) : (
+                    <Pressable
+                      style={[styles.workoutButton, styles.pauseButton]}
+                      onPress={pauseWorkout}
+                    >
+                      <Text style={styles.workoutButtonText}>⏸️ Pause</Text>
+                    </Pressable>
+                  )}
+                  <Pressable
+                    style={[styles.workoutButton, styles.endButton]}
+                    onPress={handleEndWorkout}
+                  >
+                    <Text style={styles.workoutButtonText}>⏹️ End</Text>
+                  </Pressable>
+                </View>
+                {pauseReason && (
+                  <Text style={styles.pauseReasonText}>{pauseReason}</Text>
+                )}
+              </>
             )}
           </View>
 
@@ -293,260 +326,16 @@ export default function LiveWorkoutScreen() {
         <Text style={styles.instructionText}>4. Once connected, start your workout</Text>
         <Text style={styles.instructionText}>5. Your heart rate will update in real-time</Text>
       </View>
+
+      {/* Countdown Overlay */}
+      {countdown !== null && (
+        <View style={styles.countdownOverlay}>
+          <View style={styles.countdownBox}>
+            <Text style={styles.countdownText}>{countdown}</Text>
+            <Text style={styles.countdownLabel}>Starting workout...</Text>
+          </View>
+        </View>
+      )}
     </ScrollView>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#F9FAFB',
-  },
-  contentContainer: {
-    padding: 16,
-    paddingBottom: 40,
-  },
-  header: {
-    marginBottom: 24,
-    backgroundColor: 'transparent',
-  },
-  title: {
-    fontSize: 28,
-    fontWeight: 'bold',
-    marginBottom: 8,
-    color: '#1F2937',
-  },
-  subtitle: {
-    fontSize: 16,
-    color: '#6B7280',
-  },
-  section: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 16,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
-  },
-  sectionTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    marginBottom: 12,
-    color: '#1F2937',
-  },
-  errorBox: {
-    backgroundColor: '#FEE2E2',
-    borderRadius: 8,
-    padding: 12,
-    marginBottom: 16,
-    borderLeftWidth: 4,
-    borderLeftColor: '#EF4444',
-  },
-  errorText: {
-    color: '#DC2626',
-    fontSize: 14,
-  },
-  warningBox: {
-    backgroundColor: '#FEF3C7',
-    borderRadius: 8,
-    padding: 12,
-    marginBottom: 12,
-    borderLeftWidth: 4,
-    borderLeftColor: '#F59E0B',
-  },
-  warningText: {
-    color: '#92400E',
-    fontSize: 14,
-  },
-  scanButton: {
-    padding: 16,
-    borderRadius: 8,
-    alignItems: 'center',
-    marginBottom: 12,
-  },
-  scanButtonDisabled: {
-    opacity: 0.6,
-  },
-  scanButtonText: {
-    color: '#FFFFFF',
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  devicesFoundText: {
-    fontSize: 14,
-    color: '#6B7280',
-    marginBottom: 8,
-  },
-  deviceItem: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    padding: 12,
-    backgroundColor: '#F9FAFB',
-    borderRadius: 8,
-    marginBottom: 8,
-    borderWidth: 1,
-    borderColor: '#E5E7EB',
-  },
-  deviceInfo: {
-    flex: 1,
-    backgroundColor: 'transparent',
-  },
-  deviceName: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#1F2937',
-    marginBottom: 4,
-  },
-  deviceId: {
-    fontSize: 12,
-    color: '#9CA3AF',
-    fontFamily: 'monospace',
-  },
-  connectText: {
-    fontSize: 14,
-    color: '#3B82F6',
-    fontWeight: '600',
-  },
-  connectedBox: {
-    backgroundColor: '#ECFDF5',
-    borderRadius: 8,
-    padding: 12,
-    borderLeftWidth: 4,
-    borderLeftColor: '#10B981',
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  connectedDeviceName: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#059669',
-    flex: 1,
-  },
-  disconnectButton: {
-    backgroundColor: '#EF4444',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 6,
-  },
-  disconnectButtonText: {
-    color: '#FFFFFF',
-    fontSize: 12,
-    fontWeight: '600',
-  },
-  heartRateSection: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 16,
-    padding: 24,
-    marginBottom: 16,
-    alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.15,
-    shadowRadius: 8,
-    elevation: 5,
-  },
-  heartRateLabel: {
-    fontSize: 16,
-    color: '#6B7280',
-    marginBottom: 12,
-  },
-  heartRateDisplay: {
-    flexDirection: 'row',
-    alignItems: 'baseline',
-    backgroundColor: 'transparent',
-  },
-  heartRateValue: {
-    fontSize: 72,
-    fontWeight: 'bold',
-    color: '#EF4444',
-  },
-  heartRateUnit: {
-    fontSize: 24,
-    color: '#6B7280',
-    marginLeft: 8,
-  },
-  heartIcon: {
-    fontSize: 32,
-    marginLeft: 12,
-  },
-  zoneIndicator: {
-    marginTop: 16,
-    paddingHorizontal: 20,
-    paddingVertical: 8,
-    borderRadius: 20,
-  },
-  zoneText: {
-    color: '#FFFFFF',
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  workoutButton: {
-    padding: 16,
-    borderRadius: 8,
-    alignItems: 'center',
-  },
-  startButton: {
-    backgroundColor: '#10B981',
-  },
-  endButton: {
-    backgroundColor: '#EF4444',
-  },
-  workoutButtonText: {
-    color: '#FFFFFF',
-    fontSize: 18,
-    fontWeight: '600',
-  },
-  metricsGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    justifyContent: 'space-between',
-    backgroundColor: 'transparent',
-  },
-  metricItem: {
-    width: '48%',
-    backgroundColor: '#F9FAFB',
-    borderRadius: 8,
-    padding: 16,
-    marginBottom: 12,
-    alignItems: 'center',
-  },
-  metricValue: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: '#1F2937',
-    marginBottom: 4,
-  },
-  metricLabel: {
-    fontSize: 12,
-    color: '#6B7280',
-  },
-  summaryBox: {
-    backgroundColor: '#F0F9FF',
-    borderRadius: 8,
-    padding: 16,
-    borderLeftWidth: 4,
-    borderLeftColor: '#3B82F6',
-  },
-  summaryText: {
-    fontSize: 14,
-    color: '#1F2937',
-    marginBottom: 8,
-  },
-  instructionsTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#1F2937',
-    marginBottom: 12,
-  },
-  instructionText: {
-    fontSize: 14,
-    color: '#6B7280',
-    marginBottom: 8,
-    paddingLeft: 8,
-  },
-});

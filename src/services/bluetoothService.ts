@@ -31,6 +31,9 @@ class BluetoothService {
   private heartRateReadings: HeartRateReading[] = [];
   private listeners: Map<string, (data: HeartRateReading) => void> = new Map();
   private workoutStartTime: Date | null = null;
+  private pausedTime: number = 0; // Total time spent paused in milliseconds
+  private pauseStartTime: Date | null = null;
+  private lastHeartRateTime: Date | null = null;
 
   constructor() {
     // Manager will be initialized when needed (requires development build)
@@ -193,24 +196,40 @@ class BluetoothService {
       throw new Error('No device connected');
     }
 
+    console.log('🫀 Starting heart rate monitoring...');
+    console.log('Service UUID:', HEART_RATE_SERVICE_UUID);
+    console.log('Characteristic UUID:', HEART_RATE_CHARACTERISTIC_UUID);
+
     this.connectedDevice.monitorCharacteristicForService(
       HEART_RATE_SERVICE_UUID,
       HEART_RATE_CHARACTERISTIC_UUID,
       (error, characteristic) => {
         if (error) {
-          console.error('Heart rate monitoring error:', error);
+          console.error('❌ Heart rate monitoring error:', error);
+          console.error('Error details:', JSON.stringify(error, null, 2));
           return;
         }
 
         if (characteristic?.value) {
-          const heartRateData = this.parseHeartRateData(characteristic.value);
-          this.heartRateReadings.push(heartRateData);
+          console.log('✅ Heart rate data received!');
+          try {
+            const heartRateData = this.parseHeartRateData(characteristic.value);
+            console.log('📊 Parsed HR:', heartRateData.heartRate, 'bpm');
+            this.heartRateReadings.push(heartRateData);
+            this.lastHeartRateTime = new Date();
 
-          // Notify all listeners
-          this.listeners.forEach(callback => callback(heartRateData));
+            // Notify all listeners
+            this.listeners.forEach(callback => callback(heartRateData));
+          } catch (parseError) {
+            console.error('❌ Failed to parse heart rate data:', parseError);
+          }
+        } else {
+          console.warn('⚠️ Received characteristic but no value');
         }
       }
     );
+    
+    console.log('✅ Heart rate monitoring started successfully');
   }
 
   /**
@@ -285,6 +304,35 @@ class BluetoothService {
   startWorkout(): void {
     this.workoutStartTime = new Date();
     this.heartRateReadings = [];
+    this.pausedTime = 0;
+    this.pauseStartTime = null;
+  }
+
+  /**
+   * Pause workout
+   * @param backdateToTime - Optional timestamp (in ms) to backdate the pause to
+   */
+  pauseWorkout(backdateToTime?: number): void {
+    if (!this.pauseStartTime) {
+      this.pauseStartTime = backdateToTime ? new Date(backdateToTime) : new Date();
+    }
+  }
+
+  /**
+   * Resume workout
+   */
+  resumeWorkout(): void {
+    if (this.pauseStartTime) {
+      this.pausedTime += Date.now() - this.pauseStartTime.getTime();
+      this.pauseStartTime = null;
+    }
+  }
+
+  /**
+   * Get the timestamp of the last heart rate reading
+   */
+  getLastHeartRateTime(): Date | null {
+    return this.lastHeartRateTime;
   }
 
   /**
@@ -295,14 +343,31 @@ class BluetoothService {
       return null;
     }
 
-    const duration = Math.floor((Date.now() - this.workoutStartTime.getTime()) / 1000);
-    const heartRates = this.heartRateReadings.map(r => r.heartRate);
+    // Calculate duration excluding paused time
+    let totalElapsed = Date.now() - this.workoutStartTime.getTime();
+    let currentPausedTime = this.pausedTime;
+    
+    // If currently paused, add current pause duration
+    if (this.pauseStartTime) {
+      currentPausedTime += Date.now() - this.pauseStartTime.getTime();
+    }
+    
+    const duration = Math.floor((totalElapsed - currentPausedTime) / 1000);
+    
+    // Filter out invalid heart rates (0 or too low)
+    const validHeartRates = this.heartRateReadings
+      .map(r => r.heartRate)
+      .filter(hr => hr > 0 && hr >= 30); // Ignore 0 and unrealistically low values
+    
+    if (validHeartRates.length === 0) {
+      return null;
+    }
     
     const averageHeartRate = Math.round(
-      heartRates.reduce((sum, hr) => sum + hr, 0) / heartRates.length
+      validHeartRates.reduce((sum, hr) => sum + hr, 0) / validHeartRates.length
     );
-    const maxHeartRate = Math.max(...heartRates);
-    const minHeartRate = Math.min(...heartRates);
+    const maxHeartRate = Math.max(...validHeartRates);
+    const minHeartRate = Math.min(...validHeartRates);
 
     // Simple calorie calculation (very rough estimate)
     // Formula: ((Age - Gender Factor) * 0.074) - 20.4 * Weight + 4.93 * HR) * Duration / 4.184
@@ -334,9 +399,17 @@ class BluetoothService {
    * End workout session and return final metrics
    */
   endWorkout(): WorkoutMetrics | null {
+    // If still paused when ending, finalize the pause
+    if (this.pauseStartTime) {
+      this.pausedTime += Date.now() - this.pauseStartTime.getTime();
+      this.pauseStartTime = null;
+    }
+    
     const metrics = this.getWorkoutMetrics();
     this.workoutStartTime = null;
     this.heartRateReadings = [];
+    this.pausedTime = 0;
+    this.pauseStartTime = null;
     return metrics;
   }
 

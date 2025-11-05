@@ -17,7 +17,10 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.pika3113.questfit",
-      "googleServicesFile": "./GoogleService-Info.plist"
+      "googleServicesFile": "./GoogleService-Info.plist",
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      }
     },
     "android": {
       "adaptiveIcon": {
@@ -52,7 +55,8 @@
           "bluetoothAlwaysUsageDescription": "QuestFit needs access to Bluetooth to connect to your Polar watch for real-time heart rate monitoring during workouts.",
           "peripheralUsageDescription": "QuestFit needs access to Bluetooth to connect to your Polar watch for real-time heart rate monitoring during workouts."
         }
-      ]
+      ],
+      "expo-web-browser"
     ],
     "experiments": {
       "typedRoutes": true

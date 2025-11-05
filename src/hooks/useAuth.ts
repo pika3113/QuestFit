@@ -1,33 +1,66 @@
-import { useState, useEffect } from 'react';
-import { User, signOut } from 'firebase/auth';
-import { GoogleSignin } from '@react-native-google-signin/google-signin';
-import { auth } from '../services/firebase';
+import { useState, useEffect, useCallback } from 'react';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+
+// Simple user object for local auth
+interface LocalUser {
+  uid: string;
+  displayName: string;
+}
+
+// Global state change notifier
+let authChangeListeners: (() => void)[] = [];
+
+export const notifyAuthChange = () => {
+  authChangeListeners.forEach(listener => listener());
+};
 
 export const useAuth = () => {
-  const [user, setUser] = useState<User | null>(null);
+  const [user, setUser] = useState<LocalUser | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    // Listen to auth state changes
-    const unsubscribe = auth.onAuthStateChanged(
-      (currentUser) => {
-        setUser(currentUser);
-        setLoading(false);
-      },
-      (err) => {
-        setError(err.message);
-        setLoading(false);
+  const checkStoredUser = useCallback(async () => {
+    try {
+      const storedUID = await AsyncStorage.getItem('CURRENT_TEST_USER_UID');
+      const storedUsername = await AsyncStorage.getItem('CURRENT_TEST_USER');
+      
+      if (storedUID && storedUsername) {
+        setUser({
+          uid: storedUID,
+          displayName: storedUsername,
+        });
+      } else {
+        setUser(null);
       }
-    );
-
-    return unsubscribe;
+    } catch (err) {
+      console.error('Error loading stored user:', err);
+    } finally {
+      setLoading(false);
+    }
   }, []);
+
+  useEffect(() => {
+    // Check for stored user on mount
+    checkStoredUser();
+
+    // Listen for auth changes
+    const listener = () => {
+      checkStoredUser();
+    };
+    
+    authChangeListeners.push(listener);
+
+    return () => {
+      authChangeListeners = authChangeListeners.filter(l => l !== listener);
+    };
+  }, [checkStoredUser]);
 
   const signOutUser = async () => {
     try {
-      await signOut(auth);
+      await AsyncStorage.removeItem('CURRENT_TEST_USER');
+      await AsyncStorage.removeItem('CURRENT_TEST_USER_UID');
       setUser(null);
+      notifyAuthChange();
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Failed to sign out';
       setError(errorMessage);

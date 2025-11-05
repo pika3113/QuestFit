@@ -1,7 +1,8 @@
-import { StyleSheet, ScrollView, FlatList } from 'react-native';
+import { ScrollView, FlatList } from 'react-native';
 import { Text, View } from '@/components/Themed';
 import { CreatureCard } from '@/components/game/CreatureCard';
 import { mockCreatures } from '@/src/utils/mockData';
+import { twoStyles as styles } from '@/src/styles';
 
 export default function CreaturesScreen() {
   const capturedCreatureIds = ['1', '3']; // Mock captured creatures
@@ -40,38 +41,3 @@ export default function CreaturesScreen() {
     </View>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#F9FAFB',
-  },
-  header: {
-    padding: 20,
-    backgroundColor: '#FFFFFF',
-    borderBottomWidth: 1,
-    borderBottomColor: '#E5E7EB',
-  },
-  title: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    textAlign: 'center',
-    color: '#1F2937',
-    marginBottom: 8,
-  },
-  subtitle: {
-    fontSize: 16,
-    textAlign: 'center',
-    color: '#6B7280',
-    marginBottom: 8,
-  },
-  stats: {
-    fontSize: 14,
-    textAlign: 'center',
-    color: '#3B82F6',
-    fontWeight: '600',
-  },
-  listContainer: {
-    padding: 8,
-  },
-});
