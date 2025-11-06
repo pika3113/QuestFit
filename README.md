@@ -1,6 +1,16 @@
 # QuestFit
 
-A gamified fitness application that combines real-time workout tracking with RPG-style progression mechanics.
+A gamified fitness application that combines real-time workout tracking with RPG-style progression mechanics. **Now supports connecting to multiple Polar watches simultaneously!**
+
+## 🆕 New Feature: Multi-Device Support
+
+Connect multiple Polar watches via Bluetooth and track heart rates from multiple people at once! Perfect for:
+- Team workouts
+- Coaching sessions  
+- Training with friends
+- Family fitness
+
+See [MULTI_DEVICE_GUIDE.md](MULTI_DEVICE_GUIDE.md) for detailed instructions.
 
 ## Project Structure
 

@@ -14,6 +14,8 @@ export interface HeartRateReading {
   timestamp: Date;
   energyExpended?: number;
   rrIntervals?: number[];
+  deviceId: string;
+  deviceName?: string;
 }
 
 export interface WorkoutMetrics {
@@ -25,15 +27,20 @@ export interface WorkoutMetrics {
   currentZone: 1 | 2 | 3 | 4 | 5;
 }
 
+export interface ConnectedDeviceInfo {
+  device: Device;
+  currentHeartRate: number | null;
+  lastHeartRateTime: Date | null;
+  heartRateReadings: HeartRateReading[];
+}
+
 class BluetoothService {
   private manager: BleManager | null = null;
-  private connectedDevice: Device | null = null;
-  private heartRateReadings: HeartRateReading[] = [];
+  private connectedDevices: Map<string, ConnectedDeviceInfo> = new Map();
   private listeners: Map<string, (data: HeartRateReading) => void> = new Map();
   private workoutStartTime: Date | null = null;
   private pausedTime: number = 0; // Total time spent paused in milliseconds
   private pauseStartTime: Date | null = null;
-  private lastHeartRateTime: Date | null = null;
 
   constructor() {
     // Manager will be initialized when needed (requires development build)
@@ -161,13 +168,14 @@ class BluetoothService {
   }
 
   /**
-   * Connect to a Polar device
+   * Connect to a Polar device (supports multiple devices)
    */
   async connectToDevice(device: Device): Promise<void> {
     try {
-      // Disconnect any existing device
-      if (this.connectedDevice) {
-        await this.disconnect();
+      // Check if already connected
+      if (this.connectedDevices.has(device.id)) {
+        console.log('Device already connected:', device.name);
+        return;
       }
 
       console.log('Connecting to device:', device.name);
@@ -178,10 +186,16 @@ class BluetoothService {
       await connected.discoverAllServicesAndCharacteristics();
       console.log('Services discovered!');
       
-      this.connectedDevice = connected;
+      // Add to connected devices map
+      this.connectedDevices.set(device.id, {
+        device: connected,
+        currentHeartRate: null,
+        lastHeartRateTime: null,
+        heartRateReadings: [],
+      });
 
-      // Start monitoring heart rate
-      await this.startHeartRateMonitoring();
+      // Start monitoring heart rate for this device
+      await this.startHeartRateMonitoring(device.id);
     } catch (error) {
       console.error('Connection error:', error);
       throw new Error(`Failed to connect to device: ${error}`);
@@ -189,21 +203,22 @@ class BluetoothService {
   }
 
   /**
-   * Start monitoring heart rate data
+   * Start monitoring heart rate data for a specific device
    */
-  private async startHeartRateMonitoring(): Promise<void> {
-    if (!this.connectedDevice) {
-      throw new Error('No device connected');
+  private async startHeartRateMonitoring(deviceId: string): Promise<void> {
+    const deviceInfo = this.connectedDevices.get(deviceId);
+    if (!deviceInfo) {
+      throw new Error('Device not found in connected devices');
     }
 
-    console.log('🫀 Starting heart rate monitoring...');
+    console.log('🫀 Starting heart rate monitoring for:', deviceInfo.device.name);
     console.log('Service UUID:', HEART_RATE_SERVICE_UUID);
     console.log('Characteristic UUID:', HEART_RATE_CHARACTERISTIC_UUID);
 
-    this.connectedDevice.monitorCharacteristicForService(
+    deviceInfo.device.monitorCharacteristicForService(
       HEART_RATE_SERVICE_UUID,
       HEART_RATE_CHARACTERISTIC_UUID,
-      (error, characteristic) => {
+      (error: any, characteristic: any) => {
         if (error) {
           console.error('❌ Heart rate monitoring error:', error);
           console.error('Error details:', JSON.stringify(error, null, 2));
@@ -211,12 +226,22 @@ class BluetoothService {
         }
 
         if (characteristic?.value) {
-          console.log('✅ Heart rate data received!');
+          console.log('✅ Heart rate data received from:', deviceInfo.device.name);
           try {
-            const heartRateData = this.parseHeartRateData(characteristic.value);
-            console.log('📊 Parsed HR:', heartRateData.heartRate, 'bpm');
-            this.heartRateReadings.push(heartRateData);
-            this.lastHeartRateTime = new Date();
+            const heartRateData = this.parseHeartRateData(
+              characteristic.value,
+              deviceId,
+              deviceInfo.device.name || undefined
+            );
+            console.log('📊 Parsed HR:', heartRateData.heartRate, 'bpm from', deviceInfo.device.name);
+            
+            // Update device info
+            const currentDeviceInfo = this.connectedDevices.get(deviceId);
+            if (currentDeviceInfo) {
+              currentDeviceInfo.currentHeartRate = heartRateData.heartRate;
+              currentDeviceInfo.lastHeartRateTime = new Date();
+              currentDeviceInfo.heartRateReadings.push(heartRateData);
+            }
 
             // Notify all listeners
             this.listeners.forEach(callback => callback(heartRateData));
@@ -229,13 +254,13 @@ class BluetoothService {
       }
     );
     
-    console.log('✅ Heart rate monitoring started successfully');
+    console.log('✅ Heart rate monitoring started successfully for:', deviceInfo.device.name);
   }
 
   /**
    * Parse heart rate data from BLE characteristic
    */
-  private parseHeartRateData(value: string): HeartRateReading {
+  private parseHeartRateData(value: string, deviceId: string, deviceName?: string): HeartRateReading {
     if (!value) {
       throw new Error('No value in characteristic');
     }
@@ -280,6 +305,8 @@ class BluetoothService {
       timestamp: new Date(),
       energyExpended,
       rrIntervals: rrIntervals.length > 0 ? rrIntervals : undefined,
+      deviceId,
+      deviceName,
     };
   }
 
@@ -303,7 +330,10 @@ class BluetoothService {
    */
   startWorkout(): void {
     this.workoutStartTime = new Date();
-    this.heartRateReadings = [];
+    // Clear readings from all devices
+    this.connectedDevices.forEach(deviceInfo => {
+      deviceInfo.heartRateReadings = [];
+    });
     this.pausedTime = 0;
     this.pauseStartTime = null;
   }
@@ -329,17 +359,37 @@ class BluetoothService {
   }
 
   /**
-   * Get the timestamp of the last heart rate reading
+   * Get the timestamp of the last heart rate reading from any device
    */
   getLastHeartRateTime(): Date | null {
-    return this.lastHeartRateTime;
+    let latestTime: Date | null = null;
+    
+    this.connectedDevices.forEach(deviceInfo => {
+      if (deviceInfo.lastHeartRateTime) {
+        if (!latestTime || deviceInfo.lastHeartRateTime > latestTime) {
+          latestTime = deviceInfo.lastHeartRateTime;
+        }
+      }
+    });
+    
+    return latestTime;
   }
 
   /**
-   * Get current workout metrics
+   * Get current workout metrics (aggregated from all devices)
    */
   getWorkoutMetrics(): WorkoutMetrics | null {
-    if (!this.workoutStartTime || this.heartRateReadings.length === 0) {
+    if (!this.workoutStartTime) {
+      return null;
+    }
+
+    // Aggregate all heart rate readings from all devices
+    const allReadings: HeartRateReading[] = [];
+    this.connectedDevices.forEach(deviceInfo => {
+      allReadings.push(...deviceInfo.heartRateReadings);
+    });
+
+    if (allReadings.length === 0) {
       return null;
     }
 
@@ -355,16 +405,16 @@ class BluetoothService {
     const duration = Math.floor((totalElapsed - currentPausedTime) / 1000);
     
     // Filter out invalid heart rates (0 or too low)
-    const validHeartRates = this.heartRateReadings
-      .map(r => r.heartRate)
-      .filter(hr => hr > 0 && hr >= 30); // Ignore 0 and unrealistically low values
+    const validHeartRates = allReadings
+      .map((r: HeartRateReading) => r.heartRate)
+      .filter((hr: number) => hr > 0 && hr >= 30); // Ignore 0 and unrealistically low values
     
     if (validHeartRates.length === 0) {
       return null;
     }
     
     const averageHeartRate = Math.round(
-      validHeartRates.reduce((sum, hr) => sum + hr, 0) / validHeartRates.length
+      validHeartRates.reduce((sum: number, hr: number) => sum + hr, 0) / validHeartRates.length
     );
     const maxHeartRate = Math.max(...validHeartRates);
     const minHeartRate = Math.min(...validHeartRates);
@@ -407,41 +457,63 @@ class BluetoothService {
     
     const metrics = this.getWorkoutMetrics();
     this.workoutStartTime = null;
-    this.heartRateReadings = [];
+    // Clear readings from all devices
+    this.connectedDevices.forEach(deviceInfo => {
+      deviceInfo.heartRateReadings = [];
+    });
     this.pausedTime = 0;
     this.pauseStartTime = null;
     return metrics;
   }
 
   /**
-   * Get the currently connected device
+   * Get all connected devices
    */
-  getConnectedDevice(): Device | null {
-    return this.connectedDevice;
+  getConnectedDevices(): ConnectedDeviceInfo[] {
+    return Array.from(this.connectedDevices.values());
   }
 
   /**
-   * Check if a device is connected
+   * Get a specific connected device by ID
+   */
+  getConnectedDevice(deviceId: string): ConnectedDeviceInfo | undefined {
+    return this.connectedDevices.get(deviceId);
+  }
+
+  /**
+   * Check if any device is connected
    */
   isConnected(): boolean {
-    return this.connectedDevice !== null;
+    return this.connectedDevices.size > 0;
   }
 
   /**
-   * Disconnect from the current device
+   * Disconnect from a specific device
    */
-  async disconnect(): Promise<void> {
-    if (this.connectedDevice) {
+  async disconnectDevice(deviceId: string): Promise<void> {
+    const deviceInfo = this.connectedDevices.get(deviceId);
+    if (deviceInfo) {
       try {
         const manager = this.getManager();
-        await manager.cancelDeviceConnection(this.connectedDevice.id);
-        this.connectedDevice = null;
-        this.listeners.clear();
-        console.log('Disconnected from device');
+        await manager.cancelDeviceConnection(deviceInfo.device.id);
+        this.connectedDevices.delete(deviceId);
+        console.log('Disconnected from device:', deviceInfo.device.name);
       } catch (error) {
         console.error('Disconnect error:', error);
       }
     }
+  }
+
+  /**
+   * Disconnect from all devices
+   */
+  async disconnect(): Promise<void> {
+    const deviceIds = Array.from(this.connectedDevices.keys());
+    for (const deviceId of deviceIds) {
+      await this.disconnectDevice(deviceId);
+    }
+    this.listeners.clear();
+    console.log('Disconnected from all devices');
   }
 
   /**
