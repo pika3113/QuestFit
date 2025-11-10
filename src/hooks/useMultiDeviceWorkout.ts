@@ -268,7 +268,7 @@ export const useMultiDeviceWorkout = () => {
 
     bluetoothService.startWorkout();
     setWorkoutActive(true);
-    setWorkoutPaused(fa[[lse);
+    setWorkoutPaused(false);
     setPauseReason(null);
     setWorkoutMetrics(null);
     setError(null);

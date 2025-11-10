@@ -1,0 +1,11 @@
+node_modules
+.expo
+.expo-shared
+android
+ios
+*.log
+.DS_Store
+*.keystore
+google-services.json
+GoogleService-Info.plist
+eas.json
