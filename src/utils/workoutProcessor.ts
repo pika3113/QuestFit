@@ -1,14 +1,35 @@
 import { WorkoutData, Creature } from '../types/polar';
+import creatureService from '../services/creatureService';
 
 export class WorkoutProcessor {
   static calculateExperience(workout: WorkoutData): number {
-    // Base experience calculation
-    const caloriePoints = workout.calories * 0.1;
-    const distancePoints = (workout.distance / 1000) * 5; // 5 points per km
+    // base experience calculation
+    const caloriePoints = workout.calories * 0.1; // 0.1 points per calories
     const durationPoints = parseInt(workout.duration.split(':')[1]) * 0.5; // 0.5 points per minute
-    const heartRateBonus = workout['heart-rate'].average > 140 ? 10 : 0;
+    const heartRateBonus = workout['heart-rate'].average > 140 ? 10 : 0; // bonus for high HR
     
-    return Math.floor(caloriePoints + distancePoints + durationPoints + heartRateBonus);
+    return Math.floor(caloriePoints + durationPoints + heartRateBonus);
+  }
+
+  /**
+   * check if workout unlocks any new creatures
+   */
+  static checkForCreatureUnlocks(
+    workout: WorkoutData, 
+    alreadyCapturedIds: string[]
+  ): Creature[] {
+    const durationMinutes = this.parseDuration(workout.duration);
+    
+    return creatureService.checkWorkoutForUnlocks(
+      {
+        calories: workout.calories,
+        duration: durationMinutes,
+        distance: workout.distance,
+        avgHeartRate: workout['heart-rate'].average,
+        sport: workout.sport
+      },
+      alreadyCapturedIds
+    );
   }
 
   static findAvailableCreatures(workout: WorkoutData, allCreatures: Creature[]): Creature[] {
@@ -32,7 +53,7 @@ export class WorkoutProcessor {
   }
 
   static parseDuration(isoDuration: string): number {
-    // Parse ISO 8601 duration format (PT1H30M) to minutes
+    // Parse iso8601 duration format (PT1H30M) to minutes
     const matches = isoDuration.match(/PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?/);
     if (!matches) return 0;
     
@@ -48,7 +69,7 @@ export class WorkoutProcessor {
     const calories = workout.calories;
     const duration = this.parseDuration(workout.duration);
     
-    // Simple categorization based on intensity
+    // simple categorization based on intensity
     if (avgHR > 160 || calories > 500 || duration > 60) {
       return 'intense';
     } else if (avgHR > 120 || calories > 200 || duration > 30) {

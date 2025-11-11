@@ -1,10 +1,11 @@
 import React from 'react';
 import FontAwesome from '@expo/vector-icons/FontAwesome';
+import FontAwesome6 from '@expo/vector-icons/FontAwesome6';
 import { Tabs } from 'expo-router';
-
 import Colors from '@/constants/Colors';
 import { useColorScheme } from '@/components/useColorScheme';
 import { useClientOnlyValue } from '@/components/useClientOnlyValue';
+
 
 // built-in icon families and icons at https://icons.expo.fyi/
 function TabBarIcon(props: {
@@ -26,38 +27,48 @@ export default function TabLayout() {
         headerShown: useClientOnlyValue(false, true),
       }}>
       <Tabs.Screen
-        name="index"
+        name="Home"
         options={{
           title: 'Home',
-          tabBarIcon: ({ color }) => <TabBarIcon name="home" color={color} />,
+          tabBarIcon: ({ color }) => <TabBarIcon name="fire" color={color} />,
         }}
       />
       <Tabs.Screen
-        name="two"
+        name="creature"
         options={{
+          // href: null,
           title: 'Creatures',
-          tabBarIcon: ({ color }) => <TabBarIcon name="trophy" color={color} />,
+          tabBarIcon: ({ color }) => <TabBarIcon name="gitlab" color={color} />,
         }}
       />
       <Tabs.Screen
         name="live"
         options={{
-          title: 'Live Workout',
+          // href: null,
+          title: 'Workout',
           tabBarIcon: ({ color }) => <TabBarIcon name="heartbeat" color={color} />,
         }}
       />
       <Tabs.Screen
-        name="multi-device-live"
+        name="multi-device"
         options={{
-          title: 'Multi-Device',
-          tabBarIcon: ({ color }) => <TabBarIcon name="users" color={color} />,
+          title: 'Instr Dashboard',
+          tabBarIcon: ({ color }) => <FontAwesome6 name="people-robbery" color={color} size={24} />,
         }}
       />
       <Tabs.Screen
         name="xp"
         options={{
-          title: 'XP',
-          tabBarIcon: ({ color }) => <TabBarIcon name="star" color={color} />,
+          // href: null,
+          title: 'Me',
+          tabBarIcon: ({ color }) => <FontAwesome6 name="person" color={color} size={24}/>,
+        }}
+      />
+      <Tabs.Screen
+        name="test"
+        options={{
+          title: 'Test',
+          tabBarIcon: ({ color }) => <TabBarIcon name="flask" color={color} />,
         }}
       />
     </Tabs>

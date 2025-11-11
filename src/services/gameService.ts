@@ -9,7 +9,8 @@ import {
   getDocs,
   addDoc,
   orderBy,
-  limit
+  limit,
+  arrayUnion
 } from 'firebase/firestore';
 import { db } from './firebase';
 import { UserGameProfile, WorkoutSession, Creature, Quest } from '../types/polar';
@@ -30,10 +31,12 @@ class GameService {
     const defaultProfile: UserGameProfile = {
       userId,
       level: 1,
-      experience: 0,
+      xp: 0,
       totalWorkouts: 0,
       totalCalories: 0,
       totalDistance: 0,
+      totalDuration: 0,
+      totalAvgHeartRate: 0,
       capturedCreatures: [],
       achievements: [],
       ...initialData
@@ -49,8 +52,33 @@ class GameService {
 
   // Workout Sessions
   async saveWorkoutSession(session: WorkoutSession): Promise<string> {
-    const docRef = await addDoc(collection(db, 'workoutSessions'), session);
+    // Clean session data to remove undefined values
+    const cleanSession = this.removeUndefinedFields(session);
+    const docRef = await addDoc(collection(db, 'workoutSessions'), cleanSession);
     return docRef.id;
+  }
+
+  // Helper to remove undefined fields (Firebase doesn't accept undefined)
+  private removeUndefinedFields(obj: any): any {
+    if (obj === null || obj === undefined) {
+      return obj;
+    }
+    
+    if (Array.isArray(obj)) {
+      return obj.map(item => this.removeUndefinedFields(item));
+    }
+    
+    if (typeof obj === 'object' && !(obj instanceof Date)) {
+      const cleaned: any = {};
+      for (const key in obj) {
+        if (obj[key] !== undefined) {
+          cleaned[key] = this.removeUndefinedFields(obj[key]);
+        }
+      }
+      return cleaned;
+    }
+    
+    return obj;
   }
 
   async getUserWorkouts(userId: string, limitCount: number = 10): Promise<WorkoutSession[]> {
@@ -72,10 +100,18 @@ class GameService {
   }
 
   async addCapturedCreature(userId: string, creature: Creature): Promise<void> {
-    const userProfile = await this.getUserProfile(userId);
-    if (userProfile) {
-      const updatedCreatures = [...userProfile.capturedCreatures, creature];
-      await this.updateUserProfile(userId, { capturedCreatures: updatedCreatures });
+    const userRef = doc(db, 'users', userId);
+    const userDoc = await getDoc(userRef);
+    
+    if (userDoc.exists()) {
+      // Only save the creature ID, not the full object
+      await updateDoc(userRef, {
+        capturedCreatures: arrayUnion(creature.id)
+      });
+      
+      console.log(`Saved creature ID ${creature.id} (${creature.name}) to Firebase for user ${userId}`);
+    } else {
+      console.error(`❌ User ${userId} does not exist in Firebase`);
     }
   }
 
@@ -93,15 +129,15 @@ class GameService {
     }
   }
 
-  // Experience and Level Management
+  // XP and Level Management
   async addExperience(userId: string, experience: number): Promise<number> {
     const userProfile = await this.getUserProfile(userId);
     if (userProfile) {
-      const newExperience = userProfile.experience + experience;
-      const newLevel = Math.floor(newExperience / 100) + 1; // Simple level calculation
+      const newXP = userProfile.xp + experience;
+      const newLevel = Math.floor(newXP / 100) + 1; // super simple level calculation 
       
       await this.updateUserProfile(userId, { 
-        experience: newExperience, 
+        xp: newXP, 
         level: Math.max(userProfile.level, newLevel) 
       });
       

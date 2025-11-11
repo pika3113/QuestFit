@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { ScrollView, Pressable, ActivityIndicator, Alert, FlatList } from 'react-native';
 import { Text, View } from '@/components/Themed';
 import { useLiveWorkout } from '@/src/hooks/useLiveWorkout';
@@ -6,9 +6,18 @@ import Colors from '@/constants/Colors';
 import { useColorScheme } from '@/components/useColorScheme';
 import { Device } from 'react-native-ble-plx';
 import { liveStyles as styles } from '@/src/styles';
+import { useAuth } from '@/src/hooks/useAuth';
+import workoutCompletionService from '@/src/services/workoutCompletionService';
+import { CreatureUnlockModal } from '@/components/game/CreatureUnlockModal';
+import { Creature } from '@/src/types/polar';
 
 export default function LiveWorkoutScreen() {
   const colorScheme = useColorScheme();
+  const { user } = useAuth();
+  const [showUnlockModal, setShowUnlockModal] = useState(false);
+  const [unlockedCreatures, setUnlockedCreatures] = useState<Creature[]>([]);
+  const [isProcessingWorkout, setIsProcessingWorkout] = useState(false);
+
   const {
     isScanning,
     availableDevices,
@@ -74,7 +83,7 @@ export default function LiveWorkoutScreen() {
     startWorkout();
   };
 
-  const handleEndWorkout = () => {
+  const handleEndWorkout = async () => {
     Alert.alert(
       'End Workout',
       'Are you sure you want to end this workout?',
@@ -83,15 +92,48 @@ export default function LiveWorkoutScreen() {
         {
           text: 'End Workout',
           style: 'destructive',
-          onPress: () => {
+          onPress: async () => {
             const metrics = endWorkout();
-            if (metrics) {
+            if (metrics && user) {
+              setIsProcessingWorkout(true);
+              try {
+                // Process workout and award XP/creatures
+                const result = await workoutCompletionService.completeLiveWorkout(
+                  user.uid,
+                  metrics,
+                  'FITNESS' // You can make this dynamic based on workout type
+                );
+
+                // Show unlock modal if creatures were captured
+                if (result.unlockedCreatures.length > 0) {
+                  setUnlockedCreatures(result.unlockedCreatures);
+                  setShowUnlockModal(true);
+                }
+
+                // Show workout summary
+                const summary = workoutCompletionService.getWorkoutSummary(result);
+                Alert.alert('Workout Complete!', summary);
+              } catch (error) {
+                console.error('Error processing workout:', error);
+                Alert.alert(
+                  'Workout Saved',
+                  `Duration: ${Math.floor(metrics.duration / 60)}m ${metrics.duration % 60}s\n` +
+                  `Avg HR: ${metrics.averageHeartRate} bpm\n` +
+                  `Max HR: ${metrics.maxHeartRate} bpm\n` +
+                  `Calories: ${metrics.caloriesBurned} kcal\n\n` +
+                  `Note: Could not process rewards. Please check your connection.`
+                );
+              } finally {
+                setIsProcessingWorkout(false);
+              }
+            } else if (metrics) {
               Alert.alert(
                 'Workout Complete!',
                 `Duration: ${Math.floor(metrics.duration / 60)}m ${metrics.duration % 60}s\n` +
                 `Avg HR: ${metrics.averageHeartRate} bpm\n` +
                 `Max HR: ${metrics.maxHeartRate} bpm\n` +
-                `Calories: ${metrics.caloriesBurned} kcal`
+                `Calories: ${metrics.caloriesBurned} kcal\n\n` +
+                `Sign in to earn XP and unlock creatures!`
               );
             }
           },
@@ -336,6 +378,26 @@ export default function LiveWorkoutScreen() {
           </View>
         </View>
       )}
+
+      {/* Processing Overlay */}
+      {isProcessingWorkout && (
+        <View style={styles.countdownOverlay}>
+          <View style={styles.countdownBox}>
+            <ActivityIndicator size="large" color={Colors[colorScheme ?? 'light'].tint} />
+            <Text style={styles.countdownLabel}>Processing workout...</Text>
+          </View>
+        </View>
+      )}
+
+      {/* Creature Unlock Modal */}
+      <CreatureUnlockModal
+        visible={showUnlockModal}
+        creatures={unlockedCreatures}
+        onClose={() => {
+          setShowUnlockModal(false);
+          setUnlockedCreatures([]);
+        }}
+      />
     </ScrollView>
   );
 }

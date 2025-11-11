@@ -1,0 +1,224 @@
+{
+  "creatures": [
+    {
+      "id": "001",
+      "name": "Thunder Wolf",
+      "type": "rare",
+      "description": "A swift predator that runs with lightning speed through mountain trails.",
+      "image": "",
+      "animation": "",
+      "stats": {
+        "power": 85,
+        "speed": 92,
+        "endurance": 78
+      },
+      "unlockRequirements": {
+        "minCalories": 400,
+        "minDuration": 30,
+        "sport": "RUNNING",
+        "description": "Complete a 30+ minute run burning 400+ calories"
+      },
+      "xPReward": 150,
+      "lore": "Thunder Wolves are known to inhabit high-altitude regions where storms are frequent."
+    },
+    {
+      "id": "002",
+      "name": "Flame Phoenix",
+      "type": "epic",
+      "description": "A majestic bird of fire that rises from intense training sessions.",
+      "image": "",
+      "animation": "",
+      "stats": {
+        "power": 120,
+        "speed": 88,
+        "endurance": 95
+      },
+      "unlockRequirements": {
+        "minCalories": 600,
+        "minDuration": 60,
+        "description": "Train for 60+ minutes burning 600+ calories"
+      },
+      "xPReward": 250,
+      "lore": "Only the most dedicated athletes can summon this legendary creature."
+    },
+    {
+      "id": "003",
+      "name": "Aqua Serpent",
+      "type": "common",
+      "description": "A graceful water creature that emerges during swimming sessions.",
+      "image": "",
+      "animation": "",
+      "stats": {
+        "power": 45,
+        "speed": 65,
+        "endurance": 70
+      },
+      "unlockRequirements": {
+        "minCalories": 200,
+        "sport": "SWIMMING",
+        "description": "Complete a swimming workout burning 200+ calories"
+      },
+      "xPReward": 75,
+      "lore": "Found in all major bodies of water, this creature loves to accompany swimmers."
+    },
+    {
+      "id": "004",
+      "name": "Golden Dragon",
+      "type": "legendary",
+      "description": "The ultimate prize for elite athletes who push beyond their limits.",
+      "image": "",
+      "animation": "",
+      "stats": {
+        "power": 150,
+        "speed": 100,
+        "endurance": 120
+      },
+      "unlockRequirements": {
+        "minCalories": 1000,
+        "minDuration": 90,
+        "description": "Complete an epic 90+ minute session burning 1000+ calories"
+      },
+      "xPReward": 500,
+      "lore": "Legends speak of this dragon appearing only to those who achieve greatness."
+    },
+    {
+      "id": "005",
+      "name": "Forest Spirit",
+      "type": "common",
+      "description": "A gentle creature that appears during peaceful nature walks.",
+      "image": "",
+      "animation": "",
+      "stats": {
+        "power": 55,
+        "speed": 60,
+        "endurance": 85
+      },
+      "unlockRequirements": {
+        "minCalories": 250,
+        "minDuration": 45,
+        "sport": "HIKING",
+        "description": "Complete a 45+ minute hike burning 250+ calories"
+      },
+      "xPReward": 100,
+      "lore": "These spirits guide hikers through ancient forests and mountain paths."
+    },
+    {
+      "id": "006",
+      "name": "Iron Titan",
+      "type": "rare",
+      "description": "A powerful being forged in the fires of intense strength training.",
+      "image": "",
+      "animation": "",
+      "stats": {
+        "power": 110,
+        "speed": 45,
+        "endurance": 130
+      },
+      "unlockRequirements": {
+        "minCalories": 500,
+        "minDuration": 50,
+        "sport": "FITNESS",
+        "description": "Complete a 50+ minute fitness workout burning 500+ calories"
+      },
+      "xPReward": 180,
+      "lore": "Born from determination and perseverance in the weight room."
+    },
+    {
+      "id": "007",
+      "name": "Wind Falcon",
+      "type": "common",
+      "description": "A swift bird that soars alongside cyclists on their journeys.",
+      "image": "",
+      "animation": "",
+      "stats": {
+        "power": 60,
+        "speed": 95,
+        "endurance": 55
+      },
+      "unlockRequirements": {
+        "minCalories": 300,
+        "minDuration": 25,
+        "sport": "CYCLING",
+        "description": "Complete a 25+ minute cycling ride burning 300+ calories"
+      },
+      "xPReward": 90,
+      "lore": "Known to race with cyclists, testing their speed and endurance."
+    },
+    {
+      "id": "008",
+      "name": "Crystal Guardian",
+      "type": "epic",
+      "description": "A mystical protector that appears after sustained cardiovascular excellence.",
+      "image": "",
+      "animation": "",
+      "stats": {
+        "power": 95,
+        "speed": 70,
+        "endurance": 140
+      },
+      "unlockRequirements": {
+        "minCalories": 800,
+        "minDuration": 75,
+        "description": "Train for 75+ minutes burning 800+ calories"
+      },
+      "xPReward": 300,
+      "lore": "Guards the realm between mortal endurance and superhuman achievement."
+    },
+    {
+      "id": "009",
+      "name": "Shadow Panther",
+      "type": "rare",
+      "description": "A stealthy predator that appears during night runs.",
+      "image": "",
+      "animation": "",
+      "stats": {
+        "power": 90,
+        "speed": 98,
+        "endurance": 75
+      },
+      "unlockRequirements": {
+        "minCalories": 450,
+        "minDuration": 35,
+        "sport": "RUNNING",
+        "description": "Complete a 35+ minute run burning 450+ calories"
+      },
+      "xPReward": 160,
+      "lore": "Moves silently through the darkness, only visible to those who dare run at night."
+    },
+    {
+      "id": "010",
+      "name": "Boulder Bear",
+      "type": "common",
+      "description": "A sturdy companion for those who enjoy mountain hiking.",
+      "image": "",
+      "animation": "",
+      "stats": {
+        "power": 70,
+        "speed": 40,
+        "endurance": 95
+      },
+      "unlockRequirements": {
+        "minCalories": 300,
+        "minDuration": 60,
+        "sport": "HIKING",
+        "description": "Complete a 60+ minute hike burning 300+ calories"
+      },
+      "xPReward": 110,
+      "lore": "These gentle giants roam mountain trails and protect hikers from harm."
+    }
+  ],
+  "rarityWeights": {
+    "common": 0.55,
+    "rare": 0.30,
+    "epic": 0.12,
+    "legendary": 0.03
+  },
+  "sportCategories": {
+    "RUNNING": ["Thunder Wolf", "Shadow Panther"],
+    "SWIMMING": ["Aqua Serpent"],
+    "HIKING": ["Forest Spirit", "Boulder Bear"],
+    "FITNESS": ["Iron Titan"],
+    "CYCLING": ["Wind Falcon"],
+    "ANY": ["Flame Phoenix", "Golden Dragon", "Crystal Guardian"]
+  }
+}

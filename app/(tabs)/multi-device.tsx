@@ -155,7 +155,7 @@ export default function MultiDeviceLiveWorkoutScreen() {
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.contentContainer}>
       <View style={styles.header}>
-        <Text style={styles.title}>Multi-Device Workout</Text>
+        <Text style={styles.title}>Instructor's Dashboard</Text>
         <Text style={styles.subtitle}>Connect multiple Polar watches for team tracking</Text>
       </View>
 

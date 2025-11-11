@@ -33,15 +33,15 @@ export const CreatureCard: React.FC<CreatureCardProps> = ({ creature, onPress, c
       
       <View style={styles.stats}>
         <View style={styles.stat}>
-          <Text style={styles.statLabel}>Power</Text>
+          <Text style={styles.statLabel}>⚔️ Power</Text>
           <Text style={styles.statValue}>{creature.stats.power}</Text>
         </View>
         <View style={styles.stat}>
-          <Text style={styles.statLabel}>Speed</Text>
+          <Text style={styles.statLabel}>⚡ Speed</Text>
           <Text style={styles.statValue}>{creature.stats.speed}</Text>
         </View>
         <View style={styles.stat}>
-          <Text style={styles.statLabel}>Endurance</Text>
+          <Text style={styles.statLabel}>💪 Endurance</Text>
           <Text style={styles.statValue}>{creature.stats.endurance}</Text>
         </View>
       </View>
@@ -64,7 +64,7 @@ export const CreatureCard: React.FC<CreatureCardProps> = ({ creature, onPress, c
           <Text style={styles.requirement}>• {creature.requiredWorkout.minDuration} minutes</Text>
         )}
         {creature.requiredWorkout.sport && (
-          <Text style={styles.requirement}>• {creature.requiredWorkout.sport} workout</Text>
+          <Text style={styles.requirement}>• {creature.requiredWorkout.sport.toLowerCase()} workout</Text>
         )}
       </View>
     </Pressable>

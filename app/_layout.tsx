@@ -4,6 +4,7 @@ import { useFonts } from 'expo-font';
 import { Stack } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { useEffect } from 'react';
+import { Platform } from 'react-native';
 import 'react-native-reanimated';
 
 import { useColorScheme } from '@/components/useColorScheme';
@@ -71,6 +72,15 @@ function RootLayoutNav() {
       <Stack>
         <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
       </Stack>
+      {Platform.OS === 'web' && (
+        <>
+          {/* @ts-ignore - Dynamic import for web only */}
+          {typeof window !== 'undefined' && (() => {
+            const { Analytics } = require('@vercel/analytics/react');
+            return <Analytics />;
+          })()}
+        </>
+      )}
     </ThemeProvider>
   );
 }

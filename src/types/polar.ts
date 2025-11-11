@@ -86,11 +86,13 @@ export interface Creature {
 export interface UserGameProfile {
   userId: string;
   level: number;
-  experience: number;
+  xp: number;
   totalWorkouts: number;
   totalCalories: number;
   totalDistance: number;
-  capturedCreatures: Creature[];
+  totalDuration: number; // in minutes
+  totalAvgHeartRate: number; // average of all workouts
+  capturedCreatures: string[]; // Just store creature IDs
   achievements: Achievement[];
   currentQuest?: Quest;
 }
@@ -113,7 +115,7 @@ export interface Quest {
     value: number;
   };
   reward: {
-    experience: number;
+    xp: number;
     creature?: Creature;
   };
   progress: number;

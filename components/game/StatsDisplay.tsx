@@ -7,8 +7,8 @@ interface StatsDisplayProps {
 }
 
 export const StatsDisplay: React.FC<StatsDisplayProps> = ({ profile }) => {
-  const experienceToNextLevel = (profile.level * 100) - profile.experience;
-  const levelProgress = (profile.experience % 100) / 100;
+  const xpToNextLevel = (profile.level * 100) - profile.xp;
+  const levelProgress = (profile.xp % 100) / 100;
 
   // Safe defaults for potentially undefined fields
   const totalWorkouts = profile.totalWorkouts ?? 0;
@@ -28,8 +28,8 @@ export const StatsDisplay: React.FC<StatsDisplayProps> = ({ profile }) => {
 
       <View style={styles.experienceSection}>
         <View style={styles.experienceHeader}>
-          <Text style={styles.experienceText}>Experience: {profile.experience}</Text>
-          <Text style={styles.nextLevelText}>{experienceToNextLevel} to next level</Text>
+          <Text style={styles.experienceText}>XP: {profile.xp}</Text>
+          <Text style={styles.nextLevelText}>{xpToNextLevel} to next level</Text>
         </View>
         <View style={styles.progressBar}>
           <View style={[styles.progressFill, { width: `${levelProgress * 100}%` }]} />

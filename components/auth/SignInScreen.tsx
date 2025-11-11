@@ -55,7 +55,7 @@ export const SignInScreen: React.FC<SignInScreenProps> = ({ onSignInSuccess }) =
             username: selectedUser,
             displayName: selectedUserData.label,
             level: 1,
-            experience: 0,
+            xp: 0,
             totalWorkouts: 0,
             totalCalories: 0,
             totalDistance: 0,
