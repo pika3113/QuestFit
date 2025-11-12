@@ -402,6 +402,44 @@ export const liveStyles = StyleSheet.create({
     color: '#6B7280',
     fontWeight: '600',
   },
+  workoutTypeGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'space-between',
+    gap: 12,
+    backgroundColor: 'transparent',
+  },
+  workoutTypeButton: {
+    width: '30%',
+    aspectRatio: 1,
+    backgroundColor: '#F9FAFB',
+    borderRadius: 12,
+    padding: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 2,
+    borderColor: '#E5E7EB',
+  },
+  workoutTypeButtonActive: {
+    backgroundColor: '#EEF2FF',
+    borderColor: '#3B82F6',
+  },
+  workoutTypeText: {
+    fontSize: 32,
+    marginBottom: 8,
+  },
+  workoutTypeTextActive: {
+    // No additional styles needed, just for consistency
+  },
+  workoutTypeLabel: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#6B7280',
+    textAlign: 'center',
+  },
+  workoutTypeLabelActive: {
+    color: '#3B82F6',
+  },
 });
 
 // XP Management Tab Styles

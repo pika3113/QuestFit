@@ -20,7 +20,7 @@ export const useGameProfile = (userId: string | null) => {
         const userProfile = await gameService.getUserProfile(userId);
         
         if (!userProfile) {
-          // Create a new profile if none exists
+          // they dont have a profile yet so we need to create one
           await gameService.createUserProfile(userId, {});
           const newProfile = await gameService.getUserProfile(userId);
           setProfile(newProfile);
@@ -54,7 +54,7 @@ export const useGameProfile = (userId: string | null) => {
     try {
       const newLevel = await gameService.addExperience(userId, experience);
       
-      // Refresh the profile to get updated data
+      // reload the profile so we have the latest data
       const updatedProfile = await gameService.getUserProfile(userId);
       setProfile(updatedProfile);
       

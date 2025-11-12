@@ -1,16 +1,17 @@
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { UserGameProfile } from '../../src/types/polar';
+import { getXPToNextLevel, getLevelProgress } from '../../src/utils/levelSystem';
 
 interface StatsDisplayProps {
   profile: UserGameProfile;
 }
 
 export const StatsDisplay: React.FC<StatsDisplayProps> = ({ profile }) => {
-  const xpToNextLevel = (profile.level * 100) - profile.xp;
-  const levelProgress = (profile.xp % 100) / 100;
+  const xpToNextLevel = getXPToNextLevel(profile.xp, profile.level);
+  const levelProgress = getLevelProgress(profile.xp, profile.level);
 
-  // Safe defaults for potentially undefined fields
+  // use safe defaults in case any of these fields are missing
   const totalWorkouts = profile.totalWorkouts ?? 0;
   const totalCalories = profile.totalCalories ?? 0;
   const totalDistance = profile.totalDistance ?? 0;

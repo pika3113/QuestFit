@@ -16,7 +16,7 @@ export default function CreaturesScreen() {
   const capturedCreatureIds = profile?.capturedCreatures || [];
   
   useEffect(() => {
-    // Load only locked/uncaptured creatures
+    // load only locked/uncaptured creatures
     const locked = creatureService.getLockedCreatures(capturedCreatureIds);
     setAllCreatures(locked);
   }, [capturedCreatureIds.length]);
@@ -26,9 +26,9 @@ export default function CreaturesScreen() {
   const renderCreature = ({ item }: { item: Creature }) => (
     <CreatureCard
       creature={item}
-      captured={false} // All shown here are locked
+      captured={false} // all shown here are locked
       onPress={() => {
-        // Handle creature selection
+        // handle creature selection zzzzzzzzzzzzzzzzzzzzzzzzzz sleeeeep
         console.log('Selected creature:', item.name);
         const lore = creatureService.getCreatureLore(item.id);
         if (lore) {

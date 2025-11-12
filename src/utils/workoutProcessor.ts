@@ -3,17 +3,15 @@ import creatureService from '../services/creatureService';
 
 export class WorkoutProcessor {
   static calculateExperience(workout: WorkoutData): number {
-    // base experience calculation
-    const caloriePoints = workout.calories * 0.1; // 0.1 points per calories
-    const durationPoints = parseInt(workout.duration.split(':')[1]) * 0.5; // 0.5 points per minute
-    const heartRateBonus = workout['heart-rate'].average > 140 ? 10 : 0; // bonus for high HR
+    // simple XP calculation based on workout metrics
+    const caloriePoints = workout.calories * 0.1; // you get 0.1 points per calorie
+    const durationPoints = parseInt(workout.duration.split(':')[1]) * 0.5; // and 0.5 points per minute
+    const heartRateBonus = workout['heart-rate'].average > 140 ? 10 : 0; // bonus if you really pushed yourself
     
     return Math.floor(caloriePoints + durationPoints + heartRateBonus);
   }
 
-  /**
-   * check if workout unlocks any new creatures
-   */
+  // checks the workout to see if it unlocked any new creatures
   static checkForCreatureUnlocks(
     workout: WorkoutData, 
     alreadyCapturedIds: string[]
@@ -36,13 +34,13 @@ export class WorkoutProcessor {
     return allCreatures.filter(creature => {
       const req = creature.requiredWorkout;
       
-      // Check all requirements
+      // make sure they meet all the requirements
       if (req.minCalories && workout.calories < req.minCalories) return false;
       if (req.minDistance && workout.distance < req.minDistance) return false;
       if (req.minHeartRate && workout['heart-rate'].average < req.minHeartRate) return false;
       if (req.sport && workout.sport !== req.sport) return false;
       
-      // Check duration (convert workout duration from "PT1H30M" format to minutes)
+      // check duration (gotta convert from "PT1H30M" format to minutes first)
       if (req.minDuration) {
         const duration = this.parseDuration(workout.duration);
         if (duration < req.minDuration) return false;
@@ -53,7 +51,7 @@ export class WorkoutProcessor {
   }
 
   static parseDuration(isoDuration: string): number {
-    // Parse iso8601 duration format (PT1H30M) to minutes
+    // converts iso8601 duration format (like PT1H30M) into total minutes
     const matches = isoDuration.match(/PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?/);
     if (!matches) return 0;
     
@@ -69,7 +67,7 @@ export class WorkoutProcessor {
     const calories = workout.calories;
     const duration = this.parseDuration(workout.duration);
     
-    // simple categorization based on intensity
+    // just a simple way to categorise workout intensity
     if (avgHR > 160 || calories > 500 || duration > 60) {
       return 'intense';
     } else if (avgHR > 120 || calories > 200 || duration > 30) {

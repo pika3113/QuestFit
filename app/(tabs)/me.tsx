@@ -9,6 +9,7 @@ import { doc, getDoc, setDoc, updateDoc } from 'firebase/firestore';
 import { xpStyles as styles } from '@/src/styles';
 import { Creature } from '@/src/types/polar';
 import creatureService from '@/src/services/creatureService';
+import { getXPToNextLevel, getXPForLevel } from '@/src/utils/levelSystem';
 
 interface WorkoutHistoryItem {
   sessionId: string;
@@ -64,14 +65,14 @@ export default function XPManagementScreen() {
         setTotalDuration(data.totalDuration || 0);
         setTotalAvgHeartRate(data.totalAvgHeartRate || 0);
         
-        // Load full creature data from IDs
+        // grab the full creature data from just the IDs we have stored
         const creatureIds = data.capturedCreatures || [];
         const creatures = creatureIds
           .map((id: string) => creatureService.getCreatureById(id))
           .filter((c: Creature | null) => c !== null) as Creature[];
         setCapturedCreatures(creatures);
         
-        // Load workout history (most recent 10)
+        // pull in workout history and only show the last 10 workouts
         const history = data.workoutHistory || [];
         const sortedHistory = history
           .map((item: any) => ({
@@ -84,7 +85,7 @@ export default function XPManagementScreen() {
           .slice(0, 10);
         setWorkoutHistory(sortedHistory);
       } else {
-        // Create user document if it doesn't exist
+        // user doc doesnt exist yet so lets make one
         await setDoc(userDocRef, { 
           xp: 0, 
           level: 1,
@@ -129,7 +130,7 @@ export default function XPManagementScreen() {
         return;
       }
 
-      const newXP = Math.max(0, currentXP + amount); // Prevent negative XP
+      const newXP = Math.max(0, currentXP + amount); // dont let XP go negitive
 
       const userDocRef = doc(db, 'users', user.uid);
       await updateDoc(userDocRef, { xp: newXP });
@@ -208,7 +209,7 @@ export default function XPManagementScreen() {
         </View>
         <View style={styles.progressInfo}>
           <Text style={styles.progressText}>
-            Next level at {currentLevel * 100} XP ({Math.max(0, currentLevel * 100 - currentXP)} XP to go)
+            Next level at {getXPForLevel(currentLevel + 1)} XP ({getXPToNextLevel(currentXP, currentLevel)} XP to go)
           </Text>
         </View>
         <Pressable onPress={loadUserXP} style={styles.refreshButton}>

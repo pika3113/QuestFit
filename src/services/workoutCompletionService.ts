@@ -4,6 +4,7 @@ import creatureService from '../services/creatureService';
 import gameService from '../services/gameService';
 import { doc, updateDoc, increment, arrayUnion, setDoc, getDoc } from 'firebase/firestore';
 import { db } from './firebase';
+import { calculateLevel } from '../utils/levelSystem';
 
 interface WorkoutCompletionResult {
   success: boolean;
@@ -25,28 +26,26 @@ interface LiveWorkoutMetrics {
 }
 
 class WorkoutCompletionService {
-  /**
-   * Complete a workout from Polar API data and award XP/creatures
-   */
+  // Handles completing a workout that came from the Polar API and awards XP/creatures
   async completeWorkout(
     userId: string,
     workoutData: WorkoutData
   ): Promise<WorkoutCompletionResult> {
     try {
-      // 1. Calculate base XP from workout
+      // first calculate how much base XP they earned from the workout itself
       const baseXP = WorkoutProcessor.calculateExperience(workoutData);
       
-      // 2. Get user's current captured creatures (IDs only)
+      // grab their profile to see what creatures they already have
       const profile = await gameService.getUserProfile(userId);
       const capturedIds = profile?.capturedCreatures || [];
       
-      // 3. Check for creature unlocks
+      // check if they unlocked any new creatures from this workout
       const unlockedCreatures = WorkoutProcessor.checkForCreatureUnlocks(
         workoutData,
         capturedIds
       );
       
-      // 4. Calculate bonus XP from creatures
+      // add up bonus XP from any creatures they just caught
       let bonusXP = 0;
       for (const creature of unlockedCreatures) {
         bonusXP += creatureService.getExperienceReward(creature.id);
@@ -54,7 +53,7 @@ class WorkoutCompletionService {
       
       const totalXP = baseXP + bonusXP;
       
-      // 5. Create workout session record (ensure no undefined values)
+      // build the workout session object (making sure no undefined values sneak in)
       const workoutSession: WorkoutSession = {
         id: workoutData.id || `polar-${Date.now()}`,
         userId: userId,
@@ -75,10 +74,10 @@ class WorkoutCompletionService {
         }
       };
       
-      // 6. save to Firebase
+      // save everything to firebase
       await this.saveWorkoutToFirebase(userId, workoutSession, unlockedCreatures, totalXP);
       
-      // 7. add XP and check for level up
+      // give them the XP and see if they leveled up
       const newLevel = await gameService.addExperience(userId, totalXP);
       
       return {
@@ -96,16 +95,14 @@ class WorkoutCompletionService {
     }
   }
 
-  /**
-   * Complete a workout from live tracking metrics (local workout)
-   */
+  // This one handles workouts tracked locally on the device (not from Polar)
   async completeLiveWorkout(
     userId: string,
     metrics: LiveWorkoutMetrics,
     sport: string = 'FITNESS'
   ): Promise<WorkoutCompletionResult> {
     try {
-      // Convert live metrics to WorkoutData format for processing
+      // convert seconds to minutes for the calculations
       const durationMinutes = Math.floor(metrics.duration / 60);
       
       // 1. Calculate base XP
@@ -114,23 +111,23 @@ class WorkoutCompletionService {
       const heartRateBonus = metrics.averageHeartRate > 140 ? 10 : 0;
       const baseXP = Math.floor(caloriePoints + durationPoints + heartRateBonus);
       
-      // 2. Get user's current captured creatures (IDs only)
+      // load up their profile to see which creatures they have already
       const profile = await gameService.getUserProfile(userId);
       const capturedIds = profile?.capturedCreatures || [];
       
-      // 3. Check for creature unlocks
+      // see if this workout unlocked any creatures
       const unlockedCreatures = creatureService.checkWorkoutForUnlocks(
         {
           calories: metrics.caloriesBurned,
           duration: durationMinutes,
-          distance: 0, // Live workouts don't track distance yet
+          distance: 0, // local workouts dont track distance yet unfortunately
           avgHeartRate: metrics.averageHeartRate,
           sport
         },
         capturedIds
       );
       
-      // 4. Calculate bonus XP from creatures
+      // calculate the bonus XP from creatures they just unlocked
       let bonusXP = 0;
       for (const creature of unlockedCreatures) {
         bonusXP += creatureService.getExperienceReward(creature.id);
@@ -138,7 +135,7 @@ class WorkoutCompletionService {
       
       const totalXP = baseXP + bonusXP;
       
-      // 5. Create workout session record (ensure no undefined values)
+      // put together the workout session object (no undefined vals allowed)
       const workoutSession: WorkoutSession = {
         id: `local-${Date.now()}`,
         userId: userId,
@@ -158,10 +155,10 @@ class WorkoutCompletionService {
         }
       };
       
-      // 6. Save to Firebase
+      // save it all to firebase
       await this.saveWorkoutToFirebase(userId, workoutSession, unlockedCreatures, totalXP);
       
-      // 7. Add XP and check for level up
+      // award the XP and check if they leveled
       const newLevel = await gameService.addExperience(userId, totalXP);
       
       return {
@@ -179,9 +176,7 @@ class WorkoutCompletionService {
     }
   }
 
-  /**
-   * Save workout data to Firebase
-   */
+  // Saves all the workout data and updates user stats in Firebase
   private async saveWorkoutToFirebase(
     userId: string,
     workoutSession: WorkoutSession,
@@ -189,24 +184,24 @@ class WorkoutCompletionService {
     totalXP: number
   ): Promise<void> {
     try {
-      // 1. Save workout session to workoutSessions collection
+      // first save the actual workout session
       const sessionId = await gameService.saveWorkoutSession(workoutSession);
       
-      // 2. Update user document with XP and stats
+      // now update the user's profile with the new stats
       const userRef = doc(db, 'users', userId);
       const userDoc = await getDoc(userRef);
       
       if (!userDoc.exists()) {
-        // Create user document if it doesn't exist
+        // if this is somehow their first workout we need to create the user doc
         await setDoc(userRef, {
           xp: totalXP,
-          level: Math.floor(totalXP / 100) + 1,
+          level: calculateLevel(totalXP),
           totalWorkouts: 1,
           totalCalories: workoutSession.calories,
           totalDistance: workoutSession.distance,
           totalDuration: workoutSession.duration,
           totalAvgHeartRate: workoutSession.avgHeartRate,
-          capturedCreatures: unlockedCreatures.map(c => c.id), // Store only IDs
+          capturedCreatures: unlockedCreatures.map(c => c.id), // just save IDs not whole objects
           achievements: [],
           workoutHistory: [
             {
@@ -221,17 +216,17 @@ class WorkoutCompletionService {
           ]
         });
       } else {
-        // Update existing user document
+        // they exist already so just update their stats
         const currentData = userDoc.data();
         const currentWorkouts = currentData.totalWorkouts || 0;
         const currentAvgHR = currentData.totalAvgHeartRate || 0;
         
-        // Calculate new average heart rate
+        // recalculate average heart rate
         const newAvgHR = ((currentAvgHR * currentWorkouts) + workoutSession.avgHeartRate) / (currentWorkouts + 1);
         
-        // Calculate new level
+        // figure out their new level
         const newTotalXP = (currentData.xp || 0) + totalXP;
-        const newLevel = Math.floor(newTotalXP / 100) + 1;
+        const newLevel = calculateLevel(newTotalXP);
         
         await updateDoc(userRef, {
           xp: increment(totalXP),
@@ -251,13 +246,13 @@ class WorkoutCompletionService {
           })
         });
         
-        // Update level if it increased
+        // update the level if they leveled up
         if (newLevel > (currentData.level || 1)) {
           await updateDoc(userRef, { level: newLevel });
         }
       }
       
-      // 3. Add captured creatures to user profile
+      // add any newly captured creatures to their profile
       for (const creature of unlockedCreatures) {
         await gameService.addCapturedCreature(userId, creature);
       }
@@ -268,9 +263,7 @@ class WorkoutCompletionService {
     }
   }
 
-  /**
-   * Get workout summary for display
-   */
+  // creates a nice summary text for showing to the user after their workout
   getWorkoutSummary(result: WorkoutCompletionResult): string {
     const session = result.workoutSession;
     const lines = [

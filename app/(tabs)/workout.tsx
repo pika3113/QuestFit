@@ -17,6 +17,7 @@ export default function LiveWorkoutScreen() {
   const [showUnlockModal, setShowUnlockModal] = useState(false);
   const [unlockedCreatures, setUnlockedCreatures] = useState<Creature[]>([]);
   const [isProcessingWorkout, setIsProcessingWorkout] = useState(false);
+  const [workoutType, setWorkoutType] = useState<'RUNNING' | 'CYCLING' | 'SWIMMING' | 'FITNESS' | 'HIKING' | 'WALKING'>('FITNESS');
 
   const {
     isScanning,
@@ -97,20 +98,20 @@ export default function LiveWorkoutScreen() {
             if (metrics && user) {
               setIsProcessingWorkout(true);
               try {
-                // Process workout and award XP/creatures
+                // time to process the workout and give them XP and creatures
                 const result = await workoutCompletionService.completeLiveWorkout(
                   user.uid,
                   metrics,
-                  'FITNESS' // You can make this dynamic based on workout type
+                  workoutType
                 );
 
-                // Show unlock modal if creatures were captured
+                // if they caught any creatures show the unlock modal
                 if (result.unlockedCreatures.length > 0) {
                   setUnlockedCreatures(result.unlockedCreatures);
                   setShowUnlockModal(true);
                 }
 
-                // Show workout summary
+                // display a nice summary of what they accomplished
                 const summary = workoutCompletionService.getWorkoutSummary(result);
                 Alert.alert('Workout Complete!', summary);
               } catch (error) {
@@ -144,12 +145,12 @@ export default function LiveWorkoutScreen() {
 
   const getHeartRateZoneColor = (zone: number): string => {
     switch (zone) {
-      case 1: return '#60A5FA'; // Light blue
-      case 2: return '#34D399'; // Green
-      case 3: return '#FBBF24'; // Yellow
-      case 4: return '#F97316'; // Orange
-      case 5: return '#EF4444'; // Red
-      default: return '#9CA3AF'; // Gray
+      case 1: return '#60A5FA'; // nice light blue for easy zone
+      case 2: return '#34D399'; // green for moderate
+      case 3: return '#FBBF24'; // yellow for getting harder
+      case 4: return '#F97316'; // orange for intense
+      case 5: return '#EF4444'; // red for max effort
+      default: return '#9CA3AF'; // gray if we dont know
     }
   };
 
@@ -227,7 +228,7 @@ export default function LiveWorkoutScreen() {
         </View>
       ) : (
         <>
-          {/* Connected Device Info */}
+          {/* connected Device Info */}
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Connected Device</Text>
             <View style={styles.connectedBox}>
@@ -240,7 +241,7 @@ export default function LiveWorkoutScreen() {
             </View>
           </View>
 
-          {/* Heart Rate Display */}
+          {/* heart Rate Display */}
           <View style={styles.heartRateSection}>
             <Text style={styles.heartRateLabel}>Current Heart Rate</Text>
             <View style={styles.heartRateDisplay}>
@@ -257,7 +258,44 @@ export default function LiveWorkoutScreen() {
             )}
           </View>
 
-          {/* Workout Controls */}
+          {/* Workout Type Selector */}
+          {!workoutActive && (
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>Workout Type</Text>
+              <View style={styles.workoutTypeGrid}>
+                {(['RUNNING', 'CYCLING', 'SWIMMING', 'FITNESS', 'HIKING', 'WALKING'] as const).map((type) => (
+                  <Pressable
+                    key={type}
+                    style={[
+                      styles.workoutTypeButton,
+                      workoutType === type && styles.workoutTypeButtonActive,
+                    ]}
+                    onPress={() => setWorkoutType(type)}
+                  >
+                    <Text style={[
+                      styles.workoutTypeText,
+                      workoutType === type && styles.workoutTypeTextActive,
+                    ]}>
+                      {type === 'RUNNING' && '🏃'}
+                      {type === 'CYCLING' && '🚴'}
+                      {type === 'SWIMMING' && '🏊'}
+                      {type === 'FITNESS' && '💪'}
+                      {type === 'HIKING' && '🥾'}
+                      {type === 'WALKING' && '🚶'}
+                    </Text>
+                    <Text style={[
+                      styles.workoutTypeLabel,
+                      workoutType === type && styles.workoutTypeLabelActive,
+                    ]}>
+                      {type.charAt(0) + type.slice(1).toLowerCase()}
+                    </Text>
+                  </Pressable>
+                ))}
+              </View>
+            </View>
+          )}
+
+          {/* workout Controls */}
           <View style={styles.section}>
             {!workoutActive ? (
               <>
@@ -303,7 +341,7 @@ export default function LiveWorkoutScreen() {
             )}
           </View>
 
-          {/* Workout Metrics */}
+          {/* workout metrics */}
           {workoutActive && workoutMetrics && (
             <View style={styles.section}>
               <Text style={styles.sectionTitle}>Workout Metrics</Text>
@@ -330,28 +368,28 @@ export default function LiveWorkoutScreen() {
             </View>
           )}
 
-          {/* Previous Workout Results */}
+          {/* previous workout results */}
           {!workoutActive && workoutMetrics && (
             <View style={styles.section}>
               <Text style={styles.sectionTitle}>Last Workout Summary</Text>
               <View style={styles.summaryBox}>
                 <Text style={styles.summaryText}>
-                  🏃 Duration: {Math.floor(workoutMetrics.duration / 60)} minutes {workoutMetrics.duration % 60} seconds
+                  Duration: {Math.floor(workoutMetrics.duration / 60)} minutes {workoutMetrics.duration % 60} seconds
                 </Text>
                 <Text style={styles.summaryText}>
-                  ❤️ Average HR: {workoutMetrics.averageHeartRate} bpm
+                  Average HR: {workoutMetrics.averageHeartRate} bpm
                 </Text>
                 <Text style={styles.summaryText}>
-                  📈 Max HR: {workoutMetrics.maxHeartRate} bpm
+                  Max HR: {workoutMetrics.maxHeartRate} bpm
                 </Text>
                 <Text style={styles.summaryText}>
-                  📉 Min HR: {workoutMetrics.minHeartRate} bpm
+                  Min HR: {workoutMetrics.minHeartRate} bpm
                 </Text>
                 <Text style={styles.summaryText}>
-                  🔥 Calories Burned: {workoutMetrics.caloriesBurned} kcal
+                  Calories Burned: {workoutMetrics.caloriesBurned} kcal
                 </Text>
                 <Text style={styles.summaryText}>
-                  🎯 Peak Zone: Zone {workoutMetrics.currentZone}
+                  Peak Zone: Zone {workoutMetrics.currentZone}
                 </Text>
               </View>
             </View>
@@ -359,7 +397,7 @@ export default function LiveWorkoutScreen() {
         </>
       )}
 
-      {/* Instructions */}
+      {/* instructions */}
       <View style={styles.section}>
         <Text style={styles.instructionsTitle}>How to Use:</Text>
         <Text style={styles.instructionText}>1. Make sure your Polar watch is on and nearby</Text>
@@ -369,7 +407,7 @@ export default function LiveWorkoutScreen() {
         <Text style={styles.instructionText}>5. Your heart rate will update in real-time</Text>
       </View>
 
-      {/* Countdown Overlay */}
+      {/* countdown overlay */}
       {countdown !== null && (
         <View style={styles.countdownOverlay}>
           <View style={styles.countdownBox}>
@@ -379,7 +417,7 @@ export default function LiveWorkoutScreen() {
         </View>
       )}
 
-      {/* Processing Overlay */}
+      {/* processing overlay */}
       {isProcessingWorkout && (
         <View style={styles.countdownOverlay}>
           <View style={styles.countdownBox}>
@@ -389,7 +427,7 @@ export default function LiveWorkoutScreen() {
         </View>
       )}
 
-      {/* Creature Unlock Modal */}
+      {/* creature unlock modal */}
       <CreatureUnlockModal
         visible={showUnlockModal}
         creatures={unlockedCreatures}

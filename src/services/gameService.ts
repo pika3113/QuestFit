@@ -14,9 +14,10 @@ import {
 } from 'firebase/firestore';
 import { db } from './firebase';
 import { UserGameProfile, WorkoutSession, Creature, Quest } from '../types/polar';
+import { calculateLevel } from '../utils/levelSystem';
 
 class GameService {
-  // User Profile Management
+  // stuff for managing user profiles
   async getUserProfile(userId: string): Promise<UserGameProfile | null> {
     const docRef = doc(db, 'users', userId);
     const docSnap = await getDoc(docRef);
@@ -50,15 +51,15 @@ class GameService {
     await updateDoc(docRef, updates);
   }
 
-  // Workout Sessions
+  // saving and loading workout sessions
   async saveWorkoutSession(session: WorkoutSession): Promise<string> {
-    // Clean session data to remove undefined values
+    // gotta clean this up first cause Firebase hates undefined values
     const cleanSession = this.removeUndefinedFields(session);
     const docRef = await addDoc(collection(db, 'workoutSessions'), cleanSession);
     return docRef.id;
   }
 
-  // Helper to remove undefined fields (Firebase doesn't accept undefined)
+  // recursively strips out any undefined fields so firebase doesn't complain
   private removeUndefinedFields(obj: any): any {
     if (obj === null || obj === undefined) {
       return obj;
@@ -93,7 +94,7 @@ class GameService {
     return querySnapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as WorkoutSession));
   }
 
-  // Creatures Management
+  // handles all the creature catching stuff
   async getAvailableCreatures(): Promise<Creature[]> {
     const querySnapshot = await getDocs(collection(db, 'creatures'));
     return querySnapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as Creature));
@@ -104,7 +105,7 @@ class GameService {
     const userDoc = await getDoc(userRef);
     
     if (userDoc.exists()) {
-      // Only save the creature ID, not the full object
+      // we only store the ID not the whole creature object to save space
       await updateDoc(userRef, {
         capturedCreatures: arrayUnion(creature.id)
       });
@@ -115,7 +116,7 @@ class GameService {
     }
   }
 
-  // Quest Management
+  // quest related functions
   async getCurrentQuest(userId: string): Promise<Quest | null> {
     const userProfile = await this.getUserProfile(userId);
     return userProfile?.currentQuest || null;
@@ -129,12 +130,12 @@ class GameService {
     }
   }
 
-  // XP and Level Management
+  // handles XP gains and leveling up
   async addExperience(userId: string, experience: number): Promise<number> {
     const userProfile = await this.getUserProfile(userId);
     if (userProfile) {
       const newXP = userProfile.xp + experience;
-      const newLevel = Math.floor(newXP / 100) + 1; // super simple level calculation 
+      const newLevel = calculateLevel(newXP); // using fibonacci sequence for leveling now
       
       await this.updateUserProfile(userId, { 
         xp: newXP, 

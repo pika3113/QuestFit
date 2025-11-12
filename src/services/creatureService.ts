@@ -21,7 +21,7 @@ interface CreatureConfig {
     sport?: string;
     description: string;
   };
-  experienceReward: number;
+  xPReward: number;
   lore: string;
 }
 
@@ -77,13 +77,11 @@ class CreatureService {
       .map(this.convertToCreature);
   }
 
-  /**
-   * Check if a workout unlocks any creatures
-   */
+  // Checks a workout to see if it unlocked any new creatures for the user
   checkWorkoutForUnlocks(workoutData: {
     calories: number;
-    duration: number; // in minutes
-    distance?: number; // in meters
+    duration: number; // measured in minutes
+    distance?: number; // in meters if we have it
     avgHeartRate?: number;
     sport?: string;
   }, alreadyCaptured: string[]): Creature[] {
@@ -94,7 +92,7 @@ class CreatureService {
     console.log(`🔓 Checking ${this.creatures.length - alreadyCaptured.length} locked creatures...`);
 
     for (const creature of this.creatures) {
-      // Skip if already captured (only check locked creatures)
+      // dont bother checking creatures they already have
       if (alreadyCaptured.includes(creature.id)) {
         continue;
       }
@@ -103,19 +101,19 @@ class CreatureService {
       let meetsRequirements = true;
       const failedRequirements: string[] = [];
 
-      // Check calories (required)
+      // see if they burned enough calories
       if (req.minCalories && workoutData.calories < req.minCalories) {
         meetsRequirements = false;
         failedRequirements.push(`calories: ${workoutData.calories} < ${req.minCalories}`);
       }
 
-      // Check duration (required)
+      // check if workout was long enough
       if (req.minDuration && workoutData.duration < req.minDuration) {
         meetsRequirements = false;
         failedRequirements.push(`duration: ${workoutData.duration} < ${req.minDuration}`);
       }
 
-      // Check sport type (required if specified)
+      // make sure its the right sport type if that matters
       if (req.sport && req.sport !== 'ANY' && workoutData.sport !== req.sport) {
         meetsRequirements = false;
         failedRequirements.push(`sport: ${workoutData.sport} !== ${req.sport}`);
@@ -138,7 +136,7 @@ class CreatureService {
    */
   getExperienceReward(creatureId: string): number {
     const creature = this.creatures.find(c => c.id === creatureId);
-    return creature?.experienceReward || 0;
+    return creature?.xPReward || 0;
   }
 
   /**
@@ -230,7 +228,7 @@ class CreatureService {
       }
     };
     
-    // Only add animation if it exists
+    // add the animation prop only if the creature actually has one
     if (config.animation) {
       creature.animation = config.animation;
     }
@@ -238,9 +236,7 @@ class CreatureService {
     return creature;
   }
 
-  /**
-   * Get random creature by rarity (for random encounters/rewards)
-   */
+  // Gets a random creature based on rarity for like random encounters or bonus rewards
   getRandomCreatureByRarity(rarity?: 'common' | 'rare' | 'epic' | 'legendary'): Creature | null {
     const filteredCreatures = rarity 
       ? this.creatures.filter(c => c.type === rarity)
