@@ -5,23 +5,28 @@ import dotenv from 'dotenv';
 
 dotenv.config();
 
-const admin = require('firebase-admin');
+let admin: any;
+let db: any;
 
-// Initialize Firebase Admin
-if (admin.apps.length === 0) {
-  admin.initializeApp({
-    credential: admin.credential.cert({
-      projectId: process.env.FIREBASE_PROJECT_ID,
-      clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
-      privateKey: process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, '\n'),
-    }),
-  });
+function getDb() {
+  if (db) return db;
+  if (!admin) admin = require('firebase-admin');
+
+  if (admin.apps.length === 0) {
+    admin.initializeApp({
+      credential: admin.credential.cert({
+        projectId: process.env.FIREBASE_PROJECT_ID,
+        clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
+        privateKey: process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, '\n'),
+      }),
+    });
+  }
+
+  db = admin.firestore();
+  return db;
 }
 
-const db = admin.firestore();
-
 // Signature secret from Polar webhook creation (store in env)
-const SIGNATURE_SECRET = process.env.POLAR_WEBHOOK_SIGNATURE_SECRET;
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null;
@@ -53,9 +58,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   // Handle actual webhook notifications
   if (req.method === 'POST') {
     const signature = req.headers['polar-webhook-signature'] as string;
+    const signatureSecret = process.env.POLAR_WEBHOOK_SIGNATURE_SECRET;
 
     // Verify signature (fail closed)
-    if (!SIGNATURE_SECRET) {
+    if (!signatureSecret) {
       console.error('Missing POLAR_WEBHOOK_SIGNATURE_SECRET env var');
       return res.status(500).json({ error: 'Server misconfigured' });
     }
@@ -67,7 +73,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     const body = JSON.stringify(req.body);
     const expectedSignature = crypto
-      .createHmac('sha256', SIGNATURE_SECRET)
+      .createHmac('sha256', signatureSecret)
       .update(body)
       .digest('hex');
 
@@ -105,6 +111,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
 
     try {
+      const db = getDb();
         // 1. Find the user
         // The document ID is the Polar User ID
         console.log(`Looking up user for Polar ID: ${polarUserId}`);

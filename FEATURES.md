@@ -215,11 +215,9 @@
 ## 🛠️ Development Features
 
 ### Testing & Debugging
-- Test screen (`test.tsx`) for feature testing
 - Mock data utilities for development
 - Debug console component
 - Workout completion examples
-- Test script for Polar sync (`scripts/test-polar-sync.js`)
 
 ### Configuration
 - TypeScript strict mode enabled
