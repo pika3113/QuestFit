@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { ScrollView, TextInput, Pressable, Modal, StyleSheet, TouchableOpacity } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Text, View } from '@/components/Themed';
-import { CreatureDetailsModal, CreatureCardGrid } from '@/components/game/CreatureCard';
+import { CreatureDetailsModal, CreatureCardGrid, CreatureCardGridSkeleton } from '@/components/game/CreatureCard';
 import { twoStyles as styles } from '@/src/styles';
 import creatureService from '@/src/services/creatureService';
 import { useGameProfile } from '@/src/hooks/useGameProfile';
@@ -15,7 +15,7 @@ const SPORTS = ['NEUTRAL', 'RUNNING', 'SWIMMING', 'HIKING', 'FITNESS', 'CYCLING'
 
 export default function CreaturesScreen() {
   const { user } = useAuth();
-  const { profile } = useGameProfile(user?.uid || null);
+  const { profile, loading } = useGameProfile(user?.uid || null);
   const [allCreatures, setAllCreatures] = useState<Creature[]>([]);
 
   const capturedCreatureIds = profile?.capturedCreatures || [];
@@ -37,8 +37,10 @@ export default function CreaturesScreen() {
     setAllCreatures(creatures);
   }, [capturedCreatureIds.length]);
 
-  const cards = creatureService.getAllCreatures().map(creature => ({
-    creature: creature,
+  const isLoading = loading || allCreatures.length === 0;
+
+  const cards = allCreatures.map(creature => ({
+    creature,
     captured: capturedCreatureIds.includes(creature.id)
   }));
 
@@ -105,18 +107,22 @@ export default function CreaturesScreen() {
       >
       
       {/* Creature Card Grid */}
-      <CreatureCardGrid
-        cards={filteredCards}
-        onPress={(id) => {
-          const card = cards.find(c => parseInt(c.creature.id) === id);
-          if (card) {
-            setSelectedCreature(card.creature);
-            setSelectedCaptured(card.captured);
-            setShowUnlockModal(true);
-          }
-        }}
-      />
-      {filteredCards.length === 0 && (
+      {isLoading ? (
+        <CreatureCardGridSkeleton count={12} />
+      ) : (
+        <CreatureCardGrid
+          cards={filteredCards}
+          onPress={(id) => {
+            const card = cards.find(c => parseInt(c.creature.id) === id);
+            if (card) {
+              setSelectedCreature(card.creature);
+              setSelectedCaptured(card.captured);
+              setShowUnlockModal(true);
+            }
+          }}
+        />
+      )}
+      {!isLoading && filteredCards.length === 0 && (
         <View style={localStyles.emptyState}>
           <Text style={localStyles.emptyStateText}>No creatures found matching your filters.</Text>
           <TouchableOpacity onPress={() => {
