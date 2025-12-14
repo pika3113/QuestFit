@@ -11,6 +11,7 @@ import {
   Modal,
   Platform,
 } from 'react-native';
+import { useWindowDimensions } from 'react-native';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -21,11 +22,14 @@ import { useInstructorStudents } from '@/src/hooks/useInstructorStudents';
 import { Ionicons } from '@expo/vector-icons';
 import { db } from '@/src/services/firebase';
 import { collection, getDocs, doc, getDoc, limit, orderBy, query } from 'firebase/firestore';
-import { StudentCard, StudentStats, ChartType } from '@/components/instr-dashboard/StudentCard';
+import { StudentCard, StudentCardSkeleton, StudentStats, ChartType } from '@/components/instr-dashboard/StudentCard';
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
 
 export default function InstructorDashboard() {
+  const { width: windowWidth } = useWindowDimensions();
+  const isWideWeb = Platform.OS === 'web' && windowWidth >= 900;
+
   const { user } = useAuth();
   const { isInstructor, loading: instructorLoading } = useInstructor(user?.uid);
   const { selectedUserIds, toggleUser } = useInstructorStudents(user?.uid);
@@ -46,6 +50,9 @@ export default function InstructorDashboard() {
   const [modalVisible, setModalVisible] = useState(false);
   const [settingsVisible, setSettingsVisible] = useState(false);
 
+  // Activity display toggle (affects the "distance" metric card/chart)
+  const [activityMetric, setActivityMetric] = useState<'steps' | 'distance'>('steps');
+
   // Chart Configuration State
   const [chartConfig, setChartConfig] = useState<Record<'hr' | 'distance' | 'sleep' | 'calories', ChartType>>({
     hr: 'line',
@@ -61,6 +68,11 @@ export default function InstructorDashboard() {
         const savedConfig = await AsyncStorage.getItem('instructor_chart_config');
         if (savedConfig) {
           setChartConfig(JSON.parse(savedConfig));
+        }
+
+        const savedActivityMetric = await AsyncStorage.getItem('instructor_activity_metric');
+        if (savedActivityMetric === 'steps' || savedActivityMetric === 'distance') {
+          setActivityMetric(savedActivityMetric);
         }
       } catch (e) {
         console.error('Failed to load data', e);
@@ -81,6 +93,17 @@ export default function InstructorDashboard() {
     saveConfig();
   }, [chartConfig]);
 
+  useEffect(() => {
+    const saveActivityMetric = async () => {
+      try {
+        await AsyncStorage.setItem('instructor_activity_metric', activityMetric);
+      } catch (e) {
+        console.error('Failed to save activity metric', e);
+      }
+    };
+    saveActivityMetric();
+  }, [activityMetric]);
+
   const fetchStudentsData = useCallback(async (range = dateRange) => {
     try {
       // 1. Fetch all users (In a real app, you might filter by class/instructor)
@@ -94,6 +117,7 @@ export default function InstructorDashboard() {
           // 2. Fetch recent exercises
           const hrHistory: number[] = [];
           const distanceHistory: number[] = [];
+          const stepsHistory: number[] = [];
           const caloriesHistory: number[] = [];
           const sleepHistory: number[] = []; // Placeholder for now
           
@@ -135,9 +159,22 @@ export default function InstructorDashboard() {
             // Distance/Calories prefer activities (more consistently present), fallback to exercises
             let dayDist = 0;
             let dayCals = 0;
+            let daySteps = 0;
 
             if (activitySnap?.exists()) {
               const a = activitySnap.data();
+
+              const steps =
+                typeof a?.steps === 'number'
+                  ? a.steps
+                  : typeof a?.activity?.steps === 'number'
+                    ? a.activity.steps
+                    : null;
+
+              if (steps != null) {
+                daySteps = Math.round(steps);
+              }
+
               const distMeters =
                 typeof a?.distance_from_steps === 'number'
                   ? a.distance_from_steps
@@ -179,6 +216,7 @@ export default function InstructorDashboard() {
 
             hrHistory.push(dayHrCount > 0 ? Math.round(dayHrSum / dayHrCount) : 0);
             distanceHistory.push(dayDist);
+            stepsHistory.push(daySteps);
             caloriesHistory.push(dayCals);
 
             // Sleep score (0 if missing)
@@ -227,6 +265,9 @@ export default function InstructorDashboard() {
           const validDist = distanceHistory.filter(v => v > 0);
           const avgDistance = validDist.length > 0 ? Math.round(validDist.reduce((a, b) => a + b, 0) / validDist.length) : 0;
 
+          const validSteps = stepsHistory.filter(v => v > 0);
+          const avgSteps = validSteps.length > 0 ? Math.round(validSteps.reduce((a, b) => a + b, 0) / validSteps.length) : 0;
+
           const validCals = caloriesHistory.filter(v => v > 0);
           const avgCalories = validCals.length > 0 ? Math.round(validCals.reduce((a, b) => a + b, 0) / validCals.length) : 0;
 
@@ -249,11 +290,13 @@ export default function InstructorDashboard() {
             lastSync,
             hrHistory,
             distanceHistory,
+            stepsHistory,
             sleepHistory,
             caloriesHistory,
             labels,
             avgHr,
             avgDistance,
+            avgSteps,
             avgSleep,
             avgCalories,
             trend
@@ -331,7 +374,7 @@ export default function InstructorDashboard() {
     }
   };
 
-  if (instructorLoading || loading) {
+  if (instructorLoading) {
     return (
       <View style={styles.loadingContainer}>
         <ActivityIndicator size="large" color="#FF6B35" />
@@ -360,52 +403,93 @@ export default function InstructorDashboard() {
         <Text style={styles.subtitle}>{students.length} Cadets Enrolled</Text>
         
         {/* Date Range Selector */}
-        <View style={styles.filterContainer}>
-          <View style={{flexDirection: 'row', alignItems: 'center', flex: 1}}>
-            <Text style={styles.filterLabel}>Range:</Text>
-            <View style={styles.rangeButtons}>
-              {[7, 14, 30].map((days) => (
-                <TouchableOpacity 
-                  key={days} 
-                  style={[styles.rangeButton, dateRange.type === `${days}d` && styles.rangeButtonActive]}
-                  onPress={() => setDateRange({
-                    start: new Date(new Date().setDate(new Date().getDate() - (days - 1))),
-                    end: new Date(),
-                    type: `${days}d` as any
-                  })}
+        {!isWideWeb ? (
+          <View style={styles.filterContainer}>
+            <View style={styles.rangeRow}>
+              <Text style={styles.filterLabel}>Range:</Text>
+              <View style={styles.rangeButtons}>
+                {[7, 14, 30].map((days) => (
+                  <TouchableOpacity
+                    key={days}
+                    style={[styles.rangeButton, dateRange.type === `${days}d` && styles.rangeButtonActive]}
+                    onPress={() =>
+                      setDateRange({
+                        start: new Date(new Date().setDate(new Date().getDate() - (days - 1))),
+                        end: new Date(),
+                        type: `${days}d` as any,
+                      })
+                    }
+                  >
+                    <Text style={[styles.rangeButtonText, dateRange.type === `${days}d` && styles.rangeButtonTextActive]}>
+                      {days}d
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+                <TouchableOpacity
+                  style={[styles.rangeButton, dateRange.type === 'custom' && styles.rangeButtonActive]}
+                  onPress={() => {
+                    setDatePickerMode('start');
+                    setShowDatePicker(true);
+                  }}
                 >
-                  <Text style={[styles.rangeButtonText, dateRange.type === `${days}d` && styles.rangeButtonTextActive]}>
-                    {days}d
-                  </Text>
+                  <Ionicons name="calendar" size={16} color={dateRange.type === 'custom' ? '#FFF' : '#666'} />
                 </TouchableOpacity>
-              ))}
-              <TouchableOpacity 
-                style={[styles.rangeButton, dateRange.type === 'custom' && styles.rangeButtonActive]}
-                onPress={() => {
-                  setDatePickerMode('start');
-                  setShowDatePicker(true);
-                }}
-              >
-                <Ionicons name="calendar" size={16} color={dateRange.type === 'custom' ? '#FFF' : '#666'} />
+              </View>
+            </View>
+
+            <View style={styles.actionsRow}>
+              <TouchableOpacity style={styles.iconButton} onPress={() => setSettingsVisible(true)}>
+                <Ionicons name="settings-outline" size={24} color="#FF6B35" />
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.selectButton} onPress={() => setModalVisible(true)}>
+                <Text style={styles.selectButtonText}>Manage Cadets</Text>
               </TouchableOpacity>
             </View>
           </View>
+        ) : (
+          <View style={styles.filterContainerWideWeb}>
+            <View style={styles.rangeRowWideWeb}>
+              <Text style={styles.filterLabel}>Range:</Text>
+              <View style={styles.rangeButtonsWideWeb}>
+                {[7, 14, 30].map((days) => (
+                  <TouchableOpacity
+                    key={days}
+                    style={[styles.rangeButton, dateRange.type === `${days}d` && styles.rangeButtonActive]}
+                    onPress={() =>
+                      setDateRange({
+                        start: new Date(new Date().setDate(new Date().getDate() - (days - 1))),
+                        end: new Date(),
+                        type: `${days}d` as any,
+                      })
+                    }
+                  >
+                    <Text style={[styles.rangeButtonText, dateRange.type === `${days}d` && styles.rangeButtonTextActive]}>
+                      {days}d
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+                <TouchableOpacity
+                  style={[styles.rangeButton, dateRange.type === 'custom' && styles.rangeButtonActive]}
+                  onPress={() => {
+                    setDatePickerMode('start');
+                    setShowDatePicker(true);
+                  }}
+                >
+                  <Ionicons name="calendar" size={16} color={dateRange.type === 'custom' ? '#FFF' : '#666'} />
+                </TouchableOpacity>
+              </View>
+            </View>
 
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-            <TouchableOpacity 
-              style={styles.iconButton}
-              onPress={() => setSettingsVisible(true)}
-            >
-              <Ionicons name="settings-outline" size={24} color="#FF6B35" />
-            </TouchableOpacity>
-            <TouchableOpacity 
-              style={styles.selectButton}
-              onPress={() => setModalVisible(true)}
-            >
-              <Text style={styles.selectButtonText}>Manage Cadets</Text>
-            </TouchableOpacity>
+            <View style={styles.actionsRowWideWeb}>
+              <TouchableOpacity style={styles.iconButton} onPress={() => setSettingsVisible(true)}>
+                <Ionicons name="settings-outline" size={24} color="#FF6B35" />
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.selectButton} onPress={() => setModalVisible(true)}>
+                <Text style={styles.selectButtonText}>Manage Cadets</Text>
+              </TouchableOpacity>
+            </View>
           </View>
-        </View>
+        )}
 
         {/* Only show search if we have items to search */}
         {displayedStudents.length > 0 && (
@@ -423,26 +507,37 @@ export default function InstructorDashboard() {
       </View>
 
       <FlatList
-        data={displayedStudents.filter(s => s.displayName.toLowerCase().includes(searchQuery.toLowerCase()))}
-        renderItem={({ item }) => (
-          <StudentCard 
-            item={item} 
-            isSelectionMode={false}
-            chartConfig={chartConfig}
-          />
-        )}
-        keyExtractor={item => item.id}
+        data={
+          loading
+            ? ([1, 2, 3] as const)
+            : displayedStudents.filter(s => s.displayName.toLowerCase().includes(searchQuery.toLowerCase()))
+        }
+        renderItem={({ item }) =>
+          loading ? (
+            <StudentCardSkeleton />
+          ) : (
+            <StudentCard
+              item={item as any}
+              isSelectionMode={false}
+              chartConfig={chartConfig}
+              activityMetric={activityMetric}
+            />
+          )
+        }
+        keyExtractor={(item: any) => (loading ? `skeleton-${String(item)}` : item.id)}
         contentContainerStyle={styles.listContent}
         refreshControl={
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#FF6B35" />
         }
         ListEmptyComponent={
-          <View style={styles.emptyState}>
-            <Text style={styles.emptyText}>No cadets being tracked.</Text>
-            <TouchableOpacity onPress={() => setModalVisible(true)} style={styles.emptyButton}>
-              <Text style={styles.emptyButtonText}>Select Cadets to View</Text>
-            </TouchableOpacity>
-          </View>
+          loading ? null : (
+            <View style={styles.emptyState}>
+              <Text style={styles.emptyText}>No cadets being tracked.</Text>
+              <TouchableOpacity onPress={() => setModalVisible(true)} style={styles.emptyButton}>
+                <Text style={styles.emptyButtonText}>Select Cadets to View</Text>
+              </TouchableOpacity>
+            </View>
+          )
         }
       />
 
@@ -499,6 +594,34 @@ export default function InstructorDashboard() {
             
             <View style={styles.settingsContent}>
               <Text style={styles.sectionTitle}>Customize Graphs</Text>
+
+              <View style={styles.settingRow}>
+                <Text style={styles.settingLabel}>Activity Metric</Text>
+                <View style={styles.typeSelector}>
+                  {([
+                    { label: 'Steps', value: 'steps' },
+                    { label: 'Distance (m)', value: 'distance' },
+                  ] as const).map((opt) => (
+                    <TouchableOpacity
+                      key={opt.value}
+                      style={[
+                        styles.typeOption,
+                        activityMetric === opt.value && styles.typeOptionSelected,
+                      ]}
+                      onPress={() => setActivityMetric(opt.value)}
+                    >
+                      <Text
+                        style={[
+                          styles.typeOptionText,
+                          activityMetric === opt.value && styles.typeOptionTextSelected,
+                        ]}
+                      >
+                        {opt.label}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              </View>
 
               {(['distance', 'hr', 'sleep', 'calories'] as const).map((metric) => {
                 const type = chartConfig[metric];
@@ -638,6 +761,7 @@ const styles = StyleSheet.create({
     fontSize: 28,
     fontWeight: 'bold',
     color: '#2D3436',
+    textAlign: 'center',
   },
   selectButton: {
     paddingHorizontal: 16,
@@ -659,11 +783,48 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#636E72',
     marginTop: 4,
+    textAlign: 'center',
   },
   filterContainer: {
-    flexDirection: 'row',
+    flexDirection: 'column',
     alignItems: 'center',
     marginTop: 16,
+    gap: 12,
+  },
+  filterContainerWideWeb: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginTop: 16,
+    gap: 16,
+  },
+  rangeRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  rangeRowWideWeb: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'flex-start',
+    gap: 10,
+    flexShrink: 1,
+  },
+  actionsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexWrap: 'wrap',
+    gap: 10,
+  },
+  actionsRowWideWeb: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'flex-end',
+    gap: 10,
+    flexShrink: 0,
   },
   filterLabel: {
     fontSize: 14,
@@ -672,13 +833,23 @@ const styles = StyleSheet.create({
   },
   rangeButtons: {
     flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  rangeButtonsWideWeb: {
+    flexDirection: 'row',
+    justifyContent: 'flex-start',
+    alignItems: 'center',
+    flexWrap: 'nowrap',
+    gap: 8,
   },
   rangeButton: {
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: 16,
     backgroundColor: '#F3F4F6',
-    marginRight: 8,
   },
   rangeButtonActive: {
     backgroundColor: '#2D3436',

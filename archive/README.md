@@ -8,8 +8,6 @@ Located in `old-scripts/`:
 
 - **fetch-real-user-activities.js** - Original script that fetched Polar data and saved to local JSON files (replaced by sync-polar-data-to-firebase.js)
 - **preview-firebase-structure.js** - Mock preview script for Firebase structure
-- **test-cron-job.js** - Test script for the cron job
-- **test-polar-sync.js** - Early Polar sync test script
 
 These have been replaced by the production scripts in `/scripts/`:
 - `sync-polar-data-to-firebase.js` - Combined fetch + insert

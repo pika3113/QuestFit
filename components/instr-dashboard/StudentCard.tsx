@@ -4,6 +4,7 @@ import { Image } from 'expo-image';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import Sparkline from './Sparkline';
+import { SkeletonBlock } from '@/components/Skeleton';
 
 export interface StudentStats {
   id: string;
@@ -14,6 +15,7 @@ export interface StudentStats {
   // History arrays (7 days)
   hrHistory: number[];
   distanceHistory: number[];
+  stepsHistory: number[];
   sleepHistory: number[];
   caloriesHistory: number[];
   labels: string[];
@@ -21,6 +23,7 @@ export interface StudentStats {
   // Averages
   avgHr: number;
   avgDistance: number;
+  avgSteps: number;
   avgSleep: number;
   avgCalories: number;
   
@@ -35,6 +38,7 @@ interface StudentCardProps {
   isSelected?: boolean;
   onToggleSelection?: (id: string) => void;
   chartConfig?: Record<MetricType, ChartType>;
+  activityMetric?: 'steps' | 'distance';
 }
 
 type MetricType = 'hr' | 'distance' | 'sleep' | 'calories';
@@ -62,7 +66,8 @@ export const StudentCard: React.FC<StudentCardProps> = ({
   isSelectionMode = false, 
   isSelected = false, 
   onToggleSelection,
-  chartConfig = { hr: 'line', distance: 'bar', sleep: 'line', calories: 'area' }
+  chartConfig = { hr: 'line', distance: 'bar', sleep: 'line', calories: 'area' },
+  activityMetric = 'steps'
 }) => {
   const { width: windowWidth, height: windowHeight } = useWindowDimensions();
   const [selectedMetric, setSelectedMetric] = useState<MetricType>('distance');
@@ -84,10 +89,10 @@ export const StudentCard: React.FC<StudentCardProps> = ({
   const getChartData = () => {
     switch (selectedMetric) {
       case 'hr': return item.hrHistory;
-      case 'distance': return item.distanceHistory;
+      case 'distance': return activityMetric === 'steps' ? item.stepsHistory : item.distanceHistory;
       case 'sleep': return item.sleepHistory;
       case 'calories': return item.caloriesHistory;
-      default: return item.distanceHistory;
+      default: return activityMetric === 'steps' ? item.stepsHistory : item.distanceHistory;
     }
   };
 
@@ -104,7 +109,7 @@ export const StudentCard: React.FC<StudentCardProps> = ({
   const getChartLabel = () => {
     switch (selectedMetric) {
       case 'hr': return 'Avg Heart Rate (bpm)';
-      case 'distance': return 'Distance (m)';
+      case 'distance': return activityMetric === 'steps' ? 'Steps' : 'Distance (m)';
       case 'sleep': return 'Sleep Score';
       case 'calories': return 'Active Calories';
       default: return '';
@@ -155,8 +160,10 @@ export const StudentCard: React.FC<StudentCardProps> = ({
           onPress={() => setSelectedMetric('distance')}
         >
           <Ionicons name="walk" size={16} color="#2E86AB" />
-          <Text style={styles.statValue}>{item.avgDistance.toLocaleString()}</Text>
-          <Text style={styles.statLabel}>Dist (m)</Text>
+          <Text style={styles.statValue}>
+            {(activityMetric === 'steps' ? item.avgSteps : item.avgDistance).toLocaleString()}
+          </Text>
+          <Text style={styles.statLabel}>{activityMetric === 'steps' ? 'Steps' : 'Dist (m)'}</Text>
         </TouchableOpacity>
 
         <TouchableOpacity 
@@ -238,6 +245,40 @@ export const StudentCard: React.FC<StudentCardProps> = ({
     </TouchableOpacity>
   );
 };
+
+export function StudentCardSkeleton() {
+  return (
+    <View style={styles.card}>
+      <View style={styles.cardHeader}>
+        <View style={styles.userInfo}>
+          <View style={styles.avatarContainer}>
+            <SkeletonBlock width={44} height={44} radius={22} />
+          </View>
+          <View style={{ flex: 1 }}>
+            <SkeletonBlock width={160} height={14} radius={6} style={{ marginTop: 4 }} />
+            <SkeletonBlock width={220} height={12} radius={6} style={{ marginTop: 10 }} />
+          </View>
+        </View>
+        <SkeletonBlock width={24} height={24} radius={12} />
+      </View>
+
+      <View style={styles.statsGrid}>
+        {Array.from({ length: 4 }).map((_, idx) => (
+          <View key={idx} style={styles.statItem}>
+            <SkeletonBlock width={18} height={18} radius={9} />
+            <SkeletonBlock width={'70%'} height={16} radius={6} style={{ marginTop: 10 }} />
+            <SkeletonBlock width={'45%'} height={10} radius={6} style={{ marginTop: 8 }} />
+          </View>
+        ))}
+      </View>
+
+      <View style={styles.chartContainer}>
+        <SkeletonBlock width={220} height={12} radius={6} />
+        <View style={{ height: 270, width: '100%', overflow: 'hidden', borderRadius: 16, marginTop: 10, backgroundColor: '#E0E0E0' }} />
+      </View>
+    </View>
+  );
+}
 
 const styles = StyleSheet.create({
   card: {

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, Pressable, Dimensions, Modal } from 'react-native';
+import { View, Text, Pressable, Dimensions, Modal, Platform } from 'react-native';
 import { Image } from 'expo-image';
 import { Creature } from '../../src/types/polar';
 import { creatureCardStyles as styles} from '@/src/styles/components/creatureCardStyles';
@@ -94,7 +94,11 @@ export const CreatureCardGrid: React.FC<CardGridProps> = ({
   useEffect(() => {
     const calculateCardDims = () => {
       const screenWidth = Dimensions.get("window").width;
-      const columns = Math.max(Math.floor(screenWidth/minCardWidth), 1); // at least 1 column
+      // On web, make each card ~50% wider by increasing the effective min width.
+      const effectiveMinCardWidth = (Platform.OS === 'web' && screenWidth >= 900)
+        ? Math.round(minCardWidth * 1.5)
+        : minCardWidth;
+      const columns = Math.max(Math.floor(screenWidth / effectiveMinCardWidth), 1); // at least 1 column
       const width = Dimensions.get("window").width/columns;
       setCardWidth(width);
     };

@@ -5,23 +5,37 @@ import dotenv from 'dotenv';
 
 dotenv.config();
 
-const admin = require('firebase-admin');
+let admin: any;
+let db: any;
 
-// Initialize Firebase Admin
-if (admin.apps.length === 0) {
-  admin.initializeApp({
-    credential: admin.credential.cert({
-      projectId: process.env.FIREBASE_PROJECT_ID,
-      clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
-      privateKey: process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, '\n'),
-    }),
-  });
+function getDb() {
+  if (db) return db;
+  if (!admin) admin = require('firebase-admin');
+
+  if (admin.apps.length === 0) {
+    admin.initializeApp({
+      credential: admin.credential.cert({
+        projectId: process.env.FIREBASE_PROJECT_ID,
+        clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
+        privateKey: process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, '\n'),
+      }),
+    });
+  }
+
+  db = admin.firestore();
+  return db;
 }
 
-const db = admin.firestore();
+// Signature secret from Polar webhook creation (store in env)
 
-// Signature secret from Polar webhook creation
-const SIGNATURE_SECRET = 'b9ea4ffb-963e-4c44-b607-cc0617124ebc';
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null;
+}
+
+function getString(obj: Record<string, unknown>, key: string): string | undefined {
+  const value = obj[key];
+  return typeof value === 'string' ? value : undefined;
+}
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   console.log('Webhook received:', req.method);
@@ -35,7 +49,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   // Handle ping from Polar during webhook creation
-  if (req.method === 'POST' && req.body?.ping) {
+  const bodyRecord = isRecord(req.body) ? (req.body as Record<string, unknown>) : undefined;
+  if (req.method === 'POST' && bodyRecord && 'ping' in bodyRecord && bodyRecord.ping) {
     console.log('Ping received from Polar');
     return res.status(200).json({ message: 'Pong' });
   }
@@ -43,26 +58,52 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   // Handle actual webhook notifications
   if (req.method === 'POST') {
     const signature = req.headers['polar-webhook-signature'] as string;
-    
-    // Verify signature
-    if (signature) {
-      const body = JSON.stringify(req.body);
-      const expectedSignature = crypto
-        .createHmac('sha256', SIGNATURE_SECRET)
-        .update(body)
-        .digest('hex');
-      
-      if (signature !== expectedSignature) {
-        console.error('Invalid signature - Expected:', expectedSignature, 'Got:', signature);
-        return res.status(401).json({ error: 'Invalid signature' });
-      }
-      
-      console.log('Signature verified');
+    const signatureSecret = process.env.POLAR_WEBHOOK_SIGNATURE_SECRET;
+
+    // Verify signature (fail closed)
+    if (!signatureSecret) {
+      console.error('Missing POLAR_WEBHOOK_SIGNATURE_SECRET env var');
+      return res.status(500).json({ error: 'Server misconfigured' });
     }
 
+    if (!signature) {
+      console.error('Missing polar-webhook-signature header');
+      return res.status(401).json({ error: 'Missing signature' });
+    }
+
+    const body = JSON.stringify(req.body);
+    const expectedSignature = crypto
+      .createHmac('sha256', signatureSecret)
+      .update(body)
+      .digest('hex');
+
+    const sigBuf = Buffer.from(signature, 'utf8');
+    const expBuf = Buffer.from(expectedSignature, 'utf8');
+    const ok = sigBuf.length === expBuf.length && crypto.timingSafeEqual(sigBuf, expBuf);
+    if (!ok) {
+      console.error('Invalid signature');
+      return res.status(401).json({ error: 'Invalid signature' });
+    }
+
+    console.log('Signature verified');
+
     console.log('Webhook event received:', JSON.stringify(req.body, null, 2));
-    
-    const { event, url, user_id: polarUserId, date: webhookDate } = req.body;
+
+    if (!bodyRecord) {
+      console.log('Webhook body is not an object; ignoring');
+      return res.status(200).json({ message: 'Invalid payload, ignoring' });
+    }
+
+    const event = getString(bodyRecord, 'event');
+    const url = getString(bodyRecord, 'url');
+    const webhookDate = getString(bodyRecord, 'date');
+    const polarUserIdRaw = bodyRecord['user_id'];
+    const polarUserId =
+      typeof polarUserIdRaw === 'string'
+        ? polarUserIdRaw
+        : typeof polarUserIdRaw === 'number'
+          ? String(polarUserIdRaw)
+          : undefined;
 
     if (!url || !polarUserId) {
         console.log('Missing url or user_id in webhook payload');
@@ -70,6 +111,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
 
     try {
+      const db = getDb();
         // 1. Find the user
         // The document ID is the Polar User ID
         console.log(`Looking up user for Polar ID: ${polarUserId}`);

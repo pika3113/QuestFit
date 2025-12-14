@@ -158,7 +158,7 @@
 
 ### API Endpoints (Vercel Serverless Functions)
 - `POST /api/polar/register-user`: Register user with Polar
-- `POST /api/polar/webhook`: Receive Polar workout webhooks
+- `POST /api/polar/webhook`: Receive Polar workout webhooks (HMAC-verified via `POLAR_WEBHOOK_SIGNATURE_SECRET`)
 - `GET /api/polar/user-data`: Fetch user data from Polar
 - `POST /api/polar/create-webhook`: Create Polar webhook
 - `DELETE /api/polar/delete-webhook`: Remove Polar webhook
@@ -215,11 +215,9 @@
 ## 🛠️ Development Features
 
 ### Testing & Debugging
-- Test screen (`test.tsx`) for feature testing
 - Mock data utilities for development
 - Debug console component
 - Workout completion examples
-- Test script for Polar sync (`scripts/test-polar-sync.js`)
 
 ### Configuration
 - TypeScript strict mode enabled

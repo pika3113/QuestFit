@@ -278,7 +278,28 @@ See [scripts/README-sync-to-firebase.md](scripts/README-sync-to-firebase.md) for
 1. Register at [Polar AccessLink](https://www.polar.com/accesslink-api)
 2. Create an API client
 3. Configure webhook endpoints in `/api/polar/`
-4. Set environment variables for OAuth
+4. Set environment variables (Vercel)
+
+Required server env vars:
+- `POLAR_ACCESSLINK_CLIENT_ID`
+- `POLAR_ACCESSLINK_CLIENT_SECRET`
+- `POLAR_WEBHOOK_SIGNATURE_SECRET` (returned once when you create the webhook)
+- `POLAR_WEBHOOK_ADMIN_TOKEN` (protects webhook create/delete endpoints)
+
+Create/rotate the webhook (run against your deployed domain):
+
+```powershell
+# Create webhook (returns signatureSecret; set it as POLAR_WEBHOOK_SIGNATURE_SECRET)
+Invoke-RestMethod -Method Post -Uri "https://YOUR_DOMAIN/api/polar/create-webhook" -Headers @{"x-webhook-admin-token"="YOUR_ADMIN_TOKEN"}
+
+# Delete webhook (use before rotating)
+Invoke-RestMethod -Method Delete -Uri "https://YOUR_DOMAIN/api/polar/delete-webhook" -Headers @{"x-webhook-admin-token"="YOUR_ADMIN_TOKEN"}
+```
+
+Rotation flow:
+1) `DELETE /api/polar/delete-webhook`
+2) `POST /api/polar/create-webhook` → copy `signatureSecret`
+3) Set `POLAR_WEBHOOK_SIGNATURE_SECRET` to the new value, redeploy
 
 ---
 

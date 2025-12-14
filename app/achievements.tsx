@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { ScrollView, View, Pressable, ActivityIndicator } from 'react-native';
 import { Text } from '@/components/Themed';
-import { router } from 'expo-router';
+import { router, Stack } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '@/src/hooks/useAuth';
 import { doc, getDoc } from 'firebase/firestore';
@@ -21,6 +21,7 @@ type UserProfileLike = {
   totalDistance?: number;
   totalDuration?: number;
   streakDays?: number;
+  workoutHistory?: any[];
 };
 
 export default function AchievementsScreen() {
@@ -54,18 +55,29 @@ export default function AchievementsScreen() {
   }, [user?.uid]);
 
   const computed = useMemo(() => {
-    return computeAchievementsProgress(profile, existing);
+    // Prefer the already-synced doc for display (it includes derived metrics).
+    // Fallback to local computation until the first sync completes.
+    if (existing) return { definitions: ACHIEVEMENTS, progress: existing.achievements };
+    return computeAchievementsProgress(profile, null);
   }, [profile, existing]);
 
   const unlockedCount = Object.values(computed.progress).filter(p => p.unlocked).length;
 
   return (
+    <>
+    <Stack.Screen options={{ headerShown: false }} />
     <ScrollView style={{ flex: 1, backgroundColor: '#F8F9FA' }} contentContainerStyle={{ padding: 16 }}>
       <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 16 }}>
-        <Pressable onPress={() => router.back()} style={{ padding: 8, marginRight: 8 }}>
+        <Pressable
+          onPress={() => router.back()}
+          style={{ padding: 8, minWidth: 40, marginRight: 8, alignItems: 'flex-start' }}
+        >
           <Text style={{ fontSize: 18 }}>←</Text>
         </Pressable>
-        <Text style={{ fontSize: 22, fontWeight: '700', color: '#111' }}>Achievements</Text>
+        <Text style={{ flex: 1, textAlign: 'center', fontSize: 22, fontWeight: '700', color: '#111' }}>
+          Achievements
+        </Text>
+        <View style={{ minWidth: 40 }} />
       </View>
 
       <View style={{
@@ -78,7 +90,7 @@ export default function AchievementsScreen() {
           {unlockedCount} / {ACHIEVEMENTS.length} unlocked
         </Text>
         <Text style={{ color: 'rgba(255,255,255,0.8)', marginTop: 6 }}>
-          Earn badges as you train — Nike Run style.
+          Earn badges as you train
         </Text>
       </View>
 
@@ -153,5 +165,6 @@ export default function AchievementsScreen() {
 
       <View style={{ height: 24 }} />
     </ScrollView>
+    </>
   );
 }

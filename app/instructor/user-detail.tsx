@@ -21,25 +21,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useInstructorStudents } from '@/src/hooks/useInstructorStudents';
 import { useAuth } from '@/src/hooks/useAuth';
 import { ComparisonRadarChart, RadarDataPoint } from '@/components/instr-dashboard/ComparisonRadarChart';
-
-// Helper function to convert ISO8601 duration to readable format
-function formatDuration(iso8601Duration: string): string {
-  if (!iso8601Duration) return 'N/A';
-  
-  const match = iso8601Duration.match(/PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+(?:\.\d+)?)S)?/);
-  if (!match) return iso8601Duration;
-  
-  const hours = parseInt(match[1] || '0');
-  const minutes = parseInt(match[2] || '0');
-  const seconds = parseFloat(match[3] || '0');
-  
-  const parts = [];
-  if (hours > 0) parts.push(`${hours}h`);
-  if (minutes > 0) parts.push(`${minutes}m`);
-  if (seconds > 0 && hours === 0) parts.push(`${Math.round(seconds)}s`);
-  
-  return parts.length > 0 ? parts.join(' ') : '0s';
-}
+import { formatIsoDurationHms as formatDuration } from '@/src/utils/formatDuration';
 
 interface UserStats {
   today: {
@@ -63,6 +45,49 @@ interface AISummary {
   recommendations: string;
   "[short]insights": string;
   "[short]recommendations": string;
+}
+
+type ExpandableSectionProps = {
+  title: string;
+  children: React.ReactNode;
+  initiallyExpanded?: boolean;
+  expanded?: boolean;
+  onToggle?: () => void;
+};
+
+function ExpandableSection({
+  title,
+  children,
+  initiallyExpanded = false,
+  expanded,
+  onToggle,
+}: ExpandableSectionProps) {
+  const [uncontrolledExpanded, setUncontrolledExpanded] = useState(initiallyExpanded);
+  const isControlled = typeof expanded === 'boolean';
+  const isExpanded = isControlled ? expanded : uncontrolledExpanded;
+
+  const handleToggle = useCallback(() => {
+    if (isControlled) {
+      onToggle?.();
+      return;
+    }
+    setUncontrolledExpanded((v) => !v);
+  }, [isControlled, onToggle]);
+
+  return (
+    <View style={styles.section}>
+      <TouchableOpacity
+        style={styles.expandableHeader}
+        onPress={handleToggle}
+        activeOpacity={0.8}
+      >
+        <Text style={styles.expandableHeaderTitle}>{title}</Text>
+        <Ionicons name={isExpanded ? 'chevron-up' : 'chevron-down'} size={18} color="#666" />
+      </TouchableOpacity>
+
+      {isExpanded ? <View style={styles.expandableBody}>{children}</View> : null}
+    </View>
+  );
 }
 
 type PresetRange = '7d' | '14d' | '30d';
@@ -105,6 +130,44 @@ export default function UserDetailScreen() {
   const [averageRadarData, setAverageRadarData] = useState<RadarDataPoint | null>(null);
   const [loadingRadar, setLoadingRadar] = useState(false);
   const [selectedCadetsCount, setSelectedCadetsCount] = useState(0);
+
+  const SECTION_KEYS = useMemo(
+    () => ['overallPerformance', 'dailyActivity', 'exercises', 'cardioLoad', 'sleepRecovery'] as const,
+    []
+  );
+  type SectionKey = (typeof SECTION_KEYS)[number];
+
+  const [expandedSections, setExpandedSections] = useState<Record<SectionKey, boolean>>(() => ({
+    overallPerformance: false,
+    dailyActivity: false,
+    exercises: false,
+    cardioLoad: false,
+    sleepRecovery: false,
+  }));
+
+  const toggleSection = useCallback((key: SectionKey) => {
+    setExpandedSections((prev) => ({ ...prev, [key]: !prev[key] }));
+  }, []);
+
+  const setAllSectionsExpanded = useCallback(
+    (value: boolean) => {
+      setExpandedSections(
+        SECTION_KEYS.reduce((acc, key) => {
+          acc[key] = value;
+          return acc;
+        }, {} as Record<SectionKey, boolean>)
+      );
+    },
+    [SECTION_KEYS]
+  );
+
+  const anySectionExpanded = useMemo(() => {
+    return SECTION_KEYS.some((key) => expandedSections[key]);
+  }, [SECTION_KEYS, expandedSections]);
+
+  const anySectionCollapsed = useMemo(() => {
+    return SECTION_KEYS.some((key) => !expandedSections[key]);
+  }, [SECTION_KEYS, expandedSections]);
 
   const initialEnd = useMemo(() => {
     const parsed = date ? new Date(date) : new Date();
@@ -172,6 +235,45 @@ export default function UserDetailScreen() {
   };
 
   const toIsoDateString = (d: Date) => d.toISOString().split('T')[0];
+
+  const rangeStartEndIso = useMemo(() => {
+    const start = new Date(dateRange.start);
+    const end = new Date(dateRange.end);
+    start.setHours(0, 0, 0, 0);
+    end.setHours(0, 0, 0, 0);
+    const startMs = Math.min(start.getTime(), end.getTime());
+    const endMs = Math.max(start.getTime(), end.getTime());
+    return {
+      startIso: toIsoDateString(new Date(startMs)),
+      endIso: toIsoDateString(new Date(endMs)),
+    };
+  }, [dateRange.end, dateRange.start]);
+
+  const goToAllExercises = useCallback(() => {
+    if (!userId) return;
+    router.push({
+      pathname: '/instructor/all-exercises',
+      params: {
+        userIds: userId,
+        startDate: rangeStartEndIso.startIso,
+        endDate: rangeStartEndIso.endIso,
+        initialDate: rangeStartEndIso.endIso,
+      },
+    });
+  }, [rangeStartEndIso.endIso, rangeStartEndIso.startIso, userId]);
+
+  const goToAllSleep = useCallback(() => {
+    if (!userId) return;
+    router.push({
+      pathname: '/instructor/all-sleep',
+      params: {
+        userIds: userId,
+        startDate: rangeStartEndIso.startIso,
+        endDate: rangeStartEndIso.endIso,
+        initialDate: rangeStartEndIso.endIso,
+      },
+    });
+  }, [rangeStartEndIso.endIso, rangeStartEndIso.startIso, userId]);
 
   const dateStrings = useMemo(() => {
     const dates: string[] = [];
@@ -822,11 +924,29 @@ export default function UserDetailScreen() {
               )}
             </TouchableOpacity>
           )}
+
+          {(anySectionCollapsed || anySectionExpanded) && (
+            <View style={styles.bulkSectionControls}>
+              {anySectionCollapsed && (
+                <TouchableOpacity style={styles.bulkSectionButton} onPress={() => setAllSectionsExpanded(true)}>
+                  <Text style={styles.bulkSectionButtonText}>Open All</Text>
+                </TouchableOpacity>
+              )}
+              {anySectionExpanded && (
+                <TouchableOpacity style={styles.bulkSectionButton} onPress={() => setAllSectionsExpanded(false)}>
+                  <Text style={styles.bulkSectionButtonText}>Collapse All</Text>
+                </TouchableOpacity>
+              )}
+            </View>
+          )}
         </View>
 
         {/* Radar Chart Comparison Section */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Overall Performance</Text>
+        <ExpandableSection
+          title="Overall Performance"
+          expanded={expandedSections.overallPerformance}
+          onToggle={() => toggleSection('overallPerformance')}
+        >
           {loadingRadar ? (
             <View style={styles.card}>
               <ActivityIndicator size="small" color="#FF6B35" />
@@ -844,11 +964,14 @@ export default function UserDetailScreen() {
               <Text style={styles.noData}>No comparison data available</Text>
             </View>
           )}
-        </View>
+        </ExpandableSection>
 
         {/* Activity Section */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Daily Activity</Text>
+        <ExpandableSection
+          title="Daily Activity"
+          expanded={expandedSections.dailyActivity}
+          onToggle={() => toggleSection('dailyActivity')}
+        >
           <View style={styles.comparisonCard}>
             <View style={styles.comparisonColumn}>
               <Text style={styles.columnLabel}>Range</Text>
@@ -889,32 +1012,65 @@ export default function UserDetailScreen() {
               )}
             </View>
           </View>
-        </View>
+        </ExpandableSection>
 
-        {/* Exercise Section */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Daily Exercise</Text>
-          <View style={styles.card}>
-            {loadingRange ? (
-              <ActivityIndicator color="#FF6B35" />
-            ) : exerciseAgg.days > 0 ? (
-              <>
-                <Text style={styles.cardSubtitle}>
-                  {exerciseAgg.workoutTotal} workout(s) in range
-                </Text>
-                <Text style={styles.infoText}>Avg workouts/day: {(exerciseAgg.workoutTotal / exerciseAgg.days).toFixed(1)}</Text>
-                <Text style={styles.infoText}>Total calories: {exerciseAgg.caloriesTotal || 0}</Text>
-                <Text style={styles.infoText}>Total distance: {exerciseAgg.distanceTotal || 0}</Text>
-              </>
-            ) : (
-              <Text style={styles.noData}>No data</Text>
-            )}
+        {/* Exercises */}
+        <ExpandableSection
+          title="Exercises"
+          expanded={expandedSections.exercises}
+          onToggle={() => toggleSection('exercises')}
+        >
+          <View style={styles.drilldownRow}>
+            <Pressable onPress={goToAllExercises} style={styles.drilldownLink}>
+              <Text style={styles.drilldownLinkText}>View all exercises</Text>
+              <Ionicons name="chevron-forward" size={16} color="#FF6B35" />
+            </Pressable>
           </View>
-        </View>
+          <Text style={styles.rangeSummaryText}>{rangeLabel}</Text>
+          {stats?.historical.recentExercises && stats.historical.recentExercises.length > 0 ? (
+            stats.historical.recentExercises.map((dayExercises: any, idx: number) => (
+              <View key={idx} style={styles.card}>
+                <Text style={styles.cardSubtitle}>{dayExercises.date}</Text>
+                <Text style={styles.exerciseCount}>
+                  {dayExercises.count || 0} exercise(s)
+                </Text>
+                {dayExercises.exercises?.map((ex: any, exIdx: number) => (
+                  <Pressable
+                    key={exIdx}
+                    style={styles.exerciseItem}
+                    disabled={!ex?.id}
+                    onPress={() => {
+                      if (!ex?.id) return;
+                      router.push({
+                        pathname: '/exercise/[date]/[exerciseId]',
+                        params: { date: dayExercises.date, exerciseId: String(ex.id), userId },
+                      });
+                    }}
+                  >
+                    <Text style={styles.exerciseSport}>{ex.sport || 'Unknown'}</Text>
+                    <Text style={styles.exerciseDetail}>
+                      Duration: {formatDuration(ex.duration)}
+                    </Text>
+                    {ex.calories && (
+                      <Text style={styles.exerciseDetail}>
+                        Calories: {ex.calories}
+                      </Text>
+                    )}
+                  </Pressable>
+                ))}
+              </View>
+            ))
+          ) : (
+            <Text style={styles.noData}>No recent exercises</Text>
+          )}
+        </ExpandableSection>
 
         {/* Cardio Load Section */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Cardio Load</Text>
+        <ExpandableSection
+          title="Cardio Load"
+          expanded={expandedSections.cardioLoad}
+          onToggle={() => toggleSection('cardioLoad')}
+        >
           <View style={styles.comparisonCard}>
             <View style={styles.comparisonColumn}>
               <Text style={styles.columnLabel}>
@@ -946,11 +1102,20 @@ export default function UserDetailScreen() {
               )}
             </View>
           </View>
-        </View>
+        </ExpandableSection>
 
         {/* Sleep Section */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Sleep & Recovery</Text>
+        <ExpandableSection
+          title="Sleep & Recovery"
+          expanded={expandedSections.sleepRecovery}
+          onToggle={() => toggleSection('sleepRecovery')}
+        >
+          <View style={styles.drilldownRow}>
+            <Pressable onPress={goToAllSleep} style={styles.drilldownLink}>
+              <Text style={styles.drilldownLinkText}>View all sleep</Text>
+              <Ionicons name="chevron-forward" size={16} color="#FF6B35" />
+            </Pressable>
+          </View>
           <View style={styles.card}>
             {loadingRange ? (
               <ActivityIndicator color="#FF6B35" />
@@ -1022,37 +1187,7 @@ export default function UserDetailScreen() {
               </View>
             </View>
           )}
-        </View>
-
-        {/* Recent Exercises */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Recent Exercises (Last 7 Days)</Text>
-          {stats?.historical.recentExercises && stats.historical.recentExercises.length > 0 ? (
-            stats.historical.recentExercises.map((dayExercises: any, idx: number) => (
-              <View key={idx} style={styles.card}>
-                <Text style={styles.cardSubtitle}>{dayExercises.date}</Text>
-                <Text style={styles.exerciseCount}>
-                  {dayExercises.count || 0} exercise(s)
-                </Text>
-                {dayExercises.exercises?.map((ex: any, exIdx: number) => (
-                  <View key={exIdx} style={styles.exerciseItem}>
-                    <Text style={styles.exerciseSport}>{ex.sport || 'Unknown'}</Text>
-                    <Text style={styles.exerciseDetail}>
-                      Duration: {formatDuration(ex.duration)}
-                    </Text>
-                    {ex.calories && (
-                      <Text style={styles.exerciseDetail}>
-                        Calories: {ex.calories}
-                      </Text>
-                    )}
-                  </View>
-                ))}
-              </View>
-            ))
-          ) : (
-            <Text style={styles.noData}>No recent exercises</Text>
-          )}
-        </View>
+        </ExpandableSection>
 
         {/* Heart Rate Section */}
         {stats?.today.continuousHR && (
@@ -1167,6 +1302,28 @@ const styles = StyleSheet.create({
     fontSize: 20,
     fontWeight: '600',
     flex: 1,
+    textAlign: 'center',
+  },
+  bulkSectionControls: {
+    flexDirection: 'row',
+    gap: 10,
+    marginTop: 12,
+    alignItems: 'center',
+    justifyContent: 'flex-start',
+    flexWrap: 'wrap',
+  },
+  bulkSectionButton: {
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#FF6B35',
+    alignSelf: 'flex-start',
+  },
+  bulkSectionButtonText: {
+    color: '#FF6B35',
+    fontSize: 14,
+    fontWeight: '700',
     textAlign: 'center',
   },
   loadingContainer: {
@@ -1286,13 +1443,57 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     marginBottom: 12,
   },
-  comparisonCard: {
-    backgroundColor: '#F9F9F9',
-    borderRadius: 12,
-    padding: 20,
+  expandableHeader: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    padding: 16,
     flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    elevation: 2,
+  },
+  expandableHeaderTitle: {
+    color: '#000000',
+    fontSize: 18,
+    fontWeight: 'bold',
+  },
+  expandableBody: {
+    marginTop: 12,
+  },
+  drilldownRow: {
+    marginBottom: 12,
+  },
+  drilldownLink: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    alignSelf: 'flex-start',
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+    borderRadius: 10,
     borderWidth: 1,
     borderColor: '#E0E0E0',
+    backgroundColor: '#FFF3EE',
+    gap: 6,
+  },
+  drilldownLinkText: {
+    color: '#FF6B35',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  comparisonCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    padding: 20,
+    flexDirection: 'row',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    elevation: 2,
   },
   comparisonColumn: {
     flex: 1,
@@ -1310,12 +1511,15 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase',
   },
   card: {
-    backgroundColor: '#F9F9F9',
-    borderRadius: 12,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
     padding: 16,
-    marginBottom: 12,
-    borderWidth: 1,
-    borderColor: '#E0E0E0',
+    marginBottom: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    elevation: 2,
   },
   cardSubtitle: {
     color: '#666',

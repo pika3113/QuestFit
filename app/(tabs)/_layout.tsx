@@ -250,15 +250,6 @@ export default function TabLayout() {
         }}
       />
       <Tabs.Screen
-        name="test"
-        options={{
-          title: 'Test',
-          href: null,
-          headerTitle: 'QuestFit',
-          tabBarIcon: ({ color }) => <TabBarIcon name="flask" color={color} />,
-        }}
-      />
-      <Tabs.Screen
         name="instr-dashboard"
         options={{
           href: isInstructor ? '/instr-dashboard' : null,

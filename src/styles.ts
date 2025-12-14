@@ -91,7 +91,7 @@ export const twoStyles = StyleSheet.create({
     borderBottomColor: '#E5E7EB',
   },
   title: {
-    fontSize: 24,
+    fontSize: 28,
     fontWeight: 'bold',
     textAlign: 'center',
     color: black,
@@ -233,17 +233,22 @@ export const liveStyles = StyleSheet.create({
     paddingBottom: 40,
   },
   header: {
-    marginBottom: 24,
-    backgroundColor: 'transparent',
+    padding: 20,
+    marginBottom: 16,
+    backgroundColor: white,
+    borderBottomWidth: 1,
+    borderBottomColor: '#E5E7EB',
   },
   title: {
     fontSize: 28,
     fontWeight: 'bold',
+    textAlign: 'center',
     marginBottom: 8,
     color: black,
   },
   subtitle: {
     fontSize: 16,
+    textAlign: 'center',
     color: '#6B7280',
   },
   section: {

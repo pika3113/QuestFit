@@ -103,6 +103,7 @@ function RootLayoutNav() {
         <Stack.Screen name="index" options={{ headerShown: false }} />
         <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
         <Stack.Screen name="history" options={{ headerShown: false }} />
+        <Stack.Screen name="me-exercises" options={{ headerShown: false }} />
         <Stack.Screen name="instructor" options={{ headerShown: false }} />
       </Stack>
       {Platform.OS === 'web' && (
