@@ -21,25 +21,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useInstructorStudents } from '@/src/hooks/useInstructorStudents';
 import { useAuth } from '@/src/hooks/useAuth';
 import { ComparisonRadarChart, RadarDataPoint } from '@/components/instr-dashboard/ComparisonRadarChart';
-
-// Helper function to convert ISO8601 duration to readable format
-function formatDuration(iso8601Duration: string): string {
-  if (!iso8601Duration) return 'N/A';
-  
-  const match = iso8601Duration.match(/PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+(?:\.\d+)?)S)?/);
-  if (!match) return iso8601Duration;
-  
-  const hours = parseInt(match[1] || '0');
-  const minutes = parseInt(match[2] || '0');
-  const seconds = parseFloat(match[3] || '0');
-  
-  const parts = [];
-  if (hours > 0) parts.push(`${hours}h`);
-  if (minutes > 0) parts.push(`${minutes}m`);
-  if (seconds > 0 && hours === 0) parts.push(`${Math.round(seconds)}s`);
-  
-  return parts.length > 0 ? parts.join(' ') : '0s';
-}
+import { formatIsoDurationHms as formatDuration } from '@/src/utils/formatDuration';
 
 interface UserStats {
   today: {
@@ -197,6 +179,45 @@ export default function UserDetailScreen() {
   };
 
   const toIsoDateString = (d: Date) => d.toISOString().split('T')[0];
+
+  const rangeStartEndIso = useMemo(() => {
+    const start = new Date(dateRange.start);
+    const end = new Date(dateRange.end);
+    start.setHours(0, 0, 0, 0);
+    end.setHours(0, 0, 0, 0);
+    const startMs = Math.min(start.getTime(), end.getTime());
+    const endMs = Math.max(start.getTime(), end.getTime());
+    return {
+      startIso: toIsoDateString(new Date(startMs)),
+      endIso: toIsoDateString(new Date(endMs)),
+    };
+  }, [dateRange.end, dateRange.start]);
+
+  const goToAllExercises = useCallback(() => {
+    if (!userId) return;
+    router.push({
+      pathname: '/instructor/all-exercises',
+      params: {
+        userIds: userId,
+        startDate: rangeStartEndIso.startIso,
+        endDate: rangeStartEndIso.endIso,
+        initialDate: rangeStartEndIso.endIso,
+      },
+    });
+  }, [rangeStartEndIso.endIso, rangeStartEndIso.startIso, userId]);
+
+  const goToAllSleep = useCallback(() => {
+    if (!userId) return;
+    router.push({
+      pathname: '/instructor/all-sleep',
+      params: {
+        userIds: userId,
+        startDate: rangeStartEndIso.startIso,
+        endDate: rangeStartEndIso.endIso,
+        initialDate: rangeStartEndIso.endIso,
+      },
+    });
+  }, [rangeStartEndIso.endIso, rangeStartEndIso.startIso, userId]);
 
   const dateStrings = useMemo(() => {
     const dates: string[] = [];
@@ -914,24 +935,51 @@ export default function UserDetailScreen() {
           </View>
         </ExpandableSection>
 
-        {/* Exercise Section */}
-        <ExpandableSection title="Daily Exercise">
-          <View style={styles.card}>
-            {loadingRange ? (
-              <ActivityIndicator color="#FF6B35" />
-            ) : exerciseAgg.days > 0 ? (
-              <>
-                <Text style={styles.cardSubtitle}>
-                  {exerciseAgg.workoutTotal} workout(s) in range
-                </Text>
-                <Text style={styles.infoText}>Avg workouts/day: {(exerciseAgg.workoutTotal / exerciseAgg.days).toFixed(1)}</Text>
-                <Text style={styles.infoText}>Total calories: {exerciseAgg.caloriesTotal || 0}</Text>
-                <Text style={styles.infoText}>Total distance: {exerciseAgg.distanceTotal || 0}</Text>
-              </>
-            ) : (
-              <Text style={styles.noData}>No data</Text>
-            )}
+        {/* Exercises */}
+        <ExpandableSection title="Exercises">
+          <View style={styles.drilldownRow}>
+            <Pressable onPress={goToAllExercises} style={styles.drilldownLink}>
+              <Text style={styles.drilldownLinkText}>View all exercises</Text>
+              <Ionicons name="chevron-forward" size={16} color="#FF6B35" />
+            </Pressable>
           </View>
+          <Text style={styles.rangeSummaryText}>{rangeLabel}</Text>
+          {stats?.historical.recentExercises && stats.historical.recentExercises.length > 0 ? (
+            stats.historical.recentExercises.map((dayExercises: any, idx: number) => (
+              <View key={idx} style={styles.card}>
+                <Text style={styles.cardSubtitle}>{dayExercises.date}</Text>
+                <Text style={styles.exerciseCount}>
+                  {dayExercises.count || 0} exercise(s)
+                </Text>
+                {dayExercises.exercises?.map((ex: any, exIdx: number) => (
+                  <Pressable
+                    key={exIdx}
+                    style={styles.exerciseItem}
+                    disabled={!ex?.id}
+                    onPress={() => {
+                      if (!ex?.id) return;
+                      router.push({
+                        pathname: '/exercise/[date]/[exerciseId]',
+                        params: { date: dayExercises.date, exerciseId: String(ex.id), userId },
+                      });
+                    }}
+                  >
+                    <Text style={styles.exerciseSport}>{ex.sport || 'Unknown'}</Text>
+                    <Text style={styles.exerciseDetail}>
+                      Duration: {formatDuration(ex.duration)}
+                    </Text>
+                    {ex.calories && (
+                      <Text style={styles.exerciseDetail}>
+                        Calories: {ex.calories}
+                      </Text>
+                    )}
+                  </Pressable>
+                ))}
+              </View>
+            ))
+          ) : (
+            <Text style={styles.noData}>No recent exercises</Text>
+          )}
         </ExpandableSection>
 
         {/* Cardio Load Section */}
@@ -971,6 +1019,12 @@ export default function UserDetailScreen() {
 
         {/* Sleep Section */}
         <ExpandableSection title="Sleep & Recovery">
+          <View style={styles.drilldownRow}>
+            <Pressable onPress={goToAllSleep} style={styles.drilldownLink}>
+              <Text style={styles.drilldownLinkText}>View all sleep</Text>
+              <Ionicons name="chevron-forward" size={16} color="#FF6B35" />
+            </Pressable>
+          </View>
           <View style={styles.card}>
             {loadingRange ? (
               <ActivityIndicator color="#FF6B35" />
@@ -1041,35 +1095,6 @@ export default function UserDetailScreen() {
                 </View>
               </View>
             </View>
-          )}
-        </ExpandableSection>
-
-        {/* Recent Exercises */}
-        <ExpandableSection title="Recent Exercises (Last 7 Days)">
-          {stats?.historical.recentExercises && stats.historical.recentExercises.length > 0 ? (
-            stats.historical.recentExercises.map((dayExercises: any, idx: number) => (
-              <View key={idx} style={styles.card}>
-                <Text style={styles.cardSubtitle}>{dayExercises.date}</Text>
-                <Text style={styles.exerciseCount}>
-                  {dayExercises.count || 0} exercise(s)
-                </Text>
-                {dayExercises.exercises?.map((ex: any, exIdx: number) => (
-                  <View key={exIdx} style={styles.exerciseItem}>
-                    <Text style={styles.exerciseSport}>{ex.sport || 'Unknown'}</Text>
-                    <Text style={styles.exerciseDetail}>
-                      Duration: {formatDuration(ex.duration)}
-                    </Text>
-                    {ex.calories && (
-                      <Text style={styles.exerciseDetail}>
-                        Calories: {ex.calories}
-                      </Text>
-                    )}
-                  </View>
-                ))}
-              </View>
-            ))
-          ) : (
-            <Text style={styles.noData}>No recent exercises</Text>
           )}
         </ExpandableSection>
 
@@ -1325,6 +1350,26 @@ const styles = StyleSheet.create({
   },
   expandableBody: {
     marginTop: 12,
+  },
+  drilldownRow: {
+    marginBottom: 12,
+  },
+  drilldownLink: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    alignSelf: 'flex-start',
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#E0E0E0',
+    backgroundColor: '#FFF3EE',
+    gap: 6,
+  },
+  drilldownLinkText: {
+    color: '#FF6B35',
+    fontSize: 14,
+    fontWeight: '600',
   },
   comparisonCard: {
     backgroundColor: '#FFFFFF',

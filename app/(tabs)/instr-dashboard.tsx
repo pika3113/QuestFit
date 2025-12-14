@@ -22,7 +22,7 @@ import { useInstructorStudents } from '@/src/hooks/useInstructorStudents';
 import { Ionicons } from '@expo/vector-icons';
 import { db } from '@/src/services/firebase';
 import { collection, getDocs, doc, getDoc, limit, orderBy, query } from 'firebase/firestore';
-import { StudentCard, StudentStats, ChartType } from '@/components/instr-dashboard/StudentCard';
+import { StudentCard, StudentCardSkeleton, StudentStats, ChartType } from '@/components/instr-dashboard/StudentCard';
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
 
@@ -50,6 +50,9 @@ export default function InstructorDashboard() {
   const [modalVisible, setModalVisible] = useState(false);
   const [settingsVisible, setSettingsVisible] = useState(false);
 
+  // Activity display toggle (affects the "distance" metric card/chart)
+  const [activityMetric, setActivityMetric] = useState<'steps' | 'distance'>('steps');
+
   // Chart Configuration State
   const [chartConfig, setChartConfig] = useState<Record<'hr' | 'distance' | 'sleep' | 'calories', ChartType>>({
     hr: 'line',
@@ -65,6 +68,11 @@ export default function InstructorDashboard() {
         const savedConfig = await AsyncStorage.getItem('instructor_chart_config');
         if (savedConfig) {
           setChartConfig(JSON.parse(savedConfig));
+        }
+
+        const savedActivityMetric = await AsyncStorage.getItem('instructor_activity_metric');
+        if (savedActivityMetric === 'steps' || savedActivityMetric === 'distance') {
+          setActivityMetric(savedActivityMetric);
         }
       } catch (e) {
         console.error('Failed to load data', e);
@@ -85,6 +93,17 @@ export default function InstructorDashboard() {
     saveConfig();
   }, [chartConfig]);
 
+  useEffect(() => {
+    const saveActivityMetric = async () => {
+      try {
+        await AsyncStorage.setItem('instructor_activity_metric', activityMetric);
+      } catch (e) {
+        console.error('Failed to save activity metric', e);
+      }
+    };
+    saveActivityMetric();
+  }, [activityMetric]);
+
   const fetchStudentsData = useCallback(async (range = dateRange) => {
     try {
       // 1. Fetch all users (In a real app, you might filter by class/instructor)
@@ -98,6 +117,7 @@ export default function InstructorDashboard() {
           // 2. Fetch recent exercises
           const hrHistory: number[] = [];
           const distanceHistory: number[] = [];
+          const stepsHistory: number[] = [];
           const caloriesHistory: number[] = [];
           const sleepHistory: number[] = []; // Placeholder for now
           
@@ -139,9 +159,22 @@ export default function InstructorDashboard() {
             // Distance/Calories prefer activities (more consistently present), fallback to exercises
             let dayDist = 0;
             let dayCals = 0;
+            let daySteps = 0;
 
             if (activitySnap?.exists()) {
               const a = activitySnap.data();
+
+              const steps =
+                typeof a?.steps === 'number'
+                  ? a.steps
+                  : typeof a?.activity?.steps === 'number'
+                    ? a.activity.steps
+                    : null;
+
+              if (steps != null) {
+                daySteps = Math.round(steps);
+              }
+
               const distMeters =
                 typeof a?.distance_from_steps === 'number'
                   ? a.distance_from_steps
@@ -183,6 +216,7 @@ export default function InstructorDashboard() {
 
             hrHistory.push(dayHrCount > 0 ? Math.round(dayHrSum / dayHrCount) : 0);
             distanceHistory.push(dayDist);
+            stepsHistory.push(daySteps);
             caloriesHistory.push(dayCals);
 
             // Sleep score (0 if missing)
@@ -231,6 +265,9 @@ export default function InstructorDashboard() {
           const validDist = distanceHistory.filter(v => v > 0);
           const avgDistance = validDist.length > 0 ? Math.round(validDist.reduce((a, b) => a + b, 0) / validDist.length) : 0;
 
+          const validSteps = stepsHistory.filter(v => v > 0);
+          const avgSteps = validSteps.length > 0 ? Math.round(validSteps.reduce((a, b) => a + b, 0) / validSteps.length) : 0;
+
           const validCals = caloriesHistory.filter(v => v > 0);
           const avgCalories = validCals.length > 0 ? Math.round(validCals.reduce((a, b) => a + b, 0) / validCals.length) : 0;
 
@@ -253,11 +290,13 @@ export default function InstructorDashboard() {
             lastSync,
             hrHistory,
             distanceHistory,
+            stepsHistory,
             sleepHistory,
             caloriesHistory,
             labels,
             avgHr,
             avgDistance,
+            avgSteps,
             avgSleep,
             avgCalories,
             trend
@@ -335,7 +374,7 @@ export default function InstructorDashboard() {
     }
   };
 
-  if (instructorLoading || loading) {
+  if (instructorLoading) {
     return (
       <View style={styles.loadingContainer}>
         <ActivityIndicator size="large" color="#FF6B35" />
@@ -468,26 +507,37 @@ export default function InstructorDashboard() {
       </View>
 
       <FlatList
-        data={displayedStudents.filter(s => s.displayName.toLowerCase().includes(searchQuery.toLowerCase()))}
-        renderItem={({ item }) => (
-          <StudentCard 
-            item={item} 
-            isSelectionMode={false}
-            chartConfig={chartConfig}
-          />
-        )}
-        keyExtractor={item => item.id}
+        data={
+          loading
+            ? ([1, 2, 3] as const)
+            : displayedStudents.filter(s => s.displayName.toLowerCase().includes(searchQuery.toLowerCase()))
+        }
+        renderItem={({ item }) =>
+          loading ? (
+            <StudentCardSkeleton />
+          ) : (
+            <StudentCard
+              item={item as any}
+              isSelectionMode={false}
+              chartConfig={chartConfig}
+              activityMetric={activityMetric}
+            />
+          )
+        }
+        keyExtractor={(item: any) => (loading ? `skeleton-${String(item)}` : item.id)}
         contentContainerStyle={styles.listContent}
         refreshControl={
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#FF6B35" />
         }
         ListEmptyComponent={
-          <View style={styles.emptyState}>
-            <Text style={styles.emptyText}>No cadets being tracked.</Text>
-            <TouchableOpacity onPress={() => setModalVisible(true)} style={styles.emptyButton}>
-              <Text style={styles.emptyButtonText}>Select Cadets to View</Text>
-            </TouchableOpacity>
-          </View>
+          loading ? null : (
+            <View style={styles.emptyState}>
+              <Text style={styles.emptyText}>No cadets being tracked.</Text>
+              <TouchableOpacity onPress={() => setModalVisible(true)} style={styles.emptyButton}>
+                <Text style={styles.emptyButtonText}>Select Cadets to View</Text>
+              </TouchableOpacity>
+            </View>
+          )
         }
       />
 
@@ -544,6 +594,34 @@ export default function InstructorDashboard() {
             
             <View style={styles.settingsContent}>
               <Text style={styles.sectionTitle}>Customize Graphs</Text>
+
+              <View style={styles.settingRow}>
+                <Text style={styles.settingLabel}>Activity Metric</Text>
+                <View style={styles.typeSelector}>
+                  {([
+                    { label: 'Steps', value: 'steps' },
+                    { label: 'Distance (m)', value: 'distance' },
+                  ] as const).map((opt) => (
+                    <TouchableOpacity
+                      key={opt.value}
+                      style={[
+                        styles.typeOption,
+                        activityMetric === opt.value && styles.typeOptionSelected,
+                      ]}
+                      onPress={() => setActivityMetric(opt.value)}
+                    >
+                      <Text
+                        style={[
+                          styles.typeOptionText,
+                          activityMetric === opt.value && styles.typeOptionTextSelected,
+                        ]}
+                      >
+                        {opt.label}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              </View>
 
               {(['distance', 'hr', 'sleep', 'calories'] as const).map((metric) => {
                 const type = chartConfig[metric];

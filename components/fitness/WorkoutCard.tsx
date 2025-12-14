@@ -2,6 +2,7 @@ import React from 'react';
 import { View, Text, Pressable } from 'react-native';
 import { WorkoutSession } from '../../src/types/polar';
 import { workoutCardStyles as styles } from '@/src/styles/components/workoutCardStyles';
+import { formatMinutesHms as formatDuration } from '@/src/utils/formatDuration';
 
 interface WorkoutCardProps {
   session: WorkoutSession;
@@ -9,12 +10,6 @@ interface WorkoutCardProps {
 }
 
 export const WorkoutCard: React.FC<WorkoutCardProps> = ({ session, onPress }) => {
-  const formatDuration = (minutes: number): string => {
-    const hours = Math.floor(minutes / 60);
-    const mins = minutes % 60;
-    return hours > 0 ? `${hours}h ${mins}m` : `${mins}m`;
-  };
-
   const formatDate = (date: Date): string => {
     return new Intl.DateTimeFormat('en-US', {
       month: 'short',

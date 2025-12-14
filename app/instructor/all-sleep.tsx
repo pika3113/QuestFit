@@ -16,6 +16,8 @@ import DateTimePicker from '@react-native-community/datetimepicker';
 import { db } from '@/src/services/firebase';
 import { collection, getDocs, doc, getDoc, query, where, documentId } from 'firebase/firestore';
 import Colors from '@/constants/Colors';
+import { formatIsoDurationHms as formatDuration } from '@/src/utils/formatDuration';
+import { SkeletonBlock } from '@/components/Skeleton';
 
 interface SleepData {
   id: string; // using date as ID
@@ -39,6 +41,29 @@ export default function AllSleepScreen() {
   const params = useLocalSearchParams();
   const userIdsParam = params.userIds as string;
   const initialDateParam = params.initialDate as string;
+  const startDateParam = params.startDate as string;
+  const endDateParam = params.endDate as string;
+
+  const parseIsoDateLocal = (value?: string) => {
+    if (!value) return null;
+    const m = String(value).match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    if (m) {
+      const y = Number(m[1]);
+      const mo = Number(m[2]) - 1;
+      const d = Number(m[3]);
+      const dt = new Date(y, mo, d);
+      return isNaN(dt.getTime()) ? null : dt;
+    }
+    const dt = new Date(value);
+    return isNaN(dt.getTime()) ? null : dt;
+  };
+
+  const formatYmdLocal = (date: Date) => {
+    const y = date.getFullYear();
+    const m = String(date.getMonth() + 1).padStart(2, '0');
+    const d = String(date.getDate()).padStart(2, '0');
+    return `${y}-${m}-${d}`;
+  };
 
   const [loading, setLoading] = useState(true);
   const [sleepData, setSleepData] = useState<SleepData[]>([]);
@@ -46,11 +71,15 @@ export default function AllSleepScreen() {
 
   // Filters
   const [startDate, setStartDate] = useState(() => {
-    const d = initialDateParam ? new Date(initialDateParam) : new Date();
+    const explicitStart = parseIsoDateLocal(startDateParam);
+    if (explicitStart) return explicitStart;
+    const d = parseIsoDateLocal(initialDateParam) ?? new Date();
     return new Date(d.getFullYear(), d.getMonth(), 1);
   });
   const [endDate, setEndDate] = useState(() => {
-    const d = initialDateParam ? new Date(initialDateParam) : new Date();
+    const explicitEnd = parseIsoDateLocal(endDateParam);
+    if (explicitEnd) return explicitEnd;
+    const d = parseIsoDateLocal(initialDateParam) ?? new Date();
     return new Date(d.getFullYear(), d.getMonth() + 1, 0);
   });
   const [selectedUserId, setSelectedUserId] = useState<string>('all');
@@ -85,8 +114,8 @@ export default function AllSleepScreen() {
 
       // 2. Fetch Sleep Data
       const allSleep: SleepData[] = [];
-      const startStr = start.toISOString().split('T')[0];
-      const endStr = end.toISOString().split('T')[0];
+      const startStr = formatYmdLocal(start);
+      const endStr = formatYmdLocal(end);
 
       for (const user of userProfiles) {
         // Query documents by ID range (dates)
@@ -164,16 +193,6 @@ export default function AllSleepScreen() {
     loadData(startDate, endDate);
   };
 
-  const formatDuration = (isoDuration: string) => {
-    if (!isoDuration) return '-';
-    // Handle PT8H30M format
-    const match = isoDuration.match(/PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+(?:\.\d+)?)S)?/);
-    if (!match) return isoDuration;
-    const h = match[1] ? `${match[1]}h ` : '';
-    const m = match[2] ? `${match[2]}m` : '';
-    return `${h}${m}`.trim() || '0m';
-  };
-
   const formatTime = (isoString: string) => {
     if (!isoString) return '-';
     return new Date(isoString).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
@@ -227,10 +246,38 @@ export default function AllSleepScreen() {
 
       {/* Content */}
       {loading ? (
-        <View style={styles.centerContainer}>
-          <ActivityIndicator size="large" color="#FF6B35" />
-          <Text style={{ marginTop: 10 }}>Loading sleep data...</Text>
-        </View>
+        <ScrollView style={styles.listContainer} contentContainerStyle={{ paddingTop: 8 }}>
+          <Text style={styles.resultsCount}>Loading…</Text>
+          {Array.from({ length: 6 }).map((_, idx) => (
+            <View key={idx} style={styles.card}>
+              <View style={styles.cardHeader}>
+                <SkeletonBlock width={140} height={14} radius={6} />
+                <SkeletonBlock width={90} height={12} radius={6} />
+              </View>
+              <View style={styles.cardBody}>
+                <View style={styles.scoreRow}>
+                  <View style={styles.scoreContainer}>
+                    <SkeletonBlock width={80} height={10} radius={6} />
+                    <SkeletonBlock width={60} height={22} radius={6} style={{ marginTop: 10 }} />
+                  </View>
+                  <View style={styles.timeContainer}>
+                    <SkeletonBlock width={70} height={10} radius={6} />
+                    <SkeletonBlock width={90} height={16} radius={6} style={{ marginTop: 10 }} />
+                  </View>
+                </View>
+                <View style={styles.detailsRow}>
+                  <View style={styles.detailItem}>
+                    <SkeletonBlock width={170} height={12} radius={6} />
+                  </View>
+                  <View style={styles.detailItem}>
+                    <SkeletonBlock width={120} height={12} radius={6} />
+                  </View>
+                </View>
+              </View>
+            </View>
+          ))}
+          <View style={{ height: 40 }} />
+        </ScrollView>
       ) : (
         <ScrollView style={styles.listContainer}>
             <Text style={styles.resultsCount}>{filteredSleep.length} records found</Text>

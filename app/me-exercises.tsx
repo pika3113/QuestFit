@@ -17,6 +17,7 @@ import { Text } from '@/components/Themed';
 import { useAuth } from '@/src/hooks/useAuth';
 import { db } from '@/src/services/firebase';
 import { doc, getDoc } from 'firebase/firestore';
+import { formatIsoDurationHms as formatDuration } from '@/src/utils/formatDuration';
 
 const Colors = {
   primary: '#FF6B35',
@@ -48,22 +49,6 @@ type ExerciseRow = {
   date: string; // YYYY-MM-DD
   exercise: PolarExercise;
 };
-
-function formatDuration(iso8601Duration?: string): string {
-  if (!iso8601Duration) return 'N/A';
-  const match = iso8601Duration.match(/PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+(?:\.\d+)?)S)?/);
-  if (!match) return iso8601Duration;
-
-  const hours = parseInt(match[1] || '0', 10);
-  const minutes = parseInt(match[2] || '0', 10);
-  const seconds = parseFloat(match[3] || '0');
-
-  const parts: string[] = [];
-  if (hours > 0) parts.push(`${hours}h`);
-  if (minutes > 0) parts.push(`${minutes}m`);
-  if (seconds > 0 && hours === 0) parts.push(`${Math.round(seconds)}s`);
-  return parts.length ? parts.join(' ') : '0s';
-}
 
 function toIsoDateString(d: Date) {
   return d.toISOString().split('T')[0];
@@ -332,7 +317,20 @@ export default function MeExercisesScreen() {
             <View key={date} style={styles.section}>
               <Text style={styles.sectionTitle}>{date}</Text>
               {exercises.map((ex, idx) => (
-                <View key={`${date}-${idx}`} style={styles.card}>
+                <TouchableOpacity
+                  key={`${date}-${idx}`}
+                  style={styles.card}
+                  activeOpacity={0.85}
+                  disabled={!((ex as any)?.id)}
+                  onPress={() => {
+                    const id = (ex as any)?.id;
+                    if (!id) return;
+                    router.push({
+                      pathname: '/exercise/[date]/[exerciseId]',
+                      params: { date, exerciseId: String(id) },
+                    });
+                  }}
+                >
                   <View style={styles.cardTopRow}>
                     <Text style={styles.sportText}>{ex.sport || 'Unknown'}</Text>
                     <Text style={styles.durationText}>{formatDuration(ex.duration)}</Text>
@@ -358,7 +356,7 @@ export default function MeExercisesScreen() {
                       </Text>
                     </View>
                   )}
-                </View>
+                </TouchableOpacity>
               ))}
             </View>
           ))
