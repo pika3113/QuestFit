@@ -158,7 +158,7 @@
 
 ### API Endpoints (Vercel Serverless Functions)
 - `POST /api/polar/register-user`: Register user with Polar
-- `POST /api/polar/webhook`: Receive Polar workout webhooks
+- `POST /api/polar/webhook`: Receive Polar workout webhooks (HMAC-verified via `POLAR_WEBHOOK_SIGNATURE_SECRET`)
 - `GET /api/polar/user-data`: Fetch user data from Polar
 - `POST /api/polar/create-webhook`: Create Polar webhook
 - `DELETE /api/polar/delete-webhook`: Remove Polar webhook

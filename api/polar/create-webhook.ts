@@ -9,6 +9,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
+  const adminToken = process.env.POLAR_WEBHOOK_ADMIN_TOKEN;
+  const presentedToken = (req.headers['x-webhook-admin-token'] as string | undefined) || '';
+  if (!adminToken) {
+    return res.status(500).json({ error: 'Missing POLAR_WEBHOOK_ADMIN_TOKEN in environment' });
+  }
+  if (!presentedToken || presentedToken !== adminToken) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+
   // Generate Basic Auth from environment variables
   const clientId = process.env.POLAR_ACCESSLINK_CLIENT_ID;
   const clientSecret = process.env.POLAR_ACCESSLINK_CLIENT_SECRET;
@@ -42,6 +51,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       success: true,
       data: response.data,
       signatureSecret: response.data?.data?.signature_secret_key,
+      nextStep: 'Set POLAR_WEBHOOK_SIGNATURE_SECRET to signatureSecret (then redeploy).',
     });
   } catch (error) {
     console.error('Error creating webhook:', error);
