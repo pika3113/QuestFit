@@ -18,6 +18,9 @@ import { db } from '@/src/services/firebase';
 import { doc, getDoc, collection, query, orderBy, limit, getDocs } from 'firebase/firestore';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { Ionicons } from '@expo/vector-icons';
+import { useInstructorStudents } from '@/src/hooks/useInstructorStudents';
+import { useAuth } from '@/src/hooks/useAuth';
+import { ComparisonRadarChart, RadarDataPoint } from '@/components/instr-dashboard/ComparisonRadarChart';
 
 // Helper function to convert ISO8601 duration to readable format
 function formatDuration(iso8601Duration: string): string {
@@ -88,11 +91,20 @@ type RangeDailyItem = {
 
 export default function UserDetailScreen() {
   const { userId, date } = useLocalSearchParams<{ userId: string, date?: string }>();
+  const { user } = useAuth();
+  const { selectedUserIds } = useInstructorStudents(user?.uid);
+  
   const [stats, setStats] = useState<UserStats | null>(null);
   const [displayName, setDisplayName] = useState<string>('');
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [hoveredPoint, setHoveredPoint] = useState<{time: string, hr: number} | null>(null);
+
+  // Radar chart state
+  const [individualRadarData, setIndividualRadarData] = useState<RadarDataPoint | null>(null);
+  const [averageRadarData, setAverageRadarData] = useState<RadarDataPoint | null>(null);
+  const [loadingRadar, setLoadingRadar] = useState(false);
+  const [selectedCadetsCount, setSelectedCadetsCount] = useState(0);
 
   const initialEnd = useMemo(() => {
     const parsed = date ? new Date(date) : new Date();
@@ -112,7 +124,7 @@ export default function UserDetailScreen() {
   const [loadingRange, setLoadingRange] = useState(false);
 
   const selectedDate = useMemo(() => {
-    // Use the end of the range as the “selected day” for single-day sections (AI, cardio, etc.)
+    // Use the end of the range as the "selected day" for single-day sections (AI, cardio, etc.)
     const start = new Date(dateRange.start);
     const end = new Date(dateRange.end);
     start.setHours(0, 0, 0, 0);
@@ -233,6 +245,157 @@ export default function UserDetailScreen() {
       }
     }
   };
+
+  // Fetch radar data for a single user
+  const fetchUserRadarData = async (uid: string, datesToCheck: string[]): Promise<RadarDataPoint> => {
+    const [activityDocs, exercisesDocs, sleepDocs, cardioLoadDocs] = await Promise.all([
+      Promise.all(datesToCheck.map(date =>
+        getDoc(doc(db, `users/${uid}/polarData/activities/all/${date}`))
+      )),
+      Promise.all(datesToCheck.map(date =>
+        getDoc(doc(db, `users/${uid}/polarData/exercises/all/${date}`))
+      )),
+      Promise.all(datesToCheck.map(date =>
+        getDoc(doc(db, `users/${uid}/polarData/sleep/all/${date}`))
+      )),
+      Promise.all(datesToCheck.map(date =>
+        getDoc(doc(db, `users/${uid}/polarData/cardioLoad/all/${date}`))
+      )),
+    ]);
+
+    let totalSteps = 0, stepsCount = 0;
+    let totalCalories = 0, caloriesCount = 0;
+    let totalDistance = 0, distanceCount = 0;
+    let totalSleepScore = 0, sleepCount = 0;
+    let totalCardioLoad = 0, cardioCount = 0;
+    let totalExerciseCount = 0, exerciseDays = 0;
+
+    datesToCheck.forEach((_, index) => {
+      // Activity data
+      const activityDoc = activityDocs[index];
+      if (activityDoc?.exists()) {
+        const data = activityDoc.data();
+        if (typeof data?.steps === 'number' && data.steps > 0) {
+          totalSteps += data.steps;
+          stepsCount++;
+        }
+        const cals = data?.calories ?? data?.active_calories;
+        if (typeof cals === 'number' && cals > 0) {
+          totalCalories += cals;
+          caloriesCount++;
+        }
+        const dist = data?.distance_from_steps ?? data?.distance;
+        if (typeof dist === 'number' && dist > 0) {
+          totalDistance += dist;
+          distanceCount++;
+        }
+      }
+
+      // Exercise data
+      const exerciseDoc = exercisesDocs[index];
+      if (exerciseDoc?.exists()) {
+        const data = exerciseDoc.data();
+        if (data?.exercises && Array.isArray(data.exercises) && data.exercises.length > 0) {
+          totalExerciseCount += data.exercises.length;
+          exerciseDays++;
+        } else if (typeof data?.count === 'number' && data.count > 0) {
+          totalExerciseCount += data.count;
+          exerciseDays++;
+        }
+      }
+
+      // Sleep data
+      const sleepDoc = sleepDocs[index];
+      if (sleepDoc?.exists()) {
+        const sleepScore = sleepDoc.data()?.sleep_score;
+        if (typeof sleepScore === 'number' && sleepScore > 0) {
+          totalSleepScore += sleepScore;
+          sleepCount++;
+        }
+      }
+
+      // Cardio load data
+      const cardioDoc = cardioLoadDocs[index];
+      if (cardioDoc?.exists()) {
+        const cardioLoadRatio = cardioDoc.data()?.data?.cardio_load_ratio;
+        if (typeof cardioLoadRatio === 'number' && cardioLoadRatio > 0) {
+          totalCardioLoad += cardioLoadRatio;
+          cardioCount++;
+        }
+      }
+    });
+
+    return {
+      steps: stepsCount > 0 ? Math.round(totalSteps / stepsCount) : 0,
+      calories: caloriesCount > 0 ? Math.round(totalCalories / caloriesCount) : 0,
+      distance: distanceCount > 0 ? Math.round(totalDistance / distanceCount) : 0,
+      sleepScore: sleepCount > 0 ? Math.round(totalSleepScore / sleepCount) : 0,
+      cardioLoad: cardioCount > 0 ? totalCardioLoad / cardioCount : 0,
+      exerciseCount: exerciseDays > 0 ? totalExerciseCount / exerciseDays : 0,
+    };
+  };
+
+  // Load radar chart data
+  const loadRadarData = useCallback(async () => {
+    if (!userId) return;
+    
+    setLoadingRadar(true);
+    try {
+      // Fetch individual user's radar data
+      const individualData = await fetchUserRadarData(userId, dateStrings);
+      setIndividualRadarData(individualData);
+
+      // Determine which users to include in average calculation
+      const usersForAverage = selectedUserIds.length > 0 ? selectedUserIds : [userId];
+      
+      // Fetch all users' data and calculate average
+      const allUsersData = await Promise.all(
+        usersForAverage.map(uid => fetchUserRadarData(uid, dateStrings))
+      );
+
+      setSelectedCadetsCount(usersForAverage.length);
+
+      // Calculate average across all users
+      const avgData: RadarDataPoint = {
+        steps: 0,
+        calories: 0,
+        distance: 0,
+        sleepScore: 0,
+        cardioLoad: 0,
+        exerciseCount: 0,
+      };
+
+      if (allUsersData.length > 0) {
+        allUsersData.forEach(userData => {
+          avgData.steps += userData.steps;
+          avgData.calories += userData.calories;
+          avgData.distance += userData.distance;
+          avgData.sleepScore += userData.sleepScore;
+          avgData.cardioLoad += userData.cardioLoad;
+          avgData.exerciseCount += userData.exerciseCount;
+        });
+
+        const count = allUsersData.length;
+        avgData.steps = Math.round(avgData.steps / count);
+        avgData.calories = Math.round(avgData.calories / count);
+        avgData.distance = Math.round(avgData.distance / count);
+        avgData.sleepScore = Math.round(avgData.sleepScore / count);
+        avgData.cardioLoad = avgData.cardioLoad / count;
+        avgData.exerciseCount = avgData.exerciseCount / count;
+      }
+
+      setAverageRadarData(avgData);
+    } catch (error) {
+      console.error('Error loading radar data:', error);
+    } finally {
+      setLoadingRadar(false);
+    }
+  }, [userId, selectedUserIds, dateStrings]);
+
+  // Load radar data when date range or user changes
+  useEffect(() => {
+    loadRadarData();
+  }, [loadRadarData]);
 
   const loadRange = useCallback(async () => {
     if (!userId) return;
@@ -492,7 +655,7 @@ export default function UserDetailScreen() {
 
   const handleRefresh = async () => {
     setRefreshing(true);
-    await Promise.all([loadUserStats(), checkExistingAISummary(), loadRange()]);
+    await Promise.all([loadUserStats(), checkExistingAISummary(), loadRange(), loadRadarData()]);
     setRefreshing(false);
   };
 
@@ -626,6 +789,7 @@ export default function UserDetailScreen() {
           <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />
         }
       >
+
         {/* AI Insights Section */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Daily Insights & Recommendations</Text>
@@ -657,6 +821,28 @@ export default function UserDetailScreen() {
                 <Text style={styles.buttonText}>Get Insights & Recommendations</Text>
               )}
             </TouchableOpacity>
+          )}
+        </View>
+
+        {/* Radar Chart Comparison Section */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Overall Performance</Text>
+          {loadingRadar ? (
+            <View style={styles.card}>
+              <ActivityIndicator size="small" color="#FF6B35" />
+              <Text style={[styles.loadingText, { marginTop: 8, textAlign: 'center' }]}>Loading comparison data...</Text>
+            </View>
+          ) : individualRadarData && averageRadarData ? (
+            <ComparisonRadarChart
+              individualData={individualRadarData}
+              averageData={averageRadarData}
+              studentName={displayName || userId}
+              selectedCount={selectedCadetsCount}
+            />
+          ) : (
+            <View style={styles.card}>
+              <Text style={styles.noData}>No comparison data available</Text>
+            </View>
           )}
         </View>
 
@@ -1330,4 +1516,3 @@ const styles = StyleSheet.create({
     color: '#000000',
   },
 });
-
