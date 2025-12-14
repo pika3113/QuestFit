@@ -293,6 +293,12 @@ export default function MeScreen() {
             onPress={() => router.push('/history')}
             color={ModernColors.primary}
           />
+          <SettingsRow
+            icon="barbell"
+            label="My Exercises (Detailed)"
+            onPress={() => router.push('/me-exercises')}
+            color={ModernColors.secondary}
+          />
         </View>
 
         {/* Settings & Actions */}

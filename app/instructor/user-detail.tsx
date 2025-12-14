@@ -65,6 +65,31 @@ interface AISummary {
   "[short]recommendations": string;
 }
 
+type ExpandableSectionProps = {
+  title: string;
+  children: React.ReactNode;
+  initiallyExpanded?: boolean;
+};
+
+function ExpandableSection({ title, children, initiallyExpanded = false }: ExpandableSectionProps) {
+  const [expanded, setExpanded] = useState(initiallyExpanded);
+
+  return (
+    <View style={styles.section}>
+      <TouchableOpacity
+        style={styles.expandableHeader}
+        onPress={() => setExpanded((v) => !v)}
+        activeOpacity={0.8}
+      >
+        <Text style={styles.expandableHeaderTitle}>{title}</Text>
+        <Ionicons name={expanded ? 'chevron-up' : 'chevron-down'} size={18} color="#666" />
+      </TouchableOpacity>
+
+      {expanded ? <View style={styles.expandableBody}>{children}</View> : null}
+    </View>
+  );
+}
+
 type PresetRange = '7d' | '14d' | '30d';
 type DateRange = {
   type: PresetRange | 'custom';
@@ -825,8 +850,7 @@ export default function UserDetailScreen() {
         </View>
 
         {/* Radar Chart Comparison Section */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Overall Performance</Text>
+        <ExpandableSection title="Overall Performance">
           {loadingRadar ? (
             <View style={styles.card}>
               <ActivityIndicator size="small" color="#FF6B35" />
@@ -844,11 +868,10 @@ export default function UserDetailScreen() {
               <Text style={styles.noData}>No comparison data available</Text>
             </View>
           )}
-        </View>
+        </ExpandableSection>
 
         {/* Activity Section */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Daily Activity</Text>
+        <ExpandableSection title="Daily Activity">
           <View style={styles.comparisonCard}>
             <View style={styles.comparisonColumn}>
               <Text style={styles.columnLabel}>Range</Text>
@@ -889,11 +912,10 @@ export default function UserDetailScreen() {
               )}
             </View>
           </View>
-        </View>
+        </ExpandableSection>
 
         {/* Exercise Section */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Daily Exercise</Text>
+        <ExpandableSection title="Daily Exercise">
           <View style={styles.card}>
             {loadingRange ? (
               <ActivityIndicator color="#FF6B35" />
@@ -910,11 +932,10 @@ export default function UserDetailScreen() {
               <Text style={styles.noData}>No data</Text>
             )}
           </View>
-        </View>
+        </ExpandableSection>
 
         {/* Cardio Load Section */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Cardio Load</Text>
+        <ExpandableSection title="Cardio Load">
           <View style={styles.comparisonCard}>
             <View style={styles.comparisonColumn}>
               <Text style={styles.columnLabel}>
@@ -946,11 +967,10 @@ export default function UserDetailScreen() {
               )}
             </View>
           </View>
-        </View>
+        </ExpandableSection>
 
         {/* Sleep Section */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Sleep & Recovery</Text>
+        <ExpandableSection title="Sleep & Recovery">
           <View style={styles.card}>
             {loadingRange ? (
               <ActivityIndicator color="#FF6B35" />
@@ -1022,11 +1042,10 @@ export default function UserDetailScreen() {
               </View>
             </View>
           )}
-        </View>
+        </ExpandableSection>
 
         {/* Recent Exercises */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Recent Exercises (Last 7 Days)</Text>
+        <ExpandableSection title="Recent Exercises (Last 7 Days)">
           {stats?.historical.recentExercises && stats.historical.recentExercises.length > 0 ? (
             stats.historical.recentExercises.map((dayExercises: any, idx: number) => (
               <View key={idx} style={styles.card}>
@@ -1052,7 +1071,7 @@ export default function UserDetailScreen() {
           ) : (
             <Text style={styles.noData}>No recent exercises</Text>
           )}
-        </View>
+        </ExpandableSection>
 
         {/* Heart Rate Section */}
         {stats?.today.continuousHR && (
@@ -1286,13 +1305,37 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     marginBottom: 12,
   },
+  expandableHeader: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    padding: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    elevation: 2,
+  },
+  expandableHeaderTitle: {
+    color: '#000000',
+    fontSize: 18,
+    fontWeight: 'bold',
+  },
+  expandableBody: {
+    marginTop: 12,
+  },
   comparisonCard: {
-    backgroundColor: '#F9F9F9',
-    borderRadius: 12,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
     padding: 20,
     flexDirection: 'row',
-    borderWidth: 1,
-    borderColor: '#E0E0E0',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    elevation: 2,
   },
   comparisonColumn: {
     flex: 1,
@@ -1310,12 +1353,15 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase',
   },
   card: {
-    backgroundColor: '#F9F9F9',
-    borderRadius: 12,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
     padding: 16,
-    marginBottom: 12,
-    borderWidth: 1,
-    borderColor: '#E0E0E0',
+    marginBottom: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    elevation: 2,
   },
   cardSubtitle: {
     color: '#666',

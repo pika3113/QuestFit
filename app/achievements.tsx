@@ -78,7 +78,7 @@ export default function AchievementsScreen() {
           {unlockedCount} / {ACHIEVEMENTS.length} unlocked
         </Text>
         <Text style={{ color: 'rgba(255,255,255,0.8)', marginTop: 6 }}>
-          Earn badges as you train — Nike Run style.
+          Earn badges as you train
         </Text>
       </View>
 

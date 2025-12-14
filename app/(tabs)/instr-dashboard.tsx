@@ -11,6 +11,7 @@ import {
   Modal,
   Platform,
 } from 'react-native';
+import { useWindowDimensions } from 'react-native';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -26,6 +27,9 @@ import { StudentCard, StudentStats, ChartType } from '@/components/instr-dashboa
 const SCREEN_WIDTH = Dimensions.get('window').width;
 
 export default function InstructorDashboard() {
+  const { width: windowWidth } = useWindowDimensions();
+  const isWideWeb = Platform.OS === 'web' && windowWidth >= 900;
+
   const { user } = useAuth();
   const { isInstructor, loading: instructorLoading } = useInstructor(user?.uid);
   const { selectedUserIds, toggleUser } = useInstructorStudents(user?.uid);
@@ -360,52 +364,93 @@ export default function InstructorDashboard() {
         <Text style={styles.subtitle}>{students.length} Cadets Enrolled</Text>
         
         {/* Date Range Selector */}
-        <View style={styles.filterContainer}>
-          <View style={{flexDirection: 'row', alignItems: 'center', flex: 1}}>
-            <Text style={styles.filterLabel}>Range:</Text>
-            <View style={styles.rangeButtons}>
-              {[7, 14, 30].map((days) => (
-                <TouchableOpacity 
-                  key={days} 
-                  style={[styles.rangeButton, dateRange.type === `${days}d` && styles.rangeButtonActive]}
-                  onPress={() => setDateRange({
-                    start: new Date(new Date().setDate(new Date().getDate() - (days - 1))),
-                    end: new Date(),
-                    type: `${days}d` as any
-                  })}
+        {!isWideWeb ? (
+          <View style={styles.filterContainer}>
+            <View style={styles.rangeRow}>
+              <Text style={styles.filterLabel}>Range:</Text>
+              <View style={styles.rangeButtons}>
+                {[7, 14, 30].map((days) => (
+                  <TouchableOpacity
+                    key={days}
+                    style={[styles.rangeButton, dateRange.type === `${days}d` && styles.rangeButtonActive]}
+                    onPress={() =>
+                      setDateRange({
+                        start: new Date(new Date().setDate(new Date().getDate() - (days - 1))),
+                        end: new Date(),
+                        type: `${days}d` as any,
+                      })
+                    }
+                  >
+                    <Text style={[styles.rangeButtonText, dateRange.type === `${days}d` && styles.rangeButtonTextActive]}>
+                      {days}d
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+                <TouchableOpacity
+                  style={[styles.rangeButton, dateRange.type === 'custom' && styles.rangeButtonActive]}
+                  onPress={() => {
+                    setDatePickerMode('start');
+                    setShowDatePicker(true);
+                  }}
                 >
-                  <Text style={[styles.rangeButtonText, dateRange.type === `${days}d` && styles.rangeButtonTextActive]}>
-                    {days}d
-                  </Text>
+                  <Ionicons name="calendar" size={16} color={dateRange.type === 'custom' ? '#FFF' : '#666'} />
                 </TouchableOpacity>
-              ))}
-              <TouchableOpacity 
-                style={[styles.rangeButton, dateRange.type === 'custom' && styles.rangeButtonActive]}
-                onPress={() => {
-                  setDatePickerMode('start');
-                  setShowDatePicker(true);
-                }}
-              >
-                <Ionicons name="calendar" size={16} color={dateRange.type === 'custom' ? '#FFF' : '#666'} />
+              </View>
+            </View>
+
+            <View style={styles.actionsRow}>
+              <TouchableOpacity style={styles.iconButton} onPress={() => setSettingsVisible(true)}>
+                <Ionicons name="settings-outline" size={24} color="#FF6B35" />
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.selectButton} onPress={() => setModalVisible(true)}>
+                <Text style={styles.selectButtonText}>Manage Cadets</Text>
               </TouchableOpacity>
             </View>
           </View>
+        ) : (
+          <View style={styles.filterContainerWideWeb}>
+            <View style={styles.rangeRowWideWeb}>
+              <Text style={styles.filterLabel}>Range:</Text>
+              <View style={styles.rangeButtonsWideWeb}>
+                {[7, 14, 30].map((days) => (
+                  <TouchableOpacity
+                    key={days}
+                    style={[styles.rangeButton, dateRange.type === `${days}d` && styles.rangeButtonActive]}
+                    onPress={() =>
+                      setDateRange({
+                        start: new Date(new Date().setDate(new Date().getDate() - (days - 1))),
+                        end: new Date(),
+                        type: `${days}d` as any,
+                      })
+                    }
+                  >
+                    <Text style={[styles.rangeButtonText, dateRange.type === `${days}d` && styles.rangeButtonTextActive]}>
+                      {days}d
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+                <TouchableOpacity
+                  style={[styles.rangeButton, dateRange.type === 'custom' && styles.rangeButtonActive]}
+                  onPress={() => {
+                    setDatePickerMode('start');
+                    setShowDatePicker(true);
+                  }}
+                >
+                  <Ionicons name="calendar" size={16} color={dateRange.type === 'custom' ? '#FFF' : '#666'} />
+                </TouchableOpacity>
+              </View>
+            </View>
 
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-            <TouchableOpacity 
-              style={styles.iconButton}
-              onPress={() => setSettingsVisible(true)}
-            >
-              <Ionicons name="settings-outline" size={24} color="#FF6B35" />
-            </TouchableOpacity>
-            <TouchableOpacity 
-              style={styles.selectButton}
-              onPress={() => setModalVisible(true)}
-            >
-              <Text style={styles.selectButtonText}>Manage Cadets</Text>
-            </TouchableOpacity>
+            <View style={styles.actionsRowWideWeb}>
+              <TouchableOpacity style={styles.iconButton} onPress={() => setSettingsVisible(true)}>
+                <Ionicons name="settings-outline" size={24} color="#FF6B35" />
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.selectButton} onPress={() => setModalVisible(true)}>
+                <Text style={styles.selectButtonText}>Manage Cadets</Text>
+              </TouchableOpacity>
+            </View>
           </View>
-        </View>
+        )}
 
         {/* Only show search if we have items to search */}
         {displayedStudents.length > 0 && (
@@ -638,6 +683,7 @@ const styles = StyleSheet.create({
     fontSize: 28,
     fontWeight: 'bold',
     color: '#2D3436',
+    textAlign: 'center',
   },
   selectButton: {
     paddingHorizontal: 16,
@@ -659,11 +705,48 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#636E72',
     marginTop: 4,
+    textAlign: 'center',
   },
   filterContainer: {
-    flexDirection: 'row',
+    flexDirection: 'column',
     alignItems: 'center',
     marginTop: 16,
+    gap: 12,
+  },
+  filterContainerWideWeb: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginTop: 16,
+    gap: 16,
+  },
+  rangeRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  rangeRowWideWeb: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'flex-start',
+    gap: 10,
+    flexShrink: 1,
+  },
+  actionsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexWrap: 'wrap',
+    gap: 10,
+  },
+  actionsRowWideWeb: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'flex-end',
+    gap: 10,
+    flexShrink: 0,
   },
   filterLabel: {
     fontSize: 14,
@@ -672,13 +755,23 @@ const styles = StyleSheet.create({
   },
   rangeButtons: {
     flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  rangeButtonsWideWeb: {
+    flexDirection: 'row',
+    justifyContent: 'flex-start',
+    alignItems: 'center',
+    flexWrap: 'nowrap',
+    gap: 8,
   },
   rangeButton: {
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: 16,
     backgroundColor: '#F3F4F6',
-    marginRight: 8,
   },
   rangeButtonActive: {
     backgroundColor: '#2D3436',
