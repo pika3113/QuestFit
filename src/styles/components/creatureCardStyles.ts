@@ -113,6 +113,7 @@ export const creatureCardStyles = StyleSheet.create({
     flexWrap: "wrap",
     justifyContent: "flex-start",
     alignItems: "stretch",
+    width: '100%',
   },
   card: {
     flex: 1,

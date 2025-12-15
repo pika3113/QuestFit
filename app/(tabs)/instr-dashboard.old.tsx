@@ -16,6 +16,7 @@ import { instructorDashboardStyles as styles } from '@/src/styles/screens/instru
 import { router, useFocusEffect } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Ionicons } from '@expo/vector-icons';
+import { formatDateDdMmYyyy } from '@/src/utils/dateFormat';
 
 import { useDashboardData } from '@/components/instr-dashboard/hooks/useDashboardData';
 import { SleepScoreLineChart } from '@/components/instr-dashboard/components/SleepScoreLineChart';
@@ -315,7 +316,7 @@ export default function InstructorDashboard() {
               onPress={() => setShowDatePicker(true)}
             >
               <Text style={[styles.selectButtonText, { color: '#333' }]}>
-                {selectedDate.toLocaleDateString()}
+                {formatDateDdMmYyyy(selectedDate)}
               </Text>
             </Pressable>
           )}

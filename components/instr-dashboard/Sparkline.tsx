@@ -37,6 +37,12 @@ export default function Sparkline({ data, labels, color, height = 100, type = 'l
       sparkline: {
         enabled: !labels // Disable sparkline mode if labels are provided to show axes
       },
+      zoom: {
+        enabled: false,
+      },
+      selection: {
+        enabled: false,
+      },
       animations: {
         enabled: false
       },
@@ -90,8 +96,8 @@ export default function Sparkline({ data, labels, color, height = 100, type = 'l
     grid: {
       show: !!labels,
       padding: {
-        left: 10,
-        right: 10,
+        left: labels ? 24 : 10,
+        right: labels ? 24 : 10,
         bottom: 0,
         top: 0
       },
@@ -110,6 +116,7 @@ export default function Sparkline({ data, labels, color, height = 100, type = 'l
       categories: labels || [],
       labels: {
         show: !!labels,
+        offsetX: 0,
         style: {
           fontSize: '10px',
           colors: '#999'
@@ -149,7 +156,7 @@ export default function Sparkline({ data, labels, color, height = 100, type = 'l
   };
 
   return (
-    <div style={{ width: '100%', height: `${height}px` }}>
+    <div style={{ width: '100%', height: `${height}px`, touchAction: 'pan-y' }}>
       {isMounted && (
         <React.Suspense fallback={<div />}>
           <Chart

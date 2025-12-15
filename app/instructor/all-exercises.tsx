@@ -13,6 +13,7 @@ import { Text } from '@/components/Themed';
 import { useLocalSearchParams, router, Stack } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import DateTimePicker from '@react-native-community/datetimepicker';
+import { formatDateDdMmYyyy } from '@/src/utils/dateFormat';
 import { db } from '@/src/services/firebase';
 import { collection, getDocs, doc, getDoc, query, where, documentId } from 'firebase/firestore';
 import Colors from '@/constants/Colors';
@@ -197,7 +198,8 @@ export default function AllExercisesScreen() {
   };
 
   const formatDate = (isoString: string) => {
-    return new Date(isoString).toLocaleDateString() + ' ' + new Date(isoString).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    const d = new Date(isoString);
+    return `${formatDateDdMmYyyy(d)} ${d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
   };
 
   return (
@@ -208,11 +210,11 @@ export default function AllExercisesScreen() {
       <View style={styles.filtersContainer}>
         <View style={styles.dateRow}>
             <Pressable onPress={() => setShowStartDatePicker(true)} style={styles.dateButton}>
-                <Text style={styles.dateLabel}>From: {startDate.toLocaleDateString()}</Text>
+                <Text style={styles.dateLabel}>From: {formatDateDdMmYyyy(startDate)}</Text>
             </Pressable>
             <Ionicons name="arrow-forward" size={16} color="#666" />
             <Pressable onPress={() => setShowEndDatePicker(true)} style={styles.dateButton}>
-                <Text style={styles.dateLabel}>To: {endDate.toLocaleDateString()}</Text>
+                <Text style={styles.dateLabel}>To: {formatDateDdMmYyyy(endDate)}</Text>
             </Pressable>
             <Pressable onPress={handleRefresh} style={styles.refreshButton}>
                 <Ionicons name="refresh" size={20} color="#FF6B35" />

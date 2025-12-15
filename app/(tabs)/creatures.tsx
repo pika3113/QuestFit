@@ -62,7 +62,7 @@ export default function CreaturesScreen() {
       <View style={styles.header}>
         <Text style={styles.title}>Creatures</Text>
         <Text style={styles.subtitle}>
-          View your captured creatures here. Complete workout challenges to unlock even more creatures!
+          View creatures here. Complete workout challenges to unlock even more creatures!
         </Text>
         <Text style={styles.stats}>
           {capturedCreatureIds.length} captured, {allCreatures.length-capturedCreatureIds.length} remaining

@@ -1,6 +1,7 @@
 import React from 'react';
 import { View } from 'react-native';
 import { Text } from '@/components/Themed';
+import { formatDateDdMmYyyy } from '@/src/utils/dateFormat';
 
 interface DailyStepsBarChartProps {
   chartData: { name: string; steps: number }[];
@@ -23,7 +24,7 @@ export const DailyStepsBarChart = ({ chartData, date }: DailyStepsBarChartProps)
   };
 
   const title = (date && !isToday(date))
-    ? `Steps by User - ${date.toLocaleDateString()}`
+    ? `Steps by User - ${formatDateDdMmYyyy(date)}`
     : "Today's Steps by User";
 
   return (

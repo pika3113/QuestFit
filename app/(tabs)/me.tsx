@@ -25,6 +25,7 @@ import { PolarLinkScreen } from '@/components/auth/PolarLinkScreen';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { Modal } from 'react-native';
+import { formatDateDdMmYyyy } from '@/src/utils/dateFormat';
 
 const { width } = Dimensions.get('window');
 
@@ -252,7 +253,7 @@ export default function MeScreen() {
           </View>
           {lastPhysicalSync && (
             <Text style={styles.lastSync}>
-              Last synced: {new Date(lastPhysicalSync).toLocaleDateString()}
+              Last synced: {formatDateDdMmYyyy(lastPhysicalSync)}
             </Text>
           )}
         </View>
@@ -271,7 +272,7 @@ export default function MeScreen() {
                 </View>
                 <View style={styles.historyInfo}>
                   <Text style={styles.historyType}>{workout.activityType || 'Workout'}</Text>
-                  <Text style={styles.historyDate}>{workout.date.toLocaleDateString()}</Text>
+                  <Text style={styles.historyDate}>{formatDateDdMmYyyy(workout.date)}</Text>
                 </View>
                 <View style={styles.historyStats}>
                   <Text style={styles.historyValue}>{workout.calories} cal</Text>

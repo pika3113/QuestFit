@@ -17,6 +17,7 @@ import { useInstructor } from '@/src/hooks/useInstructor';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { getNextReward, getRewardProgress, REWARDS, Reward, MAX_XP } from '@/src/utils/rewardsSystem';
+import { formatDateDdMmYyyy } from '@/src/utils/dateFormat';
 
 const { width } = Dimensions.get('window');
 
@@ -59,8 +60,7 @@ export default function HomeScreen() {
   };
 
   const formatDate = () => {
-    const options: Intl.DateTimeFormatOptions = { weekday: 'long', month: 'long', day: 'numeric' };
-    return new Date().toLocaleDateString('en-US', options);
+    return formatDateDdMmYyyy(new Date());
   };
 
   const performRedemption = async (reward: Reward) => {

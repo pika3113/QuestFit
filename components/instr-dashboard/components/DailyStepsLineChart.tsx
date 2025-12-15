@@ -2,6 +2,7 @@ import React from 'react';
 import { View } from 'react-native';
 import { Text } from '@/components/Themed';
 import Svg, { Path, Circle, Line } from 'react-native-svg';
+import { formatDateDdMmYyyy } from '@/src/utils/dateFormat';
 
 interface DailyStepsLineChartProps {
   chartData: { name: string; steps: number }[];
@@ -24,7 +25,7 @@ export const DailyStepsLineChart = ({ chartData, date }: DailyStepsLineChartProp
   };
 
   const title = (date && !isToday(date))
-    ? `Steps by User - ${date.toLocaleDateString()}`
+    ? `Steps by User - ${formatDateDdMmYyyy(date)}`
     : "Today's Steps by User";
 
   const chartHeight = 200;

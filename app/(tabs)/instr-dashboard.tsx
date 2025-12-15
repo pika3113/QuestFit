@@ -23,8 +23,16 @@ import { Ionicons } from '@expo/vector-icons';
 import { db } from '@/src/services/firebase';
 import { collection, getDocs, doc, getDoc, limit, orderBy, query } from 'firebase/firestore';
 import { StudentCard, StudentCardSkeleton, StudentStats, ChartType } from '@/components/instr-dashboard/StudentCard';
+import { formatDateDdMm } from '@/src/utils/dateFormat';
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
+
+function formatLocalIsoDate(d: Date) {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
 
 export default function InstructorDashboard() {
   const { width: windowWidth } = useWindowDimensions();
@@ -128,7 +136,8 @@ export default function InstructorDashboard() {
           let lastSync: string | undefined = userData.lastSync;
           const lastChecked: string | undefined = userData.lastChecked;
           
-          const datesToCheck: string[] = [];
+          const dateKeysToFetch: string[] = [];
+          const displayDates: string[] = [];
           const current = new Date(range.start);
           const end = new Date(range.end);
           
@@ -137,23 +146,26 @@ export default function InstructorDashboard() {
           end.setHours(23,59,59,999);
 
           while (current <= end) {
-            datesToCheck.push(current.toISOString().split('T')[0]);
+            // Firestore docs are keyed by an ISO date string (historically stored using toISOString()).
+            // BUT labels should reflect the user's selected calendar days (local dates).
+            displayDates.push(formatLocalIsoDate(current));
+            dateKeysToFetch.push(current.toISOString().split('T')[0]);
             current.setDate(current.getDate() + 1);
           }
 
           const [exercisesDocs, sleepDocs, activityDocs] = await Promise.all([
-            Promise.all(datesToCheck.map(date =>
+            Promise.all(dateKeysToFetch.map(date =>
               getDoc(doc(db, `users/${userId}/polarData/exercises/all/${date}`))
             )),
-            Promise.all(datesToCheck.map(date =>
+            Promise.all(dateKeysToFetch.map(date =>
               getDoc(doc(db, `users/${userId}/polarData/sleep/all/${date}`))
             )),
-            Promise.all(datesToCheck.map(date =>
+            Promise.all(dateKeysToFetch.map(date =>
               getDoc(doc(db, `users/${userId}/polarData/activities/all/${date}`))
             )),
           ]);
 
-          datesToCheck.forEach((_, index) => {
+          dateKeysToFetch.forEach((_, index) => {
             const exercisesSnap = exercisesDocs[index];
             const activitySnap = activityDocs[index];
 
@@ -253,11 +265,8 @@ export default function InstructorDashboard() {
 
           // Data is already chronological (Oldest -> Newest)
           
-          // Generate labels (MM/DD)
-          const labels = datesToCheck.map(dateStr => {
-            const [y, m, d] = dateStr.split('-');
-            return `${parseInt(m)}/${parseInt(d)}`;
-          });
+          // Generate labels (DD/MM)
+          const labels = displayDates.map((dateStr) => formatDateDdMm(dateStr) || dateStr);
           
           // Calculate Averages (ignoring 0s for HR, but maybe keeping them for others? 
           // Usually average daily steps/cals includes rest days as 0 or low, but let's exclude 0 for "active" stats if preferred.
@@ -400,19 +409,78 @@ export default function InstructorDashboard() {
   return (
     <SafeAreaView style={styles.container} edges={['left', 'right', 'bottom']}>
       <View style={styles.header}>
-        <View style={styles.headerTop}>
-          <View style={{ flex: 1, marginRight: 8 }}>
-            <Text style={styles.title} numberOfLines={1} adjustsFontSizeToFit>Instructor Dashboard</Text>
+        {isWideWeb ? (
+          <View style={styles.headerWideRow}>
+            <View style={styles.headerLeftControls}>
+              <View style={styles.rangeRowWideWeb}>
+                <Text style={[styles.filterLabel, styles.filterLabelWeb]}>
+                  Range:
+                </Text>
+                <View style={styles.rangeButtonsWideWeb}>
+                  {[7, 14, 30].map((days) => (
+                    <TouchableOpacity
+                      key={days}
+                      style={[styles.rangeButton, dateRange.type === `${days}d` && styles.rangeButtonActive]}
+                      onPress={() =>
+                        setDateRange({
+                          start: new Date(new Date().setDate(new Date().getDate() - (days - 1))),
+                          end: new Date(),
+                          type: `${days}d` as any,
+                        })
+                      }
+                    >
+                      <Text style={[styles.rangeButtonText, dateRange.type === `${days}d` && styles.rangeButtonTextActive]}>
+                        {days}d
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                  <TouchableOpacity
+                    style={[styles.rangeButton, dateRange.type === 'custom' && styles.rangeButtonActive]}
+                    onPress={() => {
+                      setDatePickerMode('start');
+                      setShowDatePicker(true);
+                    }}
+                  >
+                    <Ionicons name="calendar" size={16} color={dateRange.type === 'custom' ? '#FFF' : '#666'} />
+                  </TouchableOpacity>
+                </View>
+              </View>
+            </View>
+
+            <View style={styles.headerCenterOverlay} pointerEvents="none">
+              <Text style={[styles.title, styles.headerTitleWideWeb]} numberOfLines={1}>
+                Instructor Dashboard
+              </Text>
+              <Text style={[styles.subtitle, styles.headerSubtitleWideWeb]}>
+                {students.length} Cadets Enrolled
+              </Text>
+            </View>
+
+            <View style={styles.headerRightControls}>
+              <TouchableOpacity style={styles.iconButton} onPress={() => setSettingsVisible(true)}>
+                <Ionicons name="settings-outline" size={24} color="#FF6B35" />
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.selectButton} onPress={() => setModalVisible(true)}>
+                <Text style={styles.selectButtonText}>Manage Cadets</Text>
+              </TouchableOpacity>
+            </View>
           </View>
-        </View>
-        
-        <Text style={styles.subtitle}>{students.length} Cadets Enrolled</Text>
-        
-        {/* Date Range Selector */}
-        {!isWideWeb ? (
+        ) : (
+          <>
+            <View style={styles.headerTop}>
+              <View style={{ flex: 1, marginRight: 8 }}>
+                <Text style={styles.title} numberOfLines={1} adjustsFontSizeToFit>Instructor Dashboard</Text>
+              </View>
+            </View>
+
+            <Text style={styles.subtitle}>{students.length} Cadets Enrolled</Text>
+
+            {/* Date Range Selector */}
           <View style={styles.filterContainer}>
             <View style={styles.rangeRow}>
-              <Text style={styles.filterLabel}>Range:</Text>
+              <Text style={[styles.filterLabel, styles.filterLabelMobile]}>
+                Range:
+              </Text>
               <View style={styles.rangeButtons}>
                 {[7, 14, 30].map((days) => (
                   <TouchableOpacity
@@ -452,55 +520,13 @@ export default function InstructorDashboard() {
               </TouchableOpacity>
             </View>
           </View>
-        ) : (
-          <View style={styles.filterContainerWideWeb}>
-            <View style={styles.rangeRowWideWeb}>
-              <Text style={styles.filterLabel}>Range:</Text>
-              <View style={styles.rangeButtonsWideWeb}>
-                {[7, 14, 30].map((days) => (
-                  <TouchableOpacity
-                    key={days}
-                    style={[styles.rangeButton, dateRange.type === `${days}d` && styles.rangeButtonActive]}
-                    onPress={() =>
-                      setDateRange({
-                        start: new Date(new Date().setDate(new Date().getDate() - (days - 1))),
-                        end: new Date(),
-                        type: `${days}d` as any,
-                      })
-                    }
-                  >
-                    <Text style={[styles.rangeButtonText, dateRange.type === `${days}d` && styles.rangeButtonTextActive]}>
-                      {days}d
-                    </Text>
-                  </TouchableOpacity>
-                ))}
-                <TouchableOpacity
-                  style={[styles.rangeButton, dateRange.type === 'custom' && styles.rangeButtonActive]}
-                  onPress={() => {
-                    setDatePickerMode('start');
-                    setShowDatePicker(true);
-                  }}
-                >
-                  <Ionicons name="calendar" size={16} color={dateRange.type === 'custom' ? '#FFF' : '#666'} />
-                </TouchableOpacity>
-              </View>
-            </View>
-
-            <View style={styles.actionsRowWideWeb}>
-              <TouchableOpacity style={styles.iconButton} onPress={() => setSettingsVisible(true)}>
-                <Ionicons name="settings-outline" size={24} color="#FF6B35" />
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.selectButton} onPress={() => setModalVisible(true)}>
-                <Text style={styles.selectButtonText}>Manage Cadets</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
+          </>
         )}
 
         {/* Only show search if we have items to search */}
         {displayedStudents.length > 0 && (
           <View style={styles.searchBar}>
-            <Ionicons name="search" size={20} color="#666" style={{ marginRight: 8 }} />
+            <Ionicons name="search" size={12} color="#666" style={{ marginRight: 8 }} />
             <TextInput
               style={styles.searchInput}
               placeholder="Search tracked cadets..."
@@ -680,7 +706,7 @@ export default function InstructorDashboard() {
                 <Text style={styles.webDateLabel}>Start:</Text>
                 {React.createElement('input', {
                   type: 'date',
-                  value: (dateRange.start instanceof Date ? dateRange.start : new Date()).toISOString().split('T')[0],
+                  value: formatLocalIsoDate(dateRange.start instanceof Date ? dateRange.start : new Date()),
                   onChange: (e: any) => {
                     const date = new Date(e.target.value);
                     if (!isNaN(date.getTime())) {
@@ -701,7 +727,7 @@ export default function InstructorDashboard() {
                 <Text style={styles.webDateLabel}>End:</Text>
                 {React.createElement('input', {
                   type: 'date',
-                  value: (dateRange.end instanceof Date ? dateRange.end : new Date()).toISOString().split('T')[0],
+                  value: formatLocalIsoDate(dateRange.end instanceof Date ? dateRange.end : new Date()),
                   onChange: (e: any) => {
                     const date = new Date(e.target.value);
                     if (!isNaN(date.getTime())) {
@@ -753,7 +779,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   header: {
-    padding: 20,
+    paddingHorizontal: 20,
+    paddingVertical: 16,
     backgroundColor: '#FFFFFF',
     borderBottomWidth: 1,
     borderBottomColor: '#E5E7EB',
@@ -763,11 +790,48 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
   },
+  headerWideRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 16,
+    position: 'relative',
+    minHeight: 60,
+    paddingVertical: 2,
+  },
+  headerLeftControls: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'flex-start',
+    flexShrink: 0,
+    zIndex: 1,
+  },
+  headerCenterOverlay: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    top: 0,
+    bottom: 0,
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 0,
+  },
+  headerRightControls: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'flex-end',
+    gap: 10,
+    flexShrink: 0,
+    zIndex: 1,
+  },
   title: {
     fontSize: 28,
     fontWeight: 'bold',
     color: '#2D3436',
     textAlign: 'center',
+  },
+  headerTitleWideWeb: {
+    lineHeight: 34,
   },
   selectButton: {
     paddingHorizontal: 16,
@@ -790,6 +854,11 @@ const styles = StyleSheet.create({
     color: '#636E72',
     marginTop: 4,
     textAlign: 'center',
+  },
+  headerSubtitleWideWeb: {
+    marginTop: 2,
+    lineHeight: 20,
+    marginBottom:6,
   },
   filterContainer: {
     flexDirection: 'column',
@@ -833,9 +902,16 @@ const styles = StyleSheet.create({
     flexShrink: 0,
   },
   filterLabel: {
-    fontSize: 14,
     color: '#636E72',
-    marginRight: 12,
+    marginRight: 2,
+  },
+  filterLabelWeb: {
+    fontSize: 11,
+    marginTop: 15,
+  },
+  filterLabelMobile: {
+    fontSize: 15,
+    marginTop: 0,
   },
   rangeButtons: {
     flexDirection: 'row',
@@ -874,12 +950,13 @@ const styles = StyleSheet.create({
     backgroundColor: '#F3F4F6',
     borderRadius: 12,
     paddingHorizontal: 12,
-    height: 44,
-    marginTop: 16,
+    height: 24,
+    marginTop: 5,
   },
+
   searchInput: {
     flex: 1,
-    fontSize: 16,
+    fontSize: 12,
     color: '#2D3436',
   },
   selectionInfo: {

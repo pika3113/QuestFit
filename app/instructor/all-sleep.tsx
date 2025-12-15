@@ -17,6 +17,7 @@ import { db } from '@/src/services/firebase';
 import { collection, getDocs, doc, getDoc, query, where, documentId } from 'firebase/firestore';
 import Colors from '@/constants/Colors';
 import { formatIsoDurationHms as formatDuration } from '@/src/utils/formatDuration';
+import { formatDateDdMmYyyy } from '@/src/utils/dateFormat';
 import { SkeletonBlock } from '@/components/Skeleton';
 
 interface SleepData {
@@ -212,11 +213,11 @@ export default function AllSleepScreen() {
       <View style={styles.filtersContainer}>
         <View style={styles.dateRow}>
             <Pressable onPress={() => setShowStartDatePicker(true)} style={styles.dateButton}>
-                <Text style={styles.dateLabel}>From: {startDate.toLocaleDateString()}</Text>
+              <Text style={styles.dateLabel}>From: {formatDateDdMmYyyy(startDate)}</Text>
             </Pressable>
             <Ionicons name="arrow-forward" size={16} color="#666" />
             <Pressable onPress={() => setShowEndDatePicker(true)} style={styles.dateButton}>
-                <Text style={styles.dateLabel}>To: {endDate.toLocaleDateString()}</Text>
+              <Text style={styles.dateLabel}>To: {formatDateDdMmYyyy(endDate)}</Text>
             </Pressable>
             <Pressable onPress={handleRefresh} style={styles.refreshButton}>
                 <Ionicons name="refresh" size={20} color="#FF6B35" />
@@ -286,7 +287,7 @@ export default function AllSleepScreen() {
                 <View key={`${item.userId}-${item.id}`} style={styles.card}>
                     <View style={styles.cardHeader}>
                         <Text style={styles.userName}>{item.userName}</Text>
-                        <Text style={styles.date}>{new Date(item.date).toLocaleDateString()}</Text>
+                      <Text style={styles.date}>{formatDateDdMmYyyy(item.date)}</Text>
                     </View>
                     
                     <View style={styles.cardBody}>

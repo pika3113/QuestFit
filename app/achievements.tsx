@@ -13,6 +13,7 @@ import {
 } from '@/src/services/achievements/achievementsService';
 import { ACHIEVEMENTS } from '@/src/services/achievements/definitions';
 import type { UserAchievementsDoc } from '@/src/types/achievements';
+import { formatDateDdMmYyyy } from '@/src/utils/dateFormat';
 
 type UserProfileLike = {
   xp?: number;
@@ -135,7 +136,7 @@ export default function AchievementsScreen() {
                     <Text style={{ fontSize: 16, fontWeight: '700', color: '#111' }}>{def.title}</Text>
                     <Text style={{ color: '#666', marginTop: 2 }}>{def.description}</Text>
                     <Text style={{ color: '#999', marginTop: 6, fontSize: 12 }}>
-                      {p?.unlocked ? `Unlocked${p.unlockedAt ? ` • ${new Date(p.unlockedAt).toLocaleDateString()}` : ''}` : `Progress: ${Math.min(p?.progress ?? 0, def.threshold)} / ${def.threshold}`}
+                      {p?.unlocked ? `Unlocked${p.unlockedAt ? ` • ${formatDateDdMmYyyy(p.unlockedAt)}` : ''}` : `Progress: ${Math.min(p?.progress ?? 0, def.threshold)} / ${def.threshold}`}
                     </Text>
 
                     <View style={{

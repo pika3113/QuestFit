@@ -57,7 +57,8 @@ export const CreatureCard: React.FC<CreatureCardProps> = ({ creature, captured =
     <View style={{ width: '100%' }}>
       <View style={styles.header}>
           <Text style={styles.name}>
-            {creature.name}{" "}
+            {creature.name}
+            {'\n'}
             <Text style={styles.id}>#{creature.id}</Text>
           </Text>
           <View style={styles.header}>
@@ -121,13 +122,21 @@ export const CreatureCardGrid: React.FC<CardGridProps> = ({
   onPress
 }: CardGridProps) => {
   const { width: windowWidth } = useWindowDimensions();
-  const columns = Math.max(Math.floor(windowWidth / minCardWidth), 1); // at least 1 column
-  const cardWidth = windowWidth / columns;
+  const [containerWidth, setContainerWidth] = React.useState(0);
+  const effectiveWidth = containerWidth > 0 ? containerWidth : windowWidth;
+  const columns = Math.max(Math.floor(effectiveWidth / minCardWidth), 1); // at least 1 column
+  const cardWidthPercent = `${100 / columns}%`;
 
   return (
-    <View style={styles.grid}>
+    <View
+      style={styles.grid}
+      onLayout={(e) => {
+        const next = Math.round(e.nativeEvent.layout.width);
+        if (next > 0 && next !== containerWidth) setContainerWidth(next);
+      }}
+    >
       {cards.map(card => (
-        <View style={{ width: cardWidth, padding: 8 }} key={card.creature.id}>
+        <View style={{ width: cardWidthPercent, padding: 8 }} key={card.creature.id}>
         <Pressable 
         style={[styles.card, { 
           borderColor: getRarityColor(card.creature.rarity),
@@ -167,13 +176,21 @@ export const CreatureCardGridSkeleton: React.FC<{ count?: number; minCardWidth?:
   minCardWidth = 300,
 }) => {
   const { width: windowWidth } = useWindowDimensions();
-  const columns = Math.max(Math.floor(windowWidth / minCardWidth), 1);
-  const cardWidth = windowWidth / columns;
+  const [containerWidth, setContainerWidth] = React.useState(0);
+  const effectiveWidth = containerWidth > 0 ? containerWidth : windowWidth;
+  const columns = Math.max(Math.floor(effectiveWidth / minCardWidth), 1);
+  const cardWidthPercent = `${100 / columns}%`;
 
   return (
-    <View style={styles.grid}>
+    <View
+      style={styles.grid}
+      onLayout={(e) => {
+        const next = Math.round(e.nativeEvent.layout.width);
+        if (next > 0 && next !== containerWidth) setContainerWidth(next);
+      }}
+    >
       {Array.from({ length: count }).map((_, idx) => (
-        <View style={{ width: cardWidth, padding: 8 }} key={`creature-skeleton-${idx}`}>
+        <View style={{ width: cardWidthPercent, padding: 8 }} key={`creature-skeleton-${idx}`}>
           <View
             style={[
               styles.card,
