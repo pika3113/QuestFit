@@ -21,9 +21,8 @@ export function useInstructorStudents(instructorId: string | undefined) {
     try {
       const instructorDoc = await getDoc(doc(db, 'instructors', instructorId));
       const data = instructorDoc.data();
-      if (data?.selectedUsers) {
-        setSelectedUserIds(data.selectedUsers);
-      }
+      const selectedUsersRaw = data?.selectedUsers;
+      setSelectedUserIds(Array.isArray(selectedUsersRaw) ? selectedUsersRaw : []);
     } catch (error) {
       console.error('Error loading selected users:', error);
     } finally {

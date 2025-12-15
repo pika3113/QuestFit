@@ -33,11 +33,15 @@ export default function InstructorDashboard() {
   const { user } = useAuth();
   const { isInstructor, loading: instructorLoading } = useInstructor(user?.uid);
   const { selectedUserIds, toggleUser } = useInstructorStudents(user?.uid);
+
+  const selectedIds = Array.isArray(selectedUserIds) ? selectedUserIds : [];
   
   const [students, setStudents] = useState<StudentStats[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+
+  const normalizedSearchQuery = typeof searchQuery === 'string' ? searchQuery : '';
   
   // Filtering & Selection State
   const [dateRange, setDateRange] = useState<{ start: Date; end: Date; type: '7d' | '14d' | '30d' | 'custom' }>({
@@ -122,6 +126,7 @@ export default function InstructorDashboard() {
           const sleepHistory: number[] = []; // Placeholder for now
           
           let lastSync: string | undefined = userData.lastSync;
+          const lastChecked: string | undefined = userData.lastChecked;
           
           const datesToCheck: string[] = [];
           const current = new Date(range.start);
@@ -288,6 +293,7 @@ export default function InstructorDashboard() {
             displayName: userData.displayName || 'Unknown Cadet',
             photoURL: userData.photoURL,
             lastSync,
+            lastChecked,
             hrHistory,
             distanceHistory,
             stepsHistory,
@@ -328,7 +334,7 @@ export default function InstructorDashboard() {
   };
 
   const filteredStudents = students.filter(s => {
-    const matchesSearch = s.displayName.toLowerCase().includes(searchQuery.toLowerCase());
+    const matchesSearch = s.displayName.toLowerCase().includes(normalizedSearchQuery.toLowerCase());
     // If in selection mode and we have selections, maybe we want to filter?
     // For now, let's just show all and let the user select.
     // Or if the user wants to "view selected", we can add a toggle for that.
@@ -337,7 +343,7 @@ export default function InstructorDashboard() {
 
   // Main view shows ONLY selected students (or all if none selected? No, user wants to choose)
   // If no selection, show empty state prompting to select.
-  const displayedStudents = students.filter(s => selectedUserIds.includes(s.id));
+  const displayedStudents = students.filter(s => selectedIds.includes(s.id));
 
   const onDateChange = (event: any, selectedDate?: Date) => {
     if (event.type === 'dismissed') {
@@ -510,7 +516,7 @@ export default function InstructorDashboard() {
         data={
           loading
             ? ([1, 2, 3] as const)
-            : displayedStudents.filter(s => s.displayName.toLowerCase().includes(searchQuery.toLowerCase()))
+            : displayedStudents.filter(s => s.displayName.toLowerCase().includes(normalizedSearchQuery.toLowerCase()))
         }
         renderItem={({ item }) =>
           loading ? (
@@ -565,8 +571,8 @@ export default function InstructorDashboard() {
                   style={styles.modalItem} 
                   onPress={() => toggleUser(item.id)}
                 >
-                  <View style={[styles.checkbox, selectedUserIds.includes(item.id) && styles.checkboxSelected]}>
-                    {selectedUserIds.includes(item.id) && <Ionicons name="checkmark" size={16} color="#FFF" />}
+                  <View style={[styles.checkbox, selectedIds.includes(item.id) && styles.checkboxSelected]}>
+                    {selectedIds.includes(item.id) && <Ionicons name="checkmark" size={16} color="#FFF" />}
                   </View>
                   <Text style={styles.modalItemText}>{item.displayName}</Text>
                 </TouchableOpacity>
