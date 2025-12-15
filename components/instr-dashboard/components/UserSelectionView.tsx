@@ -18,6 +18,7 @@ export const UserSelectionView = ({
   onDone 
 }: UserSelectionViewProps) => {
   const [searchQuery, setSearchQuery] = useState('');
+  const selectedIds = Array.isArray(selectedUserIds) ? selectedUserIds : [];
 
   const filteredUsers = allUsers.filter(user =>
     user.id.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -50,7 +51,7 @@ export const UserSelectionView = ({
             key={user.id}
             style={[
               styles.userItem,
-              selectedUserIds.includes(user.id) && styles.userItemSelected,
+              selectedIds.includes(user.id) && styles.userItemSelected,
             ]}
             onPress={() => onToggleUser(user.id)}
           >
@@ -58,7 +59,7 @@ export const UserSelectionView = ({
               <Text style={styles.userNameText}>{user.displayName}</Text>
               <Text style={styles.userIdSubText}>{user.id}</Text>
             </View>
-            {selectedUserIds.includes(user.id) && (
+            {selectedIds.includes(user.id) && (
               <Text style={styles.checkmark}>✓</Text>
             )}
           </Pressable>

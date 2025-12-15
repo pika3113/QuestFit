@@ -1,4 +1,4 @@
-import React, { memo, useCallback, useEffect, useMemo, useState } from 'react';
+  import React, { memo, useCallback, useEffect, useMemo, useState } from 'react';
 import { ScrollView, ActivityIndicator, Alert, Pressable, TextInput } from 'react-native';
 import Slider from '@react-native-community/slider';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -777,7 +777,7 @@ export default function WorkoutScreen() {
                       minimumTrackTintColor={Colors[colorScheme ?? 'light'].tint}
                       maximumTrackTintColor={'#99999966'}
                       thumbTintColor={Colors[colorScheme ?? 'light'].tint}
-                      onValueChange={(v) => {
+                      onValueChange={(v: number) => {
                         setEmuHrOverrides((prev) => ({ ...prev, [emuKeyFor(d.userId, d.deviceId)]: v }));
                       }}
                     />

@@ -11,6 +11,7 @@ export interface StudentStats {
   displayName: string;
   photoURL?: string;
   lastSync?: string;
+  lastChecked?: string;
   
   // History arrays (7 days)
   hrHistory: number[];
@@ -144,6 +145,7 @@ export const StudentCard: React.FC<StudentCardProps> = ({
           <View>
             <Text style={styles.userName}>{item.displayName}</Text>
             <Text style={styles.lastSync}>Last Sync: {formatLastSync(item.lastSync)}</Text>
+            <Text style={styles.lastSync}>Last Checked: {formatLastSync(item.lastChecked)}</Text>
           </View>
         </View>
         <View style={styles.trendContainer}>

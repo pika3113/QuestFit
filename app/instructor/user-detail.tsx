@@ -121,6 +121,8 @@ export default function UserDetailScreen() {
   
   const [stats, setStats] = useState<UserStats | null>(null);
   const [displayName, setDisplayName] = useState<string>('');
+  const [lastSync, setLastSync] = useState<string | undefined>(undefined);
+  const [lastChecked, setLastChecked] = useState<string | undefined>(undefined);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [hoveredPoint, setHoveredPoint] = useState<{time: string, hr: number} | null>(null);
@@ -216,6 +218,28 @@ export default function UserDetailScreen() {
           const data = userDoc.data();
           const name = typeof data.displayName === 'string' ? data.displayName.trim() : '';
           setDisplayName(name || userId);
+
+          const ls = typeof data.lastSync === 'string' ? data.lastSync : undefined;
+          const lc = typeof data.lastChecked === 'string' ? data.lastChecked : undefined;
+          setLastSync(ls);
+          setLastChecked(lc);
+
+          if (!ls) {
+            try {
+              const summaryQuery = query(
+                collection(db, `users/${userId}/polarData/syncSummary/all`),
+                orderBy('syncedAt', 'desc'),
+                limit(1)
+              );
+              const summarySnapshot = await getDocs(summaryQuery);
+              if (!summarySnapshot.empty) {
+                const fallback = summarySnapshot.docs[0].data()?.syncedAt;
+                if (typeof fallback === 'string') setLastSync(fallback);
+              }
+            } catch {
+              // ignore
+            }
+          }
         } else {
           setDisplayName(userId);
         }
@@ -226,6 +250,24 @@ export default function UserDetailScreen() {
     };
     loadProfile();
   }, [userId]);
+
+  const formatTimestamp = (value: string | undefined) => {
+    if (!value) return 'N/A';
+    const d = new Date(value);
+    if (Number.isNaN(d.getTime())) return value;
+
+    const dd = String(d.getDate()).padStart(2, '0');
+    const mm = String(d.getMonth() + 1).padStart(2, '0');
+    const yyyy = String(d.getFullYear());
+
+    let hours = d.getHours();
+    const minutes = String(d.getMinutes()).padStart(2, '0');
+    const ampm = hours >= 12 ? 'PM' : 'AM';
+    hours = hours % 12;
+    if (hours === 0) hours = 12;
+
+    return `${dd}/${mm}/${yyyy} ${hours}:${minutes} ${ampm}`;
+  };
 
   const formatDate = (date: Date) => {
     const year = date.getFullYear();
@@ -847,6 +889,10 @@ export default function UserDetailScreen() {
       </View>
 
       <View style={styles.controlsCard}>
+        <View style={styles.syncMetaRow}>
+          <Text style={styles.syncMetaText}>Last Sync: {formatTimestamp(lastSync)}</Text>
+          <Text style={styles.syncMetaText}>Last Checked: {formatTimestamp(lastChecked)}</Text>
+        </View>
         <View style={styles.rangeRow}>
           <Text style={styles.rangeLabel}>Range:</Text>
           <View style={styles.rangeButtons}>
@@ -1344,6 +1390,14 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFFFFF',
     borderBottomWidth: 1,
     borderBottomColor: '#E0E0E0',
+  },
+  syncMetaRow: {
+    marginBottom: 10,
+  },
+  syncMetaText: {
+    color: '#666',
+    fontSize: 13,
+    marginBottom: 2,
   },
   rangeRow: {
     flexDirection: 'row',
