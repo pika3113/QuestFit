@@ -55,6 +55,10 @@ export default function TabLayout() {
   const pathname = usePathname();
   const insets = useSafeAreaInsets();
 
+  const defaultTabBarPaddingBottom = Platform.OS === 'ios' ? 28 : 10;
+  const tabBarPaddingBottom = Math.max(insets.bottom, defaultTabBarPaddingBottom);
+  const tabBarHeight = (Platform.OS === 'ios' ? 85 : 65) + (tabBarPaddingBottom - defaultTabBarPaddingBottom);
+
   const overlayAnim = React.useRef(new Animated.Value(0)).current;
 
   const isHomeTab = pathname === '/home' || pathname.endsWith('/home');
@@ -180,8 +184,8 @@ export default function TabLayout() {
         tabBarStyle: {
           backgroundColor: '#FFFFFF',
           borderTopWidth: 0,
-          height: Platform.OS === 'ios' ? 85 : 65,
-          paddingBottom: Platform.OS === 'ios' ? 28 : 10,
+          height: tabBarHeight,
+          paddingBottom: tabBarPaddingBottom,
           paddingTop: 10,
           shadowColor: "#000",
           shadowOffset: {

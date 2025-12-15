@@ -203,7 +203,7 @@ export default function AllExercisesScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.container} edges={['left', 'right', 'bottom']}>
+    <SafeAreaView style={styles.container} edges={['top', 'left', 'right', 'bottom']}>
       <Stack.Screen options={{ title: 'All Exercises' }} />
       
       {/* Filters Header */}

@@ -46,7 +46,7 @@ export default function MyRewardsScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.container} edges={['left', 'right', 'bottom']}>
+    <SafeAreaView style={styles.container} edges={['top', 'left', 'right', 'bottom']}>
       <Stack.Screen options={{ title: 'My Rewards', headerBackTitle: 'Back' }} />
       
       <ScrollView contentContainerStyle={styles.contentContainer}>

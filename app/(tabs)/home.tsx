@@ -151,7 +151,7 @@ export default function HomeScreen() {
   const creatureCount = profile?.capturedCreatures?.length || 0;
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: ModernColors.background }} edges={['left', 'right', 'bottom']}>
+    <SafeAreaView style={{ flex: 1, backgroundColor: ModernColors.background }} edges={['top', 'left', 'right', 'bottom']}>
     <ScrollView 
       style={styles.scrollView} 
       contentContainerStyle={styles.contentContainer}

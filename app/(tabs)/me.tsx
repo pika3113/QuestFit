@@ -193,7 +193,7 @@ export default function MeScreen() {
   }
 
   return (
-    <SafeAreaView style={styles.container} edges={['left', 'right', 'bottom']}>
+    <SafeAreaView style={styles.container} edges={['top', 'left', 'right', 'bottom']}>
       <ScrollView 
         contentContainerStyle={styles.scrollContent}
         refreshControl={

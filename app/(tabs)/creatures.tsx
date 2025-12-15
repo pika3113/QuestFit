@@ -58,7 +58,7 @@ export default function CreaturesScreen() {
   const activeFiltersCount = (statusFilter !== 'all' ? 1 : 0) + (rarityFilter !== 'all' ? 1 : 0) + (sportFilter !== 'all' ? 1 : 0);
 
   return (
-    <SafeAreaView style={styles.container} edges={['left', 'right', 'bottom']}>
+    <SafeAreaView style={styles.container} edges={['top', 'left', 'right', 'bottom']}>
       <View style={styles.header}>
         <Text style={styles.title}>Creatures</Text>
         <Text style={styles.subtitle}>

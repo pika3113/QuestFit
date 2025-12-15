@@ -5,6 +5,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import Sparkline from './Sparkline';
 import { SkeletonBlock } from '@/components/Skeleton';
+import { formatCompactNumber } from '@/src/utils/numberFormat';
 
 export interface StudentStats {
   id: string;
@@ -82,6 +83,13 @@ export const StudentCard: React.FC<StudentCardProps> = ({
   const { width: windowWidth, height: windowHeight } = useWindowDimensions();
   const [selectedMetric, setSelectedMetric] = useState<MetricType>('distance');
   const [isChartExpanded, setIsChartExpanded] = useState(false);
+
+  const formatMobileCompact = (value: number) => {
+    if (Platform.OS !== 'web' && typeof value === 'number' && Number.isFinite(value) && Math.abs(value) >= 1000) {
+      return formatCompactNumber(value);
+    }
+    return Math.round(value).toLocaleString();
+  };
 
   const expandedModalMaxWidth = Platform.OS === 'web' ? 1200 : 720;
   const expandedModalTargetWidth = Platform.OS === 'web' ? windowWidth * 0.92 : windowWidth - 40;
@@ -202,7 +210,7 @@ export const StudentCard: React.FC<StudentCardProps> = ({
         >
           <Ionicons name="walk" size={16} color="#2E86AB" />
           <Text style={styles.statValue}>
-            {(activityMetric === 'steps' ? item.avgSteps : item.avgDistance).toLocaleString()}
+            {formatMobileCompact(activityMetric === 'steps' ? item.avgSteps : item.avgDistance)}
           </Text>
           <Text style={styles.statLabel}>{activityMetric === 'steps' ? 'Steps' : 'Dist (m)'}</Text>
         </TouchableOpacity>
@@ -230,7 +238,7 @@ export const StudentCard: React.FC<StudentCardProps> = ({
           onPress={() => setSelectedMetric('calories')}
         >
           <Ionicons name="flame" size={16} color="#FDCB6E" />
-          <Text style={styles.statValue}>{item.avgCalories.toLocaleString()}</Text>
+          <Text style={styles.statValue}>{formatMobileCompact(item.avgCalories)}</Text>
           <Text style={styles.statLabel}>Kcal</Text>
         </TouchableOpacity>
       </View>
@@ -249,6 +257,7 @@ export const StudentCard: React.FC<StudentCardProps> = ({
               color={getChartColor()} 
               height={270}
               type={chartConfig[selectedMetric]}
+              compactNumbers={Platform.OS !== 'web'}
             />
           </View>
         </TouchableOpacity>
@@ -281,6 +290,7 @@ export const StudentCard: React.FC<StudentCardProps> = ({
                 color={getChartColor()} 
                 height={expandedChartHeight}
                 type={chartConfig[selectedMetric]}
+                compactNumbers={Platform.OS !== 'web'}
               />
             </View>
           </View>

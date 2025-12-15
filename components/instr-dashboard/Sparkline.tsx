@@ -1,6 +1,8 @@
 "use dom";
 
 import React, { useEffect, useState } from 'react';
+import { Platform } from 'react-native';
+import { formatCompactNumber } from '@/src/utils/numberFormat';
 
 // Client-only load to avoid SSR "window is not defined".
 // We intentionally avoid React.lazy here to prevent an additional JS chunk fetch
@@ -21,10 +23,21 @@ interface SparklineProps {
   color: string;
   height?: number;
   type?: 'line' | 'bar' | 'area' | 'scatter';
+  compactNumbers?: boolean;
 }
 
-export default function Sparkline({ data, labels, color, height = 100, type = 'line' }: SparklineProps) {
+export default function Sparkline({ data, labels, color, height = 100, type = 'line', compactNumbers }: SparklineProps) {
   const [isMounted, setIsMounted] = useState(false);
+
+  const isExpoNativeHost = (() => {
+    // When using Expo DOM Components, this file can run in a DOM environment even on iOS/Android.
+    // In that case, Platform.OS may still read as 'web', so we also check the user agent.
+    if (Platform.OS !== 'web') return true;
+    if (typeof navigator === 'undefined' || typeof navigator.userAgent !== 'string') return false;
+    return /Expo|ReactNative/i.test(navigator.userAgent);
+  })();
+
+  const shouldCompactNumbers = compactNumbers ?? isExpoNativeHost;
 
   useEffect(() => {
     setIsMounted(true);
@@ -36,6 +49,7 @@ export default function Sparkline({ data, labels, color, height = 100, type = 'l
   }];
 
   const dataLen = Array.isArray(data) ? data.length : 0;
+  const isLineOrArea = type === 'line' || type === 'area';
 
   const formatCompact = (value: number) => {
     const sign = value < 0 ? '-' : '';
@@ -107,6 +121,11 @@ export default function Sparkline({ data, labels, color, height = 100, type = 'l
       formatter: (val: number) => {
         if (typeof val !== 'number' || !Number.isFinite(val) || val === 0) return '';
 
+        // Mobile: keep labels compact so they don't crowd the plot.
+        if (shouldCompactNumbers && Math.abs(val) >= 1_000) {
+          return formatCompactNumber(val);
+        }
+
         // Bars get crowded on longer ranges; abbreviate big values to fit inside bars.
         if (type === 'bar' && dataLen >= 20 && Math.abs(val) >= 1_000) {
           return formatCompact(val);
@@ -122,7 +141,7 @@ export default function Sparkline({ data, labels, color, height = 100, type = 'l
       textAnchor: 'middle',
       offsetX: 0,
       // Bars: nudge slightly down to center. Lines/areas/scatter: pull slightly above the point.
-      offsetY: type === 'bar' ? 2 : -6,
+      offsetY: type === 'bar' ? 2 : (isLineOrArea ? -8 : -10),
       background: {
         // Disable the floating "bubble" for non-bar charts (it can render without text
         // depending on theme/defaults). Bars remain readable without this background.
@@ -148,8 +167,10 @@ export default function Sparkline({ data, labels, color, height = 100, type = 'l
       padding: {
         left: labels ? 24 : 10,
         right: labels ? 24 : 10,
-        bottom: 0,
-        top: 0
+        // Give x-axis labels room so they don't collide with the plot (especially for line/area).
+        bottom: labels ? (isLineOrArea ? 18 : 10) : 0,
+        // Give data labels a little headroom at the top.
+        top: isLineOrArea ? 8 : 0
       },
       xaxis: {
         lines: {
@@ -167,6 +188,7 @@ export default function Sparkline({ data, labels, color, height = 100, type = 'l
       labels: {
         show: !!labels,
         offsetX: 0,
+        offsetY: labels ? 8 : 0,
         style: {
           fontSize: '10px',
           colors: '#999'
@@ -194,6 +216,11 @@ export default function Sparkline({ data, labels, color, height = 100, type = 'l
         show: !!labels
       },
       y: {
+        formatter: (val: number) => {
+          if (typeof val !== 'number' || !Number.isFinite(val)) return '';
+          if (shouldCompactNumbers && Math.abs(val) >= 1_000) return formatCompactNumber(val);
+          return Math.round(val).toLocaleString();
+        },
         title: {
           formatter: () => ''
         }

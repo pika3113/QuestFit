@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { Alert } from 'react-native';
 import bluetoothService from '../services/bluetoothService';
 import { HeartRateReading, WorkoutMetrics, ConnectedDeviceInfo, BluetoothDevice } from '../services/bluetoothTypes';
+import { IS_DEV_MODE } from '@/constants/DevConfig';
 
 export const useMultiDeviceWorkout = () => {
   const [isScanning, setIsScanning] = useState(false);
@@ -22,12 +23,13 @@ export const useMultiDeviceWorkout = () => {
   const heartRateTimeoutRef = useRef<any>(null);
   const countdownTimerRef = useRef<any>(null);
 
-  // Check Bluetooth status on mount
-  useEffect(() => {
-    checkBluetoothStatus();
-  }, []);
+  const checkBluetoothStatus = useCallback(async () => {
+    // In dev mode we often run without real BLE permissions/hardware; avoid noisy checks.
+    if (IS_DEV_MODE) {
+      setBluetoothEnabled(true);
+      return;
+    }
 
-  const checkBluetoothStatus = async () => {
     try {
       const enabled = await bluetoothService.isBluetoothEnabled();
       setBluetoothEnabled(enabled);
@@ -35,7 +37,12 @@ export const useMultiDeviceWorkout = () => {
       console.error('Failed to check Bluetooth status:', err);
       setBluetoothEnabled(false);
     }
-  };
+  }, []);
+
+  // Check Bluetooth status on mount
+  useEffect(() => {
+    checkBluetoothStatus();
+  }, [checkBluetoothStatus]);
 
   // Update connected devices list periodically
   useEffect(() => {

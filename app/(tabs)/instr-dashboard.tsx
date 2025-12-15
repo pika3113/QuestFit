@@ -8,6 +8,7 @@ import {
   FlatList,
   Dimensions,
   Pressable,
+  Alert,
   TouchableOpacity,
   Modal,
   Platform,
@@ -25,11 +26,19 @@ import { db } from '@/src/services/firebase';
 import { collection, getDocs, doc, getDoc, limit, orderBy, query, setDoc } from 'firebase/firestore';
 import { StudentCard, StudentCardSkeleton, StudentStats, ChartType } from '@/components/instr-dashboard/StudentCard';
 import { formatDateDdMm } from '@/src/utils/dateFormat';
+import { formatCompactNumber } from '@/src/utils/numberFormat';
 import { instructorDashboardScreenStyles as styles, WEB_DATE_INPUT_STYLE } from '@/src/styles/screens/instructorDashboardScreenStyles';
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
 
 const AUTO_FLAG_COOLDOWN_MS = 30 * 60_000;
+
+const MOBILE_CUSTOM_MAX_DAYS = 10;
+const MS_PER_DAY = 24 * 60 * 60 * 1000;
+
+function startOfLocalDay(d: Date) {
+  return new Date(d.getFullYear(), d.getMonth(), d.getDate());
+}
 
 type DashboardMode = 'overview' | 'cadets';
 type CadetFlag = 'good' | 'bad' | 'none';
@@ -60,7 +69,7 @@ export default function InstructorDashboard() {
   const normalizedSearchQuery = typeof searchQuery === 'string' ? searchQuery : '';
   
   // Filtering & Selection State
-  const [dateRange, setDateRange] = useState<{ start: Date; end: Date; type: '7d' | '14d' | '30d' | 'custom' }>({
+  const [dateRange, setDateRange] = useState<{ start: Date; end: Date; type: '3d' | '7d' | '10d' | '14d' | '30d' | 'custom' }>({
     start: new Date(new Date().setDate(new Date().getDate() - 6)), // 7 days including today
     end: new Date(),
     type: '7d'
@@ -79,6 +88,12 @@ export default function InstructorDashboard() {
   const [autoFlagTooltipText, setAutoFlagTooltipText] = useState<string | null>(null);
   const [autoFlagNextAllowedAtMs, setAutoFlagNextAllowedAtMs] = useState<number | null>(null);
   const [autoFlagCooldownTick, setAutoFlagCooldownTick] = useState(0);
+
+  const formatMobileCompactNumber = useCallback((value: number) => {
+    if (typeof value !== 'number' || !Number.isFinite(value)) return '';
+    if (Platform.OS !== 'web' && Math.abs(value) >= 1000) return formatCompactNumber(value);
+    return Math.round(value).toLocaleString();
+  }, []);
 
   const persistAutoFlagResult = useCallback(
     async (result: 'success_ai' | 'success_fallback' | 'error') => {
@@ -734,30 +749,100 @@ export default function InstructorDashboard() {
     }
     
     const currentDate = selectedDate || (datePickerMode === 'start' ? dateRange.start : dateRange.end);
+
+    const applyMobileClamp = (nextStart: Date, nextEnd: Date) => {
+      if (Platform.OS === 'web') return { start: nextStart, end: nextEnd, clamped: false };
+
+      const startDay = startOfLocalDay(nextStart);
+      const endDay = startOfLocalDay(nextEnd);
+      const diffDaysInclusive = Math.floor((endDay.getTime() - startDay.getTime()) / MS_PER_DAY) + 1;
+
+      if (diffDaysInclusive > MOBILE_CUSTOM_MAX_DAYS) {
+        return {
+          start: nextStart,
+          end: new Date(startDay.getTime() + (MOBILE_CUSTOM_MAX_DAYS - 1) * MS_PER_DAY),
+          clamped: true,
+        };
+      }
+
+      return { start: nextStart, end: nextEnd, clamped: false };
+    };
     
     if (Platform.OS === 'android') {
       setShowDatePicker(false);
       if (datePickerMode === 'start') {
-        setDateRange(prev => ({ ...prev, start: currentDate, type: 'custom' }));
+        setDateRange((prev) => {
+          const nextStart = currentDate;
+          let nextEnd = prev.end;
+
+          if (startOfLocalDay(nextEnd).getTime() < startOfLocalDay(nextStart).getTime()) {
+            nextEnd = nextStart;
+          }
+
+          const { start, end, clamped } = applyMobileClamp(nextStart, nextEnd);
+          if (clamped) {
+            Alert.alert('Range limited', `Custom range is limited to ${MOBILE_CUSTOM_MAX_DAYS} days on mobile.`);
+          }
+          return { ...prev, start, end, type: 'custom' };
+        });
         // Small delay to allow the first picker to close completely
         setTimeout(() => {
           setDatePickerMode('end');
           setShowDatePicker(true);
         }, 100);
       } else {
-        setDateRange(prev => ({ ...prev, end: currentDate, type: 'custom' }));
+        setDateRange((prev) => {
+          let nextStart = prev.start;
+          let nextEnd = currentDate;
+
+          if (startOfLocalDay(nextEnd).getTime() < startOfLocalDay(nextStart).getTime()) {
+            nextStart = nextEnd;
+          }
+
+          const { start, end, clamped } = applyMobileClamp(nextStart, nextEnd);
+          if (clamped) {
+            Alert.alert('Range limited', `Custom range is limited to ${MOBILE_CUSTOM_MAX_DAYS} days on mobile.`);
+          }
+          return { ...prev, start, end, type: 'custom' };
+        });
       }
     } else {
       // For iOS, we might want to handle this differently, but for now:
       setShowDatePicker(false); // Close on selection for simplicity
       if (datePickerMode === 'start') {
-        setDateRange(prev => ({ ...prev, start: currentDate, type: 'custom' }));
+        setDateRange((prev) => {
+          const nextStart = currentDate;
+          let nextEnd = prev.end;
+
+          if (startOfLocalDay(nextEnd).getTime() < startOfLocalDay(nextStart).getTime()) {
+            nextEnd = nextStart;
+          }
+
+          const { start, end, clamped } = applyMobileClamp(nextStart, nextEnd);
+          if (clamped) {
+            Alert.alert('Range limited', `Custom range is limited to ${MOBILE_CUSTOM_MAX_DAYS} days on mobile.`);
+          }
+          return { ...prev, start, end, type: 'custom' };
+        });
         setTimeout(() => {
           setDatePickerMode('end');
           setShowDatePicker(true);
         }, 500);
       } else {
-        setDateRange(prev => ({ ...prev, end: currentDate, type: 'custom' }));
+        setDateRange((prev) => {
+          let nextStart = prev.start;
+          let nextEnd = currentDate;
+
+          if (startOfLocalDay(nextEnd).getTime() < startOfLocalDay(nextStart).getTime()) {
+            nextStart = nextEnd;
+          }
+
+          const { start, end, clamped } = applyMobileClamp(nextStart, nextEnd);
+          if (clamped) {
+            Alert.alert('Range limited', `Custom range is limited to ${MOBILE_CUSTOM_MAX_DAYS} days on mobile.`);
+          }
+          return { ...prev, start, end, type: 'custom' };
+        });
       }
     }
   };
@@ -780,7 +865,7 @@ export default function InstructorDashboard() {
   }
 
   return (
-    <SafeAreaView style={styles.container} edges={['left', 'right', 'bottom']}>
+    <SafeAreaView style={styles.container} edges={['top', 'left', 'right', 'bottom']}>
       <View style={styles.header}>
         {isWideWeb ? (
           <View style={styles.headerWideRow}>
@@ -855,7 +940,7 @@ export default function InstructorDashboard() {
                 Range:
               </Text>
               <View style={styles.rangeButtons}>
-                {[7, 14, 30].map((days) => (
+                {(Platform.OS === 'web' ? [7, 14, 30] : [3, 7, 10]).map((days) => (
                   <TouchableOpacity
                     key={days}
                     style={[styles.rangeButton, dateRange.type === `${days}d` && styles.rangeButtonActive]}
@@ -1019,12 +1104,12 @@ export default function InstructorDashboard() {
                 <View style={styles.summaryCard}>
                   <Text style={styles.summaryLabel}>{activityMetric === 'steps' ? 'Avg Steps' : 'Avg Distance (m)'}</Text>
                   <Text style={styles.summaryValue}>
-                    {(activityMetric === 'steps' ? cohortAverages.avgSteps : cohortAverages.avgDistance).toLocaleString()}
+                    {formatMobileCompactNumber(activityMetric === 'steps' ? cohortAverages.avgSteps : cohortAverages.avgDistance)}
                   </Text>
                 </View>
                 <View style={styles.summaryCard}>
                   <Text style={styles.summaryLabel}>Avg Calories</Text>
-                  <Text style={styles.summaryValue}>{cohortAverages.avgCalories.toLocaleString()}</Text>
+                  <Text style={styles.summaryValue}>{formatMobileCompactNumber(cohortAverages.avgCalories)}</Text>
                 </View>
                 <View style={styles.summaryCard}>
                   <Text style={styles.summaryLabel}>Avg HR</Text>
@@ -1072,10 +1157,10 @@ export default function InstructorDashboard() {
                           </View>
                           <View style={styles.overviewCadetMetaRow}>
                             <Text style={styles.overviewCadetMeta}>
-                              {(activityMetric === 'steps' ? s.avgSteps : s.avgDistance).toLocaleString()}
+                              {formatMobileCompactNumber(activityMetric === 'steps' ? s.avgSteps : s.avgDistance)}
                               {activityMetric === 'steps' ? ' steps' : ' m'}
                               {'  •  '}
-                              {s.avgCalories.toLocaleString()} kcal
+                              {formatMobileCompactNumber(s.avgCalories)} kcal
                               {'  •  '}
                               {s.avgSleep > 0 ? `${s.avgSleep} sleep` : 'sleep -'}
                               {'  •  '}
@@ -1128,10 +1213,10 @@ export default function InstructorDashboard() {
                           </View>
                           <View style={styles.overviewCadetMetaRow}>
                             <Text style={styles.overviewCadetMeta}>
-                              {(activityMetric === 'steps' ? s.avgSteps : s.avgDistance).toLocaleString()}
+                              {formatMobileCompactNumber(activityMetric === 'steps' ? s.avgSteps : s.avgDistance)}
                               {activityMetric === 'steps' ? ' steps' : ' m'}
                               {'  •  '}
-                              {s.avgCalories.toLocaleString()} kcal
+                              {formatMobileCompactNumber(s.avgCalories)} kcal
                               {'  •  '}
                               {s.avgSleep > 0 ? `${s.avgSleep} sleep` : 'sleep -'}
                               {'  •  '}
