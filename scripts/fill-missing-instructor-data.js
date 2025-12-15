@@ -10,7 +10,7 @@
  *   - nightlyRecharge (optional minimal fields)
  *
  * Safety:
- * - Only writes when a doc is missing OR when key fields are missing.
+ * - Only writes when a doc is missing OR when key fields are missing/empty/zero.
  * - Supports `--dryRun` (default) to preview without writing.
  * - Supports `--onlyUser=<uid>` to target a single user.
  *
@@ -18,6 +18,7 @@
  *   node scripts/fill-missing-instructor-data.js --days=14 --dryRun
  *   node scripts/fill-missing-instructor-data.js --days=30 --write
  *   node scripts/fill-missing-instructor-data.js --days=7 --write --onlyUser=USER_ID
+ *   node scripts/fill-missing-instructor-data.js --start=2025-11-01 --end=2025-11-30 --write
  */
 
 const admin = require('firebase-admin');
@@ -50,6 +51,8 @@ const db = admin.firestore();
 function parseArgs(argv) {
   const out = {
     days: 14,
+    start: null,
+    end: null,
     dryRun: true,
     onlyUser: null,
     repairBadDistance: false,
@@ -57,12 +60,17 @@ function parseArgs(argv) {
     seed: null,
     maxDistanceMeters: 20000,
     jitterPct: 0.12,
-    fillZeroDistance: false,
-    fillZeroDistanceAny: false,
+    // Default behavior: make charts look populated.
+    // - fillZeroDistance: patch synthetic activity docs that have distance=0
+    // - fillZeroDistanceAny: also patch non-synthetic activity docs with distance=0
+    fillZeroDistance: true,
+    fillZeroDistanceAny: true,
   };
 
   for (const arg of argv) {
     if (arg.startsWith('--days=')) out.days = Math.max(1, parseInt(arg.split('=')[1], 10) || 14);
+    if (arg.startsWith('--start=')) out.start = arg.split('=')[1] || null;
+    if (arg.startsWith('--end=')) out.end = arg.split('=')[1] || null;
     if (arg === '--write') out.dryRun = false;
     if (arg === '--dryRun') out.dryRun = true;
     if (arg.startsWith('--onlyUser=')) out.onlyUser = arg.split('=')[1] || null;
@@ -78,9 +86,28 @@ function parseArgs(argv) {
     }
     if (arg === '--fillZeroDistance') out.fillZeroDistance = true;
     if (arg === '--fillZeroDistanceAny') out.fillZeroDistanceAny = true;
+    if (arg === '--keepZeros') {
+      out.fillZeroDistance = false;
+      out.fillZeroDistanceAny = false;
+    }
   }
 
   return out;
+}
+
+function isIsoDate(value) {
+  return typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value);
+}
+
+function parseIsoDateOrThrow(value, name) {
+  if (!isIsoDate(value)) {
+    throw new Error(`Invalid ${name}: ${String(value)} (expected YYYY-MM-DD)`);
+  }
+  const d = new Date(`${value}T00:00:00.000Z`);
+  if (Number.isNaN(d.getTime())) {
+    throw new Error(`Invalid ${name}: ${String(value)}`);
+  }
+  return d;
 }
 
 function stableHash32(str) {
@@ -212,6 +239,22 @@ function dateStringsBack(days) {
   return dates;
 }
 
+function dateStringsRange(startIso, endIso) {
+  const start = parseIsoDateOrThrow(startIso, '--start');
+  const end = parseIsoDateOrThrow(endIso, '--end');
+  if (start > end) {
+    throw new Error(`Invalid range: start must be <= end (${startIso}..${endIso})`);
+  }
+
+  const dates = [];
+  const cur = new Date(start);
+  while (cur <= end) {
+    dates.push(toIsoDate(cur));
+    cur.setDate(cur.getDate() + 1);
+  }
+  return dates;
+}
+
 function randInt(min, max) {
   return Math.floor(Math.random() * (max - min + 1)) + min;
 }
@@ -334,7 +377,16 @@ async function ensureDoc(ref, buildData, requiredKeys, dryRun) {
       if (cur == null || typeof cur !== 'object' || !(p in cur)) return true;
       cur = cur[p];
     }
-    return cur == null;
+
+    // Treat null/undefined as missing.
+    if (cur == null) return true;
+
+    // Default: also treat numeric 0 and empty arrays as needing fill/repair.
+    // This makes the instructor dashboard charts look "complete".
+    if (typeof cur === 'number' && Number.isFinite(cur) && cur === 0) return true;
+    if (Array.isArray(cur) && cur.length === 0) return true;
+
+    return false;
   });
 
   if (missingKeys.length === 0) return { action: 'skipped' };
@@ -452,29 +504,34 @@ async function repairActivityDistanceIfNeeded(ref, dryRun, options) {
 }
 
 async function main() {
-  const { days, dryRun, onlyUser, repairBadDistance, evenOut, seed, maxDistanceMeters, jitterPct, fillZeroDistance, fillZeroDistanceAny } = parseArgs(process.argv.slice(2));
+  const { days, start, end, dryRun, onlyUser, repairBadDistance, evenOut, seed, maxDistanceMeters, jitterPct, fillZeroDistance, fillZeroDistanceAny } = parseArgs(process.argv.slice(2));
 
   console.log('🧩 Fill missing instructor data');
-  console.log(`- days: ${days}`);
+  if (start && end) console.log(`- range: ${start}..${end}`);
+  else console.log(`- days: ${days}`);
   console.log(`- mode: ${dryRun ? 'dryRun (no writes)' : 'write'}`);
   if (repairBadDistance) console.log('- repairBadDistance: enabled');
   if (evenOut) console.log(`- evenOut: enabled (maxDistanceMeters=${maxDistanceMeters}, jitterPct=${jitterPct})`);
   if (seed != null) console.log(`- seed: ${seed || '(empty)'}`);
   if (fillZeroDistance) console.log('- fillZeroDistance: enabled (synthetic docs only)');
   if (fillZeroDistanceAny) console.log('- fillZeroDistanceAny: enabled (will modify real 0 days)');
+  if (!fillZeroDistance && !fillZeroDistanceAny) console.log('- keepZeros: enabled');
   if (onlyUser) console.log(`- onlyUser: ${onlyUser}`);
 
-  const dates = dateStringsBack(days);
+  const dates = (start && end) ? dateStringsRange(start, end) : dateStringsBack(days);
 
   const usersSnap = await db.collection('users').get();
   const userIds = usersSnap.docs.map((d) => d.id).filter((id) => (onlyUser ? id === onlyUser : true));
 
   console.log(`- users: ${userIds.length}`);
 
-  const counters = { created: 0, patched: 0, skipped: 0 };
+  const counters = { created: 0, patched: 0, skipped: 0, userUpdated: 0, summariesCreated: 0, summariesPatched: 0 };
 
   for (const userId of userIds) {
     const polarDataRef = db.collection('users').doc(userId).collection('polarData');
+    const userRef = db.collection('users').doc(userId);
+    const runAt = new Date().toISOString();
+    let wroteAnythingForUser = false;
 
     // Build a stable RNG per user for seeded docs so patterns look consistent.
     const userRng = makeRng(`${seed || ''}:${userId}`);
@@ -510,6 +567,7 @@ async function main() {
       const activitiesRef = polarDataRef.doc('activities').collection('all').doc(dateStr);
       const cardioRef = polarDataRef.doc('cardioLoad').collection('all').doc(dateStr);
       const rechargeRef = polarDataRef.doc('nightlyRecharge').collection('all').doc(dateStr);
+      const summaryRef = polarDataRef.doc('syncSummary').collection('all').doc(dateStr);
 
       // Generate deterministic-ish per day (stable random seed not required; this is demo data)
       const exData = buildExerciseDay(dateStr);
@@ -567,11 +625,53 @@ async function main() {
         dryRun
       );
 
+      // Create/repair a sync summary doc so UI can derive lastSync when missing.
+      // This also makes it easier to see which days were backfilled.
+      const anyDayWrite = [exRes, sleepRes, actRes, cardioRes, rechargeRes].some((r) => r.action === 'created' || r.action === 'patched');
+      if (anyDayWrite) wroteAnythingForUser = true;
+
+      const summaryPayload = {
+        userId,
+        date: dateStr,
+        syncedAt: runAt,
+        itemsStored: [exRes, sleepRes, actRes, cardioRes, rechargeRes].filter((r) => r.action === 'created' || r.action === 'patched').length,
+        dataTypes: {
+          activities: true,
+          sleep: true,
+          nightlyRecharge: true,
+          continuousHeartRate: false,
+          cardioLoad: true,
+          exercises: 1,
+        },
+        errors: [],
+        seeded: true,
+      };
+
+      const summaryRes = await ensureDoc(
+        summaryRef,
+        summaryPayload,
+        ['syncedAt', 'dataTypes.activities', 'dataTypes.sleep', 'dataTypes.cardioLoad'],
+        dryRun
+      );
+
+      if (summaryRes.action === 'created') counters.summariesCreated++;
+      else if (summaryRes.action === 'patched') counters.summariesPatched++;
+
       for (const r of [exRes, sleepRes, actRes, cardioRes, rechargeRes]) {
         if (r.action === 'created') counters.created++;
         else if (r.action === 'patched') counters.patched++;
         else counters.skipped++;
       }
+    }
+
+    // Update user doc timestamps so the instructor UI reflects that we backfilled/checked.
+    if (!dryRun) {
+      const patch = { lastChecked: runAt };
+      if (wroteAnythingForUser) {
+        patch.lastSync = runAt;
+      }
+      await userRef.set(patch, { merge: true });
+      counters.userUpdated++;
     }
   }
 
@@ -579,6 +679,9 @@ async function main() {
   console.log(`- created: ${counters.created}`);
   console.log(`- patched: ${counters.patched}`);
   console.log(`- skipped: ${counters.skipped}`);
+  console.log(`- syncSummary created: ${counters.summariesCreated}`);
+  console.log(`- syncSummary patched: ${counters.summariesPatched}`);
+  console.log(`- users timestamp-updated: ${counters.userUpdated}`);
   console.log(dryRun ? '\nRun again with `--write` to apply changes.' : '\nWrote seed data to Firestore.');
 }
 

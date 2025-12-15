@@ -22,6 +22,7 @@ import { useInstructorStudents } from '@/src/hooks/useInstructorStudents';
 import { useAuth } from '@/src/hooks/useAuth';
 import { ComparisonRadarChart, RadarDataPoint } from '@/components/instr-dashboard/ComparisonRadarChart';
 import { formatIsoDurationHms as formatDuration } from '@/src/utils/formatDuration';
+import { formatDateDdMmYyyy } from '@/src/utils/dateFormat';
 
 interface UserStats {
   today: {
@@ -276,7 +277,7 @@ export default function UserDetailScreen() {
     return `${year}-${month}-${day}`;
   };
 
-  const toIsoDateString = (d: Date) => d.toISOString().split('T')[0];
+  const toUtcDateKey = (d: Date) => d.toISOString().split('T')[0];
 
   const rangeStartEndIso = useMemo(() => {
     const start = new Date(dateRange.start);
@@ -286,8 +287,9 @@ export default function UserDetailScreen() {
     const startMs = Math.min(start.getTime(), end.getTime());
     const endMs = Math.max(start.getTime(), end.getTime());
     return {
-      startIso: toIsoDateString(new Date(startMs)),
-      endIso: toIsoDateString(new Date(endMs)),
+      // Use local calendar date strings for UI/routing.
+      startIso: formatDate(new Date(startMs)),
+      endIso: formatDate(new Date(endMs)),
     };
   }, [dateRange.end, dateRange.start]);
 
@@ -334,7 +336,7 @@ export default function UserDetailScreen() {
       for (let i = 0; i < days; i++) {
         const d = new Date(endDate);
         d.setDate(d.getDate() - i);
-        dates.push(toIsoDateString(d));
+        dates.push(toUtcDateKey(d));
       }
       return dates;
     }
@@ -349,7 +351,7 @@ export default function UserDetailScreen() {
     for (let i = 0; i < boundedCount; i++) {
       const d = new Date(endDate);
       d.setDate(d.getDate() - i);
-      dates.push(toIsoDateString(d));
+      dates.push(toUtcDateKey(d));
     }
 
     return dates;
@@ -811,7 +813,7 @@ export default function UserDetailScreen() {
     const end = new Date(dateRange.end);
     const startMs = Math.min(start.getTime(), end.getTime());
     const endMs = Math.max(start.getTime(), end.getTime());
-    return `${new Date(startMs).toLocaleDateString()} – ${new Date(endMs).toLocaleDateString()}`;
+      return `${formatDateDdMmYyyy(new Date(startMs))} – ${formatDateDdMmYyyy(new Date(endMs))}`;
   }, [dateRange]);
 
   const activityAgg = useMemo(() => {
@@ -943,7 +945,7 @@ export default function UserDetailScreen() {
           <Text style={styles.sectionTitle}>Daily Insights & Recommendations</Text>
 
           <Text style={styles.rangeHintText}>
-            Insights use the range end date: {selectedDate.toLocaleDateString()}
+            Insights use the range end date: {formatDateDdMmYyyy(selectedDate)}
           </Text>
           
           {aiSummary ? (
@@ -1265,7 +1267,7 @@ export default function UserDetailScreen() {
                 <Text style={styles.webDateLabel}>Start:</Text>
                 {React.createElement('input', {
                   type: 'date',
-                  value: (dateRange.start instanceof Date ? dateRange.start : new Date()).toISOString().split('T')[0],
+                    value: formatDate(dateRange.start instanceof Date ? dateRange.start : new Date()),
                   onChange: (e: any) => {
                     const d = new Date(e.target.value);
                     if (!isNaN(d.getTime())) setDateRange((prev) => ({ ...prev, start: d, type: 'custom' }));
@@ -1284,7 +1286,7 @@ export default function UserDetailScreen() {
                 <Text style={styles.webDateLabel}>End:</Text>
                 {React.createElement('input', {
                   type: 'date',
-                  value: (dateRange.end instanceof Date ? dateRange.end : new Date()).toISOString().split('T')[0],
+                    value: formatDate(dateRange.end instanceof Date ? dateRange.end : new Date()),
                   onChange: (e: any) => {
                     const d = new Date(e.target.value);
                     if (!isNaN(d.getTime())) setDateRange((prev) => ({ ...prev, end: d, type: 'custom' }));

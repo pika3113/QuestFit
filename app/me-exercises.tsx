@@ -18,6 +18,7 @@ import { useAuth } from '@/src/hooks/useAuth';
 import { db } from '@/src/services/firebase';
 import { doc, getDoc } from 'firebase/firestore';
 import { formatIsoDurationHms as formatDuration } from '@/src/utils/formatDuration';
+import { formatDateDdMmYyyy, formatDateTimeDdMmYyyyHm } from '@/src/utils/dateFormat';
 
 const Colors = {
   primary: '#FF6B35',
@@ -54,6 +55,13 @@ function toIsoDateString(d: Date) {
   return d.toISOString().split('T')[0];
 }
 
+function formatLocalIsoDate(date: Date) {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, '0');
+  const d = String(date.getDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
+}
+
 export default function MeExercisesScreen() {
   const { user } = useAuth();
 
@@ -73,8 +81,8 @@ export default function MeExercisesScreen() {
   const [rows, setRows] = useState<ExerciseRow[]>([]);
   const [selectedSport, setSelectedSport] = useState<string>('All');
 
-  const dateStrings = useMemo(() => {
-    const dates: string[] = [];
+  const dateBuckets = useMemo(() => {
+    const dates: Array<{ key: string; display: string }> = [];
     const maxDays = 90;
     const msPerDay = 24 * 60 * 60 * 1000;
 
@@ -89,7 +97,7 @@ export default function MeExercisesScreen() {
       for (let i = 0; i < days; i++) {
         const d = new Date(endDate);
         d.setDate(d.getDate() - i);
-        dates.push(toIsoDateString(d));
+        dates.push({ key: toIsoDateString(d), display: formatLocalIsoDate(d) });
       }
       return dates;
     }
@@ -105,7 +113,7 @@ export default function MeExercisesScreen() {
     for (let i = 0; i < boundedCount; i++) {
       const d = new Date(endDate);
       d.setDate(d.getDate() - i);
-      dates.push(toIsoDateString(d));
+      dates.push({ key: toIsoDateString(d), display: formatLocalIsoDate(d) });
     }
 
     return dates;
@@ -119,7 +127,7 @@ export default function MeExercisesScreen() {
     const end = new Date(dateRange.end);
     const startMs = Math.min(start.getTime(), end.getTime());
     const endMs = Math.max(start.getTime(), end.getTime());
-    return `${new Date(startMs).toLocaleDateString()} – ${new Date(endMs).toLocaleDateString()}`;
+    return `${formatDateDdMmYyyy(new Date(startMs))} – ${formatDateDdMmYyyy(new Date(endMs))}`;
   }, [dateRange]);
 
   const loadExercises = useCallback(async () => {
@@ -128,8 +136,8 @@ export default function MeExercisesScreen() {
     setLoading(true);
     try {
       const perDay = await Promise.all(
-        dateStrings.map(async (ds) => {
-          const snap = await getDoc(doc(db, `users/${user.uid}/polarData/exercises/all/${ds}`));
+        dateBuckets.map(async ({ key, display }) => {
+          const snap = await getDoc(doc(db, `users/${user.uid}/polarData/exercises/all/${key}`));
           if (!snap.exists()) return [] as ExerciseRow[];
           const data: any = snap.data();
 
@@ -139,7 +147,7 @@ export default function MeExercisesScreen() {
               ? data.data.exercises
               : [];
 
-          return list.map((exercise) => ({ date: ds, exercise })) as ExerciseRow[];
+          return list.map((exercise) => ({ date: display, exercise })) as ExerciseRow[];
         })
       );
 
@@ -155,7 +163,7 @@ export default function MeExercisesScreen() {
     } finally {
       setLoading(false);
     }
-  }, [dateStrings, user?.uid]);
+  }, [dateBuckets, user?.uid]);
 
   useEffect(() => {
     loadExercises();
@@ -351,7 +359,7 @@ export default function MeExercisesScreen() {
                         {(() => {
                           const raw = ex.start_time_local || ex.start_time;
                           const d = raw ? new Date(raw) : null;
-                          return d && !isNaN(d.getTime()) ? d.toLocaleString() : String(raw);
+                          return d && !isNaN(d.getTime()) ? formatDateTimeDdMmYyyyHm(d) : String(raw);
                         })()}
                       </Text>
                     </View>
@@ -379,7 +387,7 @@ export default function MeExercisesScreen() {
                 <Text style={styles.webDateLabel}>Start:</Text>
                 {React.createElement('input', {
                   type: 'date',
-                  value: (dateRange.start instanceof Date ? dateRange.start : new Date()).toISOString().split('T')[0],
+                  value: formatLocalIsoDate(dateRange.start instanceof Date ? dateRange.start : new Date()),
                   onChange: (e: any) => {
                     const d = new Date(e.target.value);
                     if (!isNaN(d.getTime())) setDateRange((prev) => ({ ...prev, start: d, type: 'custom' }));
@@ -398,7 +406,7 @@ export default function MeExercisesScreen() {
                 <Text style={styles.webDateLabel}>End:</Text>
                 {React.createElement('input', {
                   type: 'date',
-                  value: (dateRange.end instanceof Date ? dateRange.end : new Date()).toISOString().split('T')[0],
+                  value: formatLocalIsoDate(dateRange.end instanceof Date ? dateRange.end : new Date()),
                   onChange: (e: any) => {
                     const d = new Date(e.target.value);
                     if (!isNaN(d.getTime())) setDateRange((prev) => ({ ...prev, end: d, type: 'custom' }));

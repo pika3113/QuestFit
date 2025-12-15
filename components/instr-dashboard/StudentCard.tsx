@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, Modal, SafeAreaView, useWindowDimensions, Platform } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, Modal, SafeAreaView, useWindowDimensions, Platform, Pressable } from 'react-native';
 import { Image } from 'expo-image';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
@@ -80,6 +80,7 @@ export const StudentCard: React.FC<StudentCardProps> = ({
   const expandedChartHeight = Math.round(Math.min(420, Math.max(260, windowHeight * 0.5)));
 
   const handlePress = () => {
+    if (isChartExpanded) return;
     if (isSelectionMode && onToggleSelection) {
       onToggleSelection(item.id);
     } else {
@@ -127,6 +128,7 @@ export const StudentCard: React.FC<StudentCardProps> = ({
       style={[styles.card, isSelected && styles.cardSelected]}
       onPress={handlePress}
       activeOpacity={0.9}
+      disabled={isChartExpanded}
     >
       <View style={styles.cardHeader}>
         <View style={styles.userInfo}>
@@ -221,8 +223,11 @@ export const StudentCard: React.FC<StudentCardProps> = ({
         animationType="fade"
         onRequestClose={() => setIsChartExpanded(false)}
       >
-        <View style={styles.modalOverlay}>
-          <View style={[styles.expandedChartContainer, { width: expandedModalWidth, maxWidth: expandedModalWidth }]}>
+        <Pressable style={styles.modalOverlay} onPress={() => setIsChartExpanded(false)}>
+          <View
+            style={[styles.expandedChartContainer, { width: expandedModalWidth, maxWidth: expandedModalWidth }]}
+            onStartShouldSetResponder={() => true}
+          >
             <View style={styles.expandedHeader}>
               <View>
                 <Text style={styles.expandedTitle}>{item.displayName}</Text>
@@ -242,7 +247,7 @@ export const StudentCard: React.FC<StudentCardProps> = ({
               />
             </View>
           </View>
-        </View>
+        </Pressable>
       </Modal>
     </TouchableOpacity>
   );

@@ -8,6 +8,7 @@ import { useAuth } from '@/src/hooks/useAuth';
 import { db } from '@/src/services/firebase';
 import { doc, getDoc } from 'firebase/firestore';
 import { formatIsoDurationHms as formatDuration } from '@/src/utils/formatDuration';
+import { formatDateTimeDdMmYyyyHm } from '@/src/utils/dateFormat';
 
 function formatDistance(maybeMeters: any): string {
   const meters = typeof maybeMeters === 'number' ? maybeMeters : Number(maybeMeters);
@@ -25,7 +26,7 @@ function formatNumber(v: any): string {
 function safeDateTime(value?: string): string {
   if (!value) return '—';
   const d = new Date(value);
-  return isNaN(d.getTime()) ? String(value) : d.toLocaleString();
+  return isNaN(d.getTime()) ? String(value) : formatDateTimeDdMmYyyyHm(d);
 }
 
 export default function ExerciseDetailScreen() {

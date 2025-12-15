@@ -6,6 +6,7 @@ import { useGameProfile } from '@/src/hooks/useGameProfile';
 import { useAuth } from '@/src/hooks/useAuth';
 import { Ionicons } from '@expo/vector-icons';
 import { router, Stack } from 'expo-router';
+import { formatDateDdMmYyyy } from '@/src/utils/dateFormat';
 
 const ModernColors = {
   primary: '#FF6B35',
@@ -50,7 +51,7 @@ export default function MyRewardsScreen() {
               <View style={styles.ticketRight}>
                 <Text style={styles.rewardName}>{reward.name}</Text>
                 <Text style={styles.redeemedDate}>
-                  Redeemed on {new Date(reward.redeemedAt).toLocaleDateString()}
+                  Redeemed on {formatDateDdMmYyyy(reward.redeemedAt)}
                 </Text>
                 {reward.code && (
                   <View style={styles.codeContainer}>

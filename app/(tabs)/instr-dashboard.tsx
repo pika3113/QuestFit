@@ -23,8 +23,16 @@ import { Ionicons } from '@expo/vector-icons';
 import { db } from '@/src/services/firebase';
 import { collection, getDocs, doc, getDoc, limit, orderBy, query } from 'firebase/firestore';
 import { StudentCard, StudentCardSkeleton, StudentStats, ChartType } from '@/components/instr-dashboard/StudentCard';
+import { formatDateDdMm } from '@/src/utils/dateFormat';
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
+
+function formatLocalIsoDate(d: Date) {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
 
 export default function InstructorDashboard() {
   const { width: windowWidth } = useWindowDimensions();
@@ -128,7 +136,8 @@ export default function InstructorDashboard() {
           let lastSync: string | undefined = userData.lastSync;
           const lastChecked: string | undefined = userData.lastChecked;
           
-          const datesToCheck: string[] = [];
+          const dateKeysToFetch: string[] = [];
+          const displayDates: string[] = [];
           const current = new Date(range.start);
           const end = new Date(range.end);
           
@@ -137,23 +146,26 @@ export default function InstructorDashboard() {
           end.setHours(23,59,59,999);
 
           while (current <= end) {
-            datesToCheck.push(current.toISOString().split('T')[0]);
+            // Firestore docs are keyed by an ISO date string (historically stored using toISOString()).
+            // BUT labels should reflect the user's selected calendar days (local dates).
+            displayDates.push(formatLocalIsoDate(current));
+            dateKeysToFetch.push(current.toISOString().split('T')[0]);
             current.setDate(current.getDate() + 1);
           }
 
           const [exercisesDocs, sleepDocs, activityDocs] = await Promise.all([
-            Promise.all(datesToCheck.map(date =>
+            Promise.all(dateKeysToFetch.map(date =>
               getDoc(doc(db, `users/${userId}/polarData/exercises/all/${date}`))
             )),
-            Promise.all(datesToCheck.map(date =>
+            Promise.all(dateKeysToFetch.map(date =>
               getDoc(doc(db, `users/${userId}/polarData/sleep/all/${date}`))
             )),
-            Promise.all(datesToCheck.map(date =>
+            Promise.all(dateKeysToFetch.map(date =>
               getDoc(doc(db, `users/${userId}/polarData/activities/all/${date}`))
             )),
           ]);
 
-          datesToCheck.forEach((_, index) => {
+          dateKeysToFetch.forEach((_, index) => {
             const exercisesSnap = exercisesDocs[index];
             const activitySnap = activityDocs[index];
 
@@ -253,11 +265,8 @@ export default function InstructorDashboard() {
 
           // Data is already chronological (Oldest -> Newest)
           
-          // Generate labels (MM/DD)
-          const labels = datesToCheck.map(dateStr => {
-            const [y, m, d] = dateStr.split('-');
-            return `${parseInt(m)}/${parseInt(d)}`;
-          });
+          // Generate labels (DD/MM)
+          const labels = displayDates.map((dateStr) => formatDateDdMm(dateStr) || dateStr);
           
           // Calculate Averages (ignoring 0s for HR, but maybe keeping them for others? 
           // Usually average daily steps/cals includes rest days as 0 or low, but let's exclude 0 for "active" stats if preferred.
@@ -680,7 +689,7 @@ export default function InstructorDashboard() {
                 <Text style={styles.webDateLabel}>Start:</Text>
                 {React.createElement('input', {
                   type: 'date',
-                  value: (dateRange.start instanceof Date ? dateRange.start : new Date()).toISOString().split('T')[0],
+                  value: formatLocalIsoDate(dateRange.start instanceof Date ? dateRange.start : new Date()),
                   onChange: (e: any) => {
                     const date = new Date(e.target.value);
                     if (!isNaN(date.getTime())) {
@@ -701,7 +710,7 @@ export default function InstructorDashboard() {
                 <Text style={styles.webDateLabel}>End:</Text>
                 {React.createElement('input', {
                   type: 'date',
-                  value: (dateRange.end instanceof Date ? dateRange.end : new Date()).toISOString().split('T')[0],
+                  value: formatLocalIsoDate(dateRange.end instanceof Date ? dateRange.end : new Date()),
                   onChange: (e: any) => {
                     const date = new Date(e.target.value);
                     if (!isNaN(date.getTime())) {

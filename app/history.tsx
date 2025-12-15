@@ -18,6 +18,7 @@ import { db } from '@/src/services/firebase';
 import { doc, getDoc } from 'firebase/firestore';
 import { Ionicons } from '@expo/vector-icons';
 import DateTimePicker from '@react-native-community/datetimepicker';
+import { formatDateDdMmYyyy } from '@/src/utils/dateFormat';
 
 type PresetRange = '7d' | '14d' | '30d';
 type DateRange = {
@@ -47,13 +48,19 @@ type DailyItem = {
 
 function formatPrettyDate(dateStr: string) {
   // dateStr: YYYY-MM-DD
-  const [y, m, d] = dateStr.split('-').map((v) => parseInt(v, 10));
-  if (!y || !m || !d) return dateStr;
-  return `${m}/${d}/${y}`;
+  const formatted = formatDateDdMmYyyy(dateStr);
+  return formatted || dateStr;
 }
 
 function toIsoDateString(date: Date) {
   return date.toISOString().split('T')[0];
+}
+
+function formatLocalIsoDate(date: Date) {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, '0');
+  const d = String(date.getDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
 }
 
 function computeSleepDurationLabel(startIso?: string, endIso?: string) {
@@ -87,8 +94,8 @@ export default function HistoryScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [items, setItems] = useState<DailyItem[]>([]);
 
-  const dateStrings = useMemo(() => {
-    const dates: string[] = [];
+  const dateBuckets = useMemo(() => {
+    const dates: Array<{ key: string; display: string }> = [];
 
     if (dateRange.type !== 'custom') {
       const days = dateRange.type === '7d' ? 7 : dateRange.type === '14d' ? 14 : 30;
@@ -96,7 +103,7 @@ export default function HistoryScreen() {
       for (let i = 0; i < days; i++) {
         const d = new Date(today);
         d.setDate(d.getDate() - i);
-        dates.push(toIsoDateString(d));
+        dates.push({ key: toIsoDateString(d), display: formatLocalIsoDate(d) });
       }
       return dates; // newest -> oldest
     }
@@ -120,7 +127,7 @@ export default function HistoryScreen() {
     for (let i = 0; i < boundedCount; i++) {
       const d = new Date(endDate);
       d.setDate(d.getDate() - i);
-      dates.push(toIsoDateString(d));
+      dates.push({ key: toIsoDateString(d), display: formatLocalIsoDate(d) });
     }
 
     return dates; // newest -> oldest
@@ -154,11 +161,11 @@ export default function HistoryScreen() {
 
     try {
       const results = await Promise.all(
-        dateStrings.map(async (date) => {
+        dateBuckets.map(async ({ key, display }) => {
           const [activitySnap, exercisesSnap, sleepSnap] = await Promise.all([
-            getDoc(doc(db, `users/${uid}/polarData/activities/all/${date}`)),
-            getDoc(doc(db, `users/${uid}/polarData/exercises/all/${date}`)),
-            getDoc(doc(db, `users/${uid}/polarData/sleep/all/${date}`)),
+            getDoc(doc(db, `users/${uid}/polarData/activities/all/${key}`)),
+            getDoc(doc(db, `users/${uid}/polarData/exercises/all/${key}`)),
+            getDoc(doc(db, `users/${uid}/polarData/sleep/all/${key}`)),
           ]);
 
           const activity = activitySnap.exists() ? activitySnap.data() : undefined;
@@ -197,7 +204,7 @@ export default function HistoryScreen() {
           const sleepEnd = typeof sleep?.sleep_end_time === 'string' ? sleep.sleep_end_time : undefined;
 
           return {
-            date,
+            date: display,
             activity,
             exercises,
             sleep,
@@ -221,7 +228,7 @@ export default function HistoryScreen() {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [dateStrings, user?.uid]);
+  }, [dateBuckets, user?.uid]);
 
   useEffect(() => {
     setLoading(true);
@@ -311,7 +318,7 @@ export default function HistoryScreen() {
                   <Text style={styles.webDateLabel}>Start:</Text>
                   {React.createElement('input', {
                     type: 'date',
-                    value: dateRange.start.toISOString().split('T')[0],
+                    value: formatLocalIsoDate(dateRange.start),
                     onChange: (e: any) => {
                       const d = new Date(e.target.value);
                       if (!isNaN(d.getTime())) setDateRange((prev) => ({ ...prev, start: d, type: 'custom' }));
@@ -329,7 +336,7 @@ export default function HistoryScreen() {
                   <Text style={styles.webDateLabel}>End:</Text>
                   {React.createElement('input', {
                     type: 'date',
-                    value: dateRange.end.toISOString().split('T')[0],
+                    value: formatLocalIsoDate(dateRange.end),
                     onChange: (e: any) => {
                       const d = new Date(e.target.value);
                       if (!isNaN(d.getTime())) setDateRange((prev) => ({ ...prev, end: d, type: 'custom' }));
@@ -354,7 +361,7 @@ export default function HistoryScreen() {
                   }}
                 >
                   <Text style={styles.customDateButtonLabel}>Start</Text>
-                  <Text style={styles.customDateButtonValue}>{dateRange.start.toLocaleDateString()}</Text>
+                  <Text style={styles.customDateButtonValue}>{formatDateDdMmYyyy(dateRange.start)}</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
                   style={styles.customDateButton}
@@ -364,7 +371,7 @@ export default function HistoryScreen() {
                   }}
                 >
                   <Text style={styles.customDateButtonLabel}>End</Text>
-                  <Text style={styles.customDateButtonValue}>{dateRange.end.toLocaleDateString()}</Text>
+                  <Text style={styles.customDateButtonValue}>{formatDateDdMmYyyy(dateRange.end)}</Text>
                 </TouchableOpacity>
               </>
             )}
@@ -515,7 +522,7 @@ export default function HistoryScreen() {
                 <Text style={styles.webDateLabel}>Start:</Text>
                 {React.createElement('input', {
                   type: 'date',
-                  value: dateRange.start.toISOString().split('T')[0],
+                  value: formatLocalIsoDate(dateRange.start),
                   onChange: (e: any) => {
                     const d = new Date(e.target.value);
                     if (!isNaN(d.getTime())) setDateRange((prev) => ({ ...prev, start: d, type: 'custom' }));
@@ -534,7 +541,7 @@ export default function HistoryScreen() {
                 <Text style={styles.webDateLabel}>End:</Text>
                 {React.createElement('input', {
                   type: 'date',
-                  value: dateRange.end.toISOString().split('T')[0],
+                  value: formatLocalIsoDate(dateRange.end),
                   onChange: (e: any) => {
                     const d = new Date(e.target.value);
                     if (!isNaN(d.getTime())) setDateRange((prev) => ({ ...prev, end: d, type: 'custom' }));
