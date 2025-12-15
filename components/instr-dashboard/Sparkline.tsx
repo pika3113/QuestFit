@@ -96,8 +96,8 @@ export default function Sparkline({ data, labels, color, height = 100, type = 'l
     grid: {
       show: !!labels,
       padding: {
-        left: 10,
-        right: 10,
+        left: labels ? 24 : 10,
+        right: labels ? 24 : 10,
         bottom: 0,
         top: 0
       },
@@ -116,6 +116,7 @@ export default function Sparkline({ data, labels, color, height = 100, type = 'l
       categories: labels || [],
       labels: {
         show: !!labels,
+        offsetX: 0,
         style: {
           fontSize: '10px',
           colors: '#999'
