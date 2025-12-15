@@ -7,6 +7,7 @@ import { useAuth } from '@/src/hooks/useAuth';
 import { Ionicons } from '@expo/vector-icons';
 import { router, Stack } from 'expo-router';
 import { formatDateDdMmYyyy } from '@/src/utils/dateFormat';
+import { REWARDS } from '@/src/utils/rewardsSystem';
 
 const ModernColors = {
   primary: '#FF6B35',
@@ -27,6 +28,22 @@ export default function MyRewardsScreen() {
   const { profile, loading } = useGameProfile(userId);
 
   const redeemedRewards = profile?.redeemedRewards || [];
+
+  const formatRewardName = (reward: any) => {
+    const rawName = typeof reward?.name === 'string' ? reward.name.trim() : '';
+    const rewardId = typeof reward?.rewardId === 'string' ? reward.rewardId : '';
+
+    // Prefer the name that was stored at redemption time.
+    if (rawName && rawName.toLowerCase() !== 'voucher') return rawName;
+
+    // Backward compatibility: if older data only stored "voucher", use the current catalog name.
+    if (rewardId) {
+      const catalog = REWARDS.find((r) => r.id === rewardId);
+      if (catalog?.name) return catalog.name;
+    }
+
+    return rawName || 'Voucher';
+  };
 
   return (
     <SafeAreaView style={styles.container} edges={['left', 'right', 'bottom']}>
@@ -49,7 +66,7 @@ export default function MyRewardsScreen() {
               </View>
               
               <View style={styles.ticketRight}>
-                <Text style={styles.rewardName}>{reward.name}</Text>
+                <Text style={styles.rewardName}>{formatRewardName(reward)}</Text>
                 <Text style={styles.redeemedDate}>
                   Redeemed on {formatDateDdMmYyyy(reward.redeemedAt)}
                 </Text>
