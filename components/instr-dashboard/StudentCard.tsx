@@ -33,6 +33,9 @@ export interface StudentStats {
 
 export type ChartType = 'line' | 'bar' | 'area' | 'scatter';
 
+export type CadetFlag = 'good' | 'bad' | 'none';
+export type CadetFlagSource = 'manual' | 'ai' | 'none';
+
 interface StudentCardProps {
   item: StudentStats;
   isSelectionMode?: boolean;
@@ -40,6 +43,9 @@ interface StudentCardProps {
   onToggleSelection?: (id: string) => void;
   chartConfig?: Record<MetricType, ChartType>;
   activityMetric?: 'steps' | 'distance';
+  flag?: CadetFlag;
+  flagSource?: CadetFlagSource;
+  onChangeFlag?: (flag: CadetFlag) => void;
 }
 
 type MetricType = 'hr' | 'distance' | 'sleep' | 'calories';
@@ -68,7 +74,10 @@ export const StudentCard: React.FC<StudentCardProps> = ({
   isSelected = false, 
   onToggleSelection,
   chartConfig = { hr: 'line', distance: 'bar', sleep: 'line', calories: 'area' },
-  activityMetric = 'steps'
+  activityMetric = 'steps',
+  flag = 'none',
+  flagSource = 'none',
+  onChangeFlag,
 }) => {
   const { width: windowWidth, height: windowHeight } = useWindowDimensions();
   const [selectedMetric, setSelectedMetric] = useState<MetricType>('distance');
@@ -151,6 +160,34 @@ export const StudentCard: React.FC<StudentCardProps> = ({
           </View>
         </View>
         <View style={styles.trendContainer}>
+          {!!onChangeFlag && !isSelectionMode ? (
+            <View style={styles.flagActionsRow}>
+              <TouchableOpacity
+                style={[styles.flagActionBtn, flag === 'good' && styles.flagActionBtnActiveGood]}
+                onPress={() => onChangeFlag(flag === 'good' ? 'none' : 'good')}
+                accessibilityRole="button"
+                accessibilityLabel={flag === 'good' ? 'Unflag good' : 'Flag good'}
+              >
+                <Ionicons name="thumbs-up" size={16} color="#00B894" />
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[styles.flagActionBtn, flag === 'bad' && styles.flagActionBtnActiveBad]}
+                onPress={() => onChangeFlag(flag === 'bad' ? 'none' : 'bad')}
+                accessibilityRole="button"
+                accessibilityLabel={flag === 'bad' ? 'Unflag needs attention' : 'Flag needs attention'}
+              >
+                <Ionicons name="thumbs-down" size={16} color="#D63031" />
+              </TouchableOpacity>
+            </View>
+          ) : (
+            <>
+              {flag === 'good' && <Ionicons name="thumbs-up" size={18} color="#00B894" />}
+              {flag === 'bad' && <Ionicons name="thumbs-down" size={18} color="#D63031" />}
+              {flag !== 'none' && flagSource === 'ai' && <Ionicons name="sparkles" size={16} color="#636E72" />}
+            </>
+          )}
+
           {item.trend === 'up' && <Ionicons name="trending-up" size={24} color="#FF6B35" />}
           {item.trend === 'down' && <Ionicons name="trending-down" size={24} color="#00B894" />}
           {item.trend === 'stable' && <Ionicons name="remove" size={24} color="#636E72" />}
@@ -362,6 +399,29 @@ const styles = StyleSheet.create({
     padding: 8,
     backgroundColor: '#F8F9FA',
     borderRadius: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  flagActionsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  flagActionBtn: {
+    backgroundColor: '#F3F4F6',
+    borderRadius: 10,
+    padding: 8,
+  },
+  flagActionBtnActiveGood: {
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#00B894',
+  },
+  flagActionBtnActiveBad: {
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#D63031',
   },
   statsGrid: {
     flexDirection: 'row',

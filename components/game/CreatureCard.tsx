@@ -62,19 +62,24 @@ export const CreatureCard: React.FC<CreatureCardProps> = ({ creature, captured =
             <Text style={styles.id}>#{creature.id}</Text>
           </Text>
           <View style={styles.header}>
-          <Text style={[
-            styles.rarity,
-            { color: getRarityColor(creature.rarity) }
-          ]}>
-            {creature.rarity.toUpperCase()}
-            </Text>
-            <Text style={[
-              styles.sportBadge,
-              { backgroundColor: getSportColor(creature.sport)[0],
-                color: getSportColor(creature.sport)[1] 
-              }
-            ]}>
+            <Text
+              style={[
+                styles.rarity,
+                { color: getSportColor(creature.sport)[0] },
+              ]}
+            >
               {creature.sport}
+            </Text>
+            <Text
+              style={[
+                styles.sportBadge,
+                {
+                  backgroundColor: getRarityColor(creature.rarity),
+                  color: '#FFFFFF',
+                },
+              ]}
+            >
+              {creature.rarity.toUpperCase()}
             </Text>
           </View>
         </View>

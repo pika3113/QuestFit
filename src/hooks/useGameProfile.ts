@@ -2,6 +2,7 @@
 import { useState, useEffect } from 'react';
 import { UserGameProfile } from '../types/polar';
 import gameService from '../services/gameService';
+import { IS_DEV_MODE } from '@/constants/DevConfig';
 
 export const useGameProfile = (userId: string | null) => {
   const [profile, setProfile] = useState<UserGameProfile | null>(null);
@@ -21,10 +22,16 @@ export const useGameProfile = (userId: string | null) => {
         const userProfile = await gameService.getUserProfile(userId);
         
         if (!userProfile) {
-          // they dont have a profile yet so we need to create one
-          await gameService.createUserProfile(userId, {});
-          const newProfile = await gameService.getUserProfile(userId);
-          setProfile(newProfile);
+          // Avoid creating Firestore user docs implicitly just because a userId exists locally.
+          // In production, user docs should be created via explicit onboarding flows (e.g. consent).
+          if (IS_DEV_MODE) {
+            await gameService.createUserProfile(userId, {});
+            const newProfile = await gameService.getUserProfile(userId);
+            setProfile(newProfile);
+          } else {
+            setProfile(null);
+            setError('User profile not found');
+          }
         } else {
           setProfile(userProfile);
         }
