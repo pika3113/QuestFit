@@ -130,7 +130,7 @@ export default function InstructorSettingsScreen() {
   }
 
   return (
-    <SafeAreaView style={styles.container} edges={['left', 'right', 'bottom']}>
+    <SafeAreaView style={styles.container} edges={['top', 'left', 'right', 'bottom']}>
       <Stack.Screen options={{ title: 'Instructor Settings' }} />
       
       <View style={styles.section}>

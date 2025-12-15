@@ -1,22 +1,22 @@
 [
   {
     "id": "1",
-    "name": "$5 Voucher",
+    "name": "$5 NTUC / ACE Credits Voucher",
     "xp": 5000
   },
   {
     "id": "2",
-    "name": "$15 Voucher",
+    "name": "$15 NTUC / ACE Credits Voucher",
     "xp": 10000
   },
   {
     "id": "3",
-    "name": "$25 Voucher",
+    "name": "$25 NTUC / ACE Credits Voucher",
     "xp": 15000
   },
   {
     "id": "4",
-    "name": "$40 Voucher",
+    "name": "$40 NTUC / ACE Credits Voucher",
     "xp": 20000
   }
 ]

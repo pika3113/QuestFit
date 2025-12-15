@@ -4,9 +4,11 @@ import {
   ActivityIndicator,
   RefreshControl,
   TextInput,
+  ScrollView,
   FlatList,
   Dimensions,
-  StyleSheet,
+  Pressable,
+  Alert,
   TouchableOpacity,
   Modal,
   Platform,
@@ -21,11 +23,26 @@ import { useInstructor } from '@/src/hooks/useInstructor';
 import { useInstructorStudents } from '@/src/hooks/useInstructorStudents';
 import { Ionicons } from '@expo/vector-icons';
 import { db } from '@/src/services/firebase';
-import { collection, getDocs, doc, getDoc, limit, orderBy, query } from 'firebase/firestore';
+import { collection, getDocs, doc, getDoc, limit, orderBy, query, setDoc } from 'firebase/firestore';
 import { StudentCard, StudentCardSkeleton, StudentStats, ChartType } from '@/components/instr-dashboard/StudentCard';
 import { formatDateDdMm } from '@/src/utils/dateFormat';
+import { formatCompactNumber } from '@/src/utils/numberFormat';
+import { instructorDashboardScreenStyles as styles, WEB_DATE_INPUT_STYLE } from '@/src/styles/screens/instructorDashboardScreenStyles';
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
+
+const AUTO_FLAG_COOLDOWN_MS = 30 * 60_000;
+
+const MOBILE_CUSTOM_MAX_DAYS = 10;
+const MS_PER_DAY = 24 * 60 * 60 * 1000;
+
+function startOfLocalDay(d: Date) {
+  return new Date(d.getFullYear(), d.getMonth(), d.getDate());
+}
+
+type DashboardMode = 'overview' | 'cadets';
+type CadetFlag = 'good' | 'bad' | 'none';
+type CadetFlagSource = 'manual' | 'ai' | 'none';
 
 function formatLocalIsoDate(d: Date) {
   const y = d.getFullYear();
@@ -52,7 +69,7 @@ export default function InstructorDashboard() {
   const normalizedSearchQuery = typeof searchQuery === 'string' ? searchQuery : '';
   
   // Filtering & Selection State
-  const [dateRange, setDateRange] = useState<{ start: Date; end: Date; type: '7d' | '14d' | '30d' | 'custom' }>({
+  const [dateRange, setDateRange] = useState<{ start: Date; end: Date; type: '3d' | '7d' | '10d' | '14d' | '30d' | 'custom' }>({
     start: new Date(new Date().setDate(new Date().getDate() - 6)), // 7 days including today
     end: new Date(),
     type: '7d'
@@ -61,6 +78,50 @@ export default function InstructorDashboard() {
   const [datePickerMode, setDatePickerMode] = useState<'start' | 'end'>('start');
   const [modalVisible, setModalVisible] = useState(false);
   const [settingsVisible, setSettingsVisible] = useState(false);
+  const [dashboardMode, setDashboardMode] = useState<DashboardMode>('overview');
+
+  const [cadetFlags, setCadetFlags] = useState<Record<string, CadetFlag>>({});
+  const [cadetFlagSources, setCadetFlagSources] = useState<Record<string, CadetFlagSource>>({});
+  const [cadetFlagReasons, setCadetFlagReasons] = useState<Record<string, string>>({});
+
+  const [autoFlagState, setAutoFlagState] = useState<'idle' | 'loading' | 'success_ai' | 'success_fallback' | 'error'>('idle');
+  const [autoFlagTooltipText, setAutoFlagTooltipText] = useState<string | null>(null);
+  const [autoFlagNextAllowedAtMs, setAutoFlagNextAllowedAtMs] = useState<number | null>(null);
+  const [autoFlagCooldownTick, setAutoFlagCooldownTick] = useState(0);
+
+  const formatMobileCompactNumber = useCallback((value: number) => {
+    if (typeof value !== 'number' || !Number.isFinite(value)) return '';
+    if (Platform.OS !== 'web' && Math.abs(value) >= 1000) return formatCompactNumber(value);
+    return Math.round(value).toLocaleString();
+  }, []);
+
+  const persistAutoFlagResult = useCallback(
+    async (result: 'success_ai' | 'success_fallback' | 'error') => {
+      if (!user?.uid) return;
+      try {
+        await setDoc(
+          doc(db, 'instructors', user.uid),
+          {
+            autoFlagLastResult: result,
+            autoFlagLastResultAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
+          },
+          { merge: true }
+        );
+      } catch (e) {
+        console.warn('Failed to persist auto-flag result', e);
+      }
+    },
+    [user?.uid]
+  );
+
+  const formatCooldown = useCallback((totalSeconds: number) => {
+    if (!Number.isFinite(totalSeconds) || totalSeconds <= 0) return '0s';
+    const minutes = Math.floor(totalSeconds / 60);
+    const seconds = totalSeconds % 60;
+    if (minutes <= 0) return `${seconds}s`;
+    return `${minutes}m ${seconds}s`;
+  }, []);
 
   // Activity display toggle (affects the "distance" metric card/chart)
   const [activityMetric, setActivityMetric] = useState<'steps' | 'distance'>('steps');
@@ -92,6 +153,105 @@ export default function InstructorDashboard() {
     };
     loadData();
   }, []);
+
+  useEffect(() => {
+    const loadCadetFlags = async () => {
+      if (!user?.uid) return;
+      try {
+        const instructorDoc = await getDoc(doc(db, 'instructors', user.uid));
+        const data = instructorDoc.data();
+        const raw = data?.cadetFlags;
+        const rawSources = data?.cadetFlagSources;
+        const rawReasons = data?.cadetFlagReasons;
+        if (raw && typeof raw === 'object') {
+          setCadetFlags(raw as Record<string, CadetFlag>);
+        } else {
+          setCadetFlags({});
+        }
+
+        if (rawSources && typeof rawSources === 'object') {
+          setCadetFlagSources(rawSources as Record<string, CadetFlagSource>);
+        } else {
+          setCadetFlagSources({});
+        }
+
+        if (rawReasons && typeof rawReasons === 'object') {
+          setCadetFlagReasons(rawReasons as Record<string, string>);
+        } else {
+          setCadetFlagReasons({});
+        }
+
+        const rawNextAllowed = (data as any)?.autoFlagNextAllowedAtMs;
+        if (typeof rawNextAllowed === 'number' && Number.isFinite(rawNextAllowed)) {
+          setAutoFlagNextAllowedAtMs(rawNextAllowed);
+        } else {
+          setAutoFlagNextAllowedAtMs(null);
+        }
+
+        const rawLastResult = (data as any)?.autoFlagLastResult;
+        const rawLastResultAt = (data as any)?.autoFlagLastResultAt;
+        const isValidResult = rawLastResult === 'success_ai' || rawLastResult === 'success_fallback' || rawLastResult === 'error';
+        const lastAtDate = typeof rawLastResultAt === 'string' ? new Date(rawLastResultAt) : null;
+        const lastAtOk = lastAtDate && !Number.isNaN(lastAtDate.getTime());
+        const todayLocal = formatLocalIsoDate(new Date());
+        const lastLocal = lastAtOk ? formatLocalIsoDate(lastAtDate as Date) : null;
+
+        if (isValidResult && lastLocal === todayLocal) {
+          setAutoFlagState(rawLastResult);
+        } else {
+          // Reset indicator on a new day (or if invalid/missing)
+          setAutoFlagState('idle');
+        }
+      } catch (e) {
+        console.error('Failed to load cadet flags', e);
+      }
+    };
+    loadCadetFlags();
+  }, [user?.uid]);
+
+  const getCadetFlag = (cadetId: string): CadetFlag => cadetFlags[cadetId] ?? 'none';
+  const getCadetFlagSource = (cadetId: string): CadetFlagSource => cadetFlagSources[cadetId] ?? 'none';
+  const getCadetFlagReason = (cadetId: string): string => cadetFlagReasons[cadetId] ?? '';
+
+  const setCadetFlag = useCallback(
+    async (cadetId: string, flag: CadetFlag, source: CadetFlagSource = 'manual', reason?: string) => {
+      if (!user?.uid) return;
+      const nextSource: CadetFlagSource = flag === 'none' ? 'none' : source;
+      setCadetFlags((prev) => ({ ...prev, [cadetId]: flag }));
+      setCadetFlagSources((prev) => ({ ...prev, [cadetId]: nextSource }));
+
+      const nextReason = flag === 'none' || nextSource === 'manual'
+        ? ''
+        : (typeof reason === 'string' ? reason : getCadetFlagReason(cadetId));
+
+      setCadetFlagReasons((prev) => ({ ...prev, [cadetId]: nextReason }));
+      try {
+        await setDoc(
+          doc(db, 'instructors', user.uid),
+          {
+            cadetFlags: { [cadetId]: flag },
+            cadetFlagSources: { [cadetId]: nextSource },
+            cadetFlagReasons: { [cadetId]: nextReason },
+            updatedAt: new Date().toISOString(),
+          },
+          { merge: true }
+        );
+      } catch (e) {
+        console.error('Failed to save cadet flag', e);
+      }
+    },
+    [user?.uid, cadetFlagReasons]
+  );
+
+  const autoFlagCooldownRemainingMs = Math.max(0, (autoFlagNextAllowedAtMs ?? 0) - (Date.now() + autoFlagCooldownTick * 0));
+  const autoFlagCooldownRemainingSec = Math.ceil(autoFlagCooldownRemainingMs / 1000);
+  const isAutoFlagCoolingDown = autoFlagCooldownRemainingMs > 0;
+
+  useEffect(() => {
+    if (!isAutoFlagCoolingDown) return;
+    const id = setInterval(() => setAutoFlagCooldownTick((x) => x + 1), 1000);
+    return () => clearInterval(id);
+  }, [isAutoFlagCoolingDown]);
 
   // Save chart config whenever it changes
   useEffect(() => {
@@ -354,6 +514,234 @@ export default function InstructorDashboard() {
   // If no selection, show empty state prompting to select.
   const displayedStudents = students.filter(s => selectedIds.includes(s.id));
 
+  const cohort = displayedStudents;
+  const cohortCount = cohort.length;
+
+  const cohortAverages = React.useMemo(() => {
+    if (cohortCount === 0) {
+      return {
+        avgSteps: 0,
+        avgDistance: 0,
+        avgHr: 0,
+        avgSleep: 0,
+        avgCalories: 0,
+        recentSyncCount: 0,
+      };
+    }
+
+    const sum = cohort.reduce(
+      (acc, s) => {
+        acc.avgSteps += s.avgSteps || 0;
+        acc.avgDistance += s.avgDistance || 0;
+        acc.avgHr += s.avgHr || 0;
+        acc.avgSleep += s.avgSleep || 0;
+        acc.avgCalories += s.avgCalories || 0;
+
+        const lastSyncMs = s.lastSync ? new Date(s.lastSync).getTime() : NaN;
+        const isRecent = Number.isFinite(lastSyncMs) && Date.now() - lastSyncMs < 24 * 60 * 60 * 1000;
+        if (isRecent) acc.recentSyncCount += 1;
+        return acc;
+      },
+      { avgSteps: 0, avgDistance: 0, avgHr: 0, avgSleep: 0, avgCalories: 0, recentSyncCount: 0 }
+    );
+
+    return {
+      avgSteps: Math.round(sum.avgSteps / cohortCount),
+      avgDistance: Math.round(sum.avgDistance / cohortCount),
+      avgHr: Math.round(sum.avgHr / cohortCount),
+      avgSleep: Math.round(sum.avgSleep / cohortCount),
+      avgCalories: Math.round(sum.avgCalories / cohortCount),
+      recentSyncCount: sum.recentSyncCount,
+    };
+  }, [cohortCount, cohort]);
+
+  const overviewRanked = React.useMemo(() => {
+    if (cohortCount === 0) return [] as Array<{ s: StudentStats; score: number }>;
+
+    const values = cohort.map((s) => ({
+      id: s.id,
+      stepsOrDist: activityMetric === 'steps' ? (s.avgSteps || 0) : (s.avgDistance || 0),
+      calories: s.avgCalories || 0,
+      sleep: s.avgSleep || 0,
+    }));
+
+    const minMax = (arr: number[]) => {
+      const finite = arr.filter((v) => Number.isFinite(v));
+      if (finite.length === 0) return { min: 0, max: 0 };
+      return { min: Math.min(...finite), max: Math.max(...finite) };
+    };
+
+    const stepsMm = minMax(values.map((v) => v.stepsOrDist));
+    const calMm = minMax(values.map((v) => v.calories));
+    const sleepMm = minMax(values.map((v) => v.sleep));
+
+    const norm = (x: number, mm: { min: number; max: number }) => {
+      if (!Number.isFinite(x)) return 0;
+      if (mm.max <= mm.min) return 0;
+      return (x - mm.min) / (mm.max - mm.min);
+    };
+
+    return cohort
+      .map((s) => {
+        const stepsOrDist = activityMetric === 'steps' ? (s.avgSteps || 0) : (s.avgDistance || 0);
+        const score =
+          (norm(stepsOrDist, stepsMm) + norm(s.avgCalories || 0, calMm) + norm(s.avgSleep || 0, sleepMm)) / 3;
+        return { s, score };
+      })
+      .sort((a, b) => b.score - a.score);
+  }, [cohort, cohortCount, activityMetric]);
+
+  const formatLastSyncShort = (value: string | undefined) => {
+    if (!value) return 'No sync';
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return 'No sync';
+    const diffMs = Date.now() - date.getTime();
+    const hours = Math.floor(diffMs / (60 * 60 * 1000));
+    if (hours < 1) return 'Synced <1h';
+    if (hours < 24) return `Synced ${hours}h`;
+    const days = Math.floor(hours / 24);
+    return `Synced ${days}d`;
+  };
+
+  const flaggedCounts = React.useMemo(() => {
+    const counts = { good: 0, bad: 0, none: 0 };
+    cohort.forEach((s) => {
+      const f = getCadetFlag(s.id);
+      counts[f] += 1;
+    });
+    return counts;
+  }, [cohort, cadetFlags]);
+
+  const isCadetUnflagged = useCallback(
+    (cadetId: string) => (cadetFlags[cadetId] ?? 'none') === 'none',
+    [cadetFlags]
+  );
+
+  const showAutoFlagTooltip = useCallback((text: string) => {
+    if (Platform.OS !== 'web') return;
+    setAutoFlagTooltipText(text);
+  }, []);
+
+  const hideAutoFlagTooltip = useCallback(() => {
+    if (Platform.OS !== 'web') return;
+    setAutoFlagTooltipText(null);
+  }, []);
+
+  const runAutoFlagSimple = useCallback(async () => {
+    if (overviewRanked.length === 0) return;
+    const unflaggedRanked = overviewRanked.filter((r) => isCadetUnflagged(r.s.id));
+    if (unflaggedRanked.length === 0) return;
+
+    const topN = Math.max(1, Math.round(unflaggedRanked.length * 0.2));
+    const bottomN = Math.max(1, Math.round(unflaggedRanked.length * 0.2));
+
+    const top = unflaggedRanked.slice(0, topN).map((r) => r.s.id);
+    const bottom = unflaggedRanked.slice(-bottomN).map((r) => r.s.id);
+
+    await Promise.all([
+      ...top.map((id) => setCadetFlag(id, 'good', 'ai')),
+      ...bottom.map((id) => setCadetFlag(id, 'bad', 'ai')),
+    ]);
+  }, [overviewRanked, setCadetFlag, isCadetUnflagged]);
+
+  const runAutoFlagAI = useCallback(async () => {
+    if (cohort.length === 0) return;
+
+    if (isAutoFlagCoolingDown) return;
+
+    if (autoFlagState === 'loading') return;
+
+    const nextAllowedAt = Date.now() + AUTO_FLAG_COOLDOWN_MS;
+    setAutoFlagNextAllowedAtMs(nextAllowedAt);
+    try {
+      if (user?.uid) {
+        await setDoc(
+          doc(db, 'instructors', user.uid),
+          {
+            autoFlagNextAllowedAtMs: nextAllowedAt,
+            autoFlagLastRunAt: new Date().toISOString(),
+          },
+          { merge: true }
+        );
+      }
+    } catch (e) {
+      console.warn('Failed to persist auto-flag cooldown', e);
+    }
+
+    setAutoFlagState('loading');
+
+    const apiUrl = `${process.env.EXPO_PUBLIC_BASE_URL || 'https://questfit.life'}/api/openai/auto-flag-cohort`;
+    const rangeLabel = dateRange.type === 'custom'
+      ? `${formatLocalIsoDate(dateRange.start)} to ${formatLocalIsoDate(dateRange.end)}`
+      : dateRange.type;
+
+    try {
+      const resp = await fetch(apiUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          activityMetric,
+          rangeLabel,
+          cohort: cohort.map((s) => ({
+            cadetId: s.id,
+            displayName: s.displayName,
+            avgSteps: s.avgSteps,
+            avgDistance: s.avgDistance,
+            avgCalories: s.avgCalories,
+            avgSleep: s.avgSleep,
+            avgHr: s.avgHr,
+            lastSync: s.lastSync,
+            trend: s.trend,
+          })),
+        }),
+      });
+
+      if (!resp.ok) throw new Error(`OpenAI auto-flag failed: ${resp.status}`);
+
+      const data = await resp.json();
+      const flags = Array.isArray(data?.flags) ? data.flags : [];
+      if (flags.length === 0) throw new Error('OpenAI auto-flag returned no flags');
+
+      await Promise.all(
+        flags.map((f: any) => {
+          const cadetId = typeof f?.cadetId === 'string' ? f.cadetId : '';
+          const flag = f?.flag === 'good' || f?.flag === 'bad' || f?.flag === 'none' ? f.flag : 'none';
+          const reason = typeof f?.reason === 'string' ? f.reason : '';
+          if (!cadetId) return Promise.resolve();
+          // Only fill currently-unflagged cadets; never modify manual or existing AI flags.
+          if (!isCadetUnflagged(cadetId)) return Promise.resolve();
+          if (flag !== 'good' && flag !== 'bad') return Promise.resolve();
+          return setCadetFlag(cadetId, flag, 'ai', reason);
+        })
+      );
+
+      setAutoFlagState('success_ai');
+      await persistAutoFlagResult('success_ai');
+    } catch (e) {
+      console.warn('OpenAI auto-flag failed; falling back to simple heuristic', e);
+      try {
+        await runAutoFlagSimple();
+        setAutoFlagState('success_fallback');
+        await persistAutoFlagResult('success_fallback');
+      } catch {
+        setAutoFlagState('error');
+        await persistAutoFlagResult('error');
+      }
+    }
+  }, [cohort, activityMetric, dateRange, runAutoFlagSimple, setCadetFlag, autoFlagState, isCadetUnflagged, isAutoFlagCoolingDown, user?.uid, persistAutoFlagResult]);
+
+  const flaggedGoodCadets = React.useMemo(() => {
+    return cohort
+      .filter((s) => getCadetFlag(s.id) === 'good')
+      .sort((a, b) => a.displayName.localeCompare(b.displayName));
+  }, [cohort, cadetFlags]);
+
+  const flaggedBadCadets = React.useMemo(() => {
+    return cohort
+      .filter((s) => getCadetFlag(s.id) === 'bad')
+      .sort((a, b) => a.displayName.localeCompare(b.displayName));
+  }, [cohort, cadetFlags]);
+
   const onDateChange = (event: any, selectedDate?: Date) => {
     if (event.type === 'dismissed') {
       setShowDatePicker(false);
@@ -361,30 +749,100 @@ export default function InstructorDashboard() {
     }
     
     const currentDate = selectedDate || (datePickerMode === 'start' ? dateRange.start : dateRange.end);
+
+    const applyMobileClamp = (nextStart: Date, nextEnd: Date) => {
+      if (Platform.OS === 'web') return { start: nextStart, end: nextEnd, clamped: false };
+
+      const startDay = startOfLocalDay(nextStart);
+      const endDay = startOfLocalDay(nextEnd);
+      const diffDaysInclusive = Math.floor((endDay.getTime() - startDay.getTime()) / MS_PER_DAY) + 1;
+
+      if (diffDaysInclusive > MOBILE_CUSTOM_MAX_DAYS) {
+        return {
+          start: nextStart,
+          end: new Date(startDay.getTime() + (MOBILE_CUSTOM_MAX_DAYS - 1) * MS_PER_DAY),
+          clamped: true,
+        };
+      }
+
+      return { start: nextStart, end: nextEnd, clamped: false };
+    };
     
     if (Platform.OS === 'android') {
       setShowDatePicker(false);
       if (datePickerMode === 'start') {
-        setDateRange(prev => ({ ...prev, start: currentDate, type: 'custom' }));
+        setDateRange((prev) => {
+          const nextStart = currentDate;
+          let nextEnd = prev.end;
+
+          if (startOfLocalDay(nextEnd).getTime() < startOfLocalDay(nextStart).getTime()) {
+            nextEnd = nextStart;
+          }
+
+          const { start, end, clamped } = applyMobileClamp(nextStart, nextEnd);
+          if (clamped) {
+            Alert.alert('Range limited', `Custom range is limited to ${MOBILE_CUSTOM_MAX_DAYS} days on mobile.`);
+          }
+          return { ...prev, start, end, type: 'custom' };
+        });
         // Small delay to allow the first picker to close completely
         setTimeout(() => {
           setDatePickerMode('end');
           setShowDatePicker(true);
         }, 100);
       } else {
-        setDateRange(prev => ({ ...prev, end: currentDate, type: 'custom' }));
+        setDateRange((prev) => {
+          let nextStart = prev.start;
+          let nextEnd = currentDate;
+
+          if (startOfLocalDay(nextEnd).getTime() < startOfLocalDay(nextStart).getTime()) {
+            nextStart = nextEnd;
+          }
+
+          const { start, end, clamped } = applyMobileClamp(nextStart, nextEnd);
+          if (clamped) {
+            Alert.alert('Range limited', `Custom range is limited to ${MOBILE_CUSTOM_MAX_DAYS} days on mobile.`);
+          }
+          return { ...prev, start, end, type: 'custom' };
+        });
       }
     } else {
       // For iOS, we might want to handle this differently, but for now:
       setShowDatePicker(false); // Close on selection for simplicity
       if (datePickerMode === 'start') {
-        setDateRange(prev => ({ ...prev, start: currentDate, type: 'custom' }));
+        setDateRange((prev) => {
+          const nextStart = currentDate;
+          let nextEnd = prev.end;
+
+          if (startOfLocalDay(nextEnd).getTime() < startOfLocalDay(nextStart).getTime()) {
+            nextEnd = nextStart;
+          }
+
+          const { start, end, clamped } = applyMobileClamp(nextStart, nextEnd);
+          if (clamped) {
+            Alert.alert('Range limited', `Custom range is limited to ${MOBILE_CUSTOM_MAX_DAYS} days on mobile.`);
+          }
+          return { ...prev, start, end, type: 'custom' };
+        });
         setTimeout(() => {
           setDatePickerMode('end');
           setShowDatePicker(true);
         }, 500);
       } else {
-        setDateRange(prev => ({ ...prev, end: currentDate, type: 'custom' }));
+        setDateRange((prev) => {
+          let nextStart = prev.start;
+          let nextEnd = currentDate;
+
+          if (startOfLocalDay(nextEnd).getTime() < startOfLocalDay(nextStart).getTime()) {
+            nextStart = nextEnd;
+          }
+
+          const { start, end, clamped } = applyMobileClamp(nextStart, nextEnd);
+          if (clamped) {
+            Alert.alert('Range limited', `Custom range is limited to ${MOBILE_CUSTOM_MAX_DAYS} days on mobile.`);
+          }
+          return { ...prev, start, end, type: 'custom' };
+        });
       }
     }
   };
@@ -407,7 +865,7 @@ export default function InstructorDashboard() {
   }
 
   return (
-    <SafeAreaView style={styles.container} edges={['left', 'right', 'bottom']}>
+    <SafeAreaView style={styles.container} edges={['top', 'left', 'right', 'bottom']}>
       <View style={styles.header}>
         {isWideWeb ? (
           <View style={styles.headerWideRow}>
@@ -468,7 +926,7 @@ export default function InstructorDashboard() {
         ) : (
           <>
             <View style={styles.headerTop}>
-              <View style={{ flex: 1, marginRight: 8 }}>
+              <View style={styles.headerTopTitleWrap}>
                 <Text style={styles.title} numberOfLines={1} adjustsFontSizeToFit>Instructor Dashboard</Text>
               </View>
             </View>
@@ -482,7 +940,7 @@ export default function InstructorDashboard() {
                 Range:
               </Text>
               <View style={styles.rangeButtons}>
-                {[7, 14, 30].map((days) => (
+                {(Platform.OS === 'web' ? [7, 14, 30] : [3, 7, 10]).map((days) => (
                   <TouchableOpacity
                     key={days}
                     style={[styles.rangeButton, dateRange.type === `${days}d` && styles.rangeButtonActive]}
@@ -523,10 +981,29 @@ export default function InstructorDashboard() {
           </>
         )}
 
+        <View style={styles.modeToggleRow}>
+          <TouchableOpacity
+            style={[styles.modeToggleBtn, dashboardMode === 'overview' && styles.modeToggleBtnActive]}
+            onPress={() => setDashboardMode('overview')}
+          >
+            <Text style={[styles.modeToggleText, dashboardMode === 'overview' && styles.modeToggleTextActive]}>
+              Overview
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.modeToggleBtn, dashboardMode === 'cadets' && styles.modeToggleBtnActive]}
+            onPress={() => setDashboardMode('cadets')}
+          >
+            <Text style={[styles.modeToggleText, dashboardMode === 'cadets' && styles.modeToggleTextActive]}>
+              Cadets
+            </Text>
+          </TouchableOpacity>
+        </View>
+
         {/* Only show search if we have items to search */}
-        {displayedStudents.length > 0 && (
+        {dashboardMode === 'cadets' && displayedStudents.length > 0 && (
           <View style={styles.searchBar}>
-            <Ionicons name="search" size={12} color="#666" style={{ marginRight: 8 }} />
+            <Ionicons name="search" size={12} color="#666" style={styles.searchIcon} />
             <TextInput
               style={styles.searchInput}
               placeholder="Search tracked cadets..."
@@ -538,40 +1015,299 @@ export default function InstructorDashboard() {
         )}
       </View>
 
-      <FlatList
-        data={
-          loading
-            ? ([1, 2, 3] as const)
-            : displayedStudents.filter(s => s.displayName.toLowerCase().includes(normalizedSearchQuery.toLowerCase()))
-        }
-        renderItem={({ item }) =>
-          loading ? (
-            <StudentCardSkeleton />
-          ) : (
-            <StudentCard
-              item={item as any}
-              isSelectionMode={false}
-              chartConfig={chartConfig}
-              activityMetric={activityMetric}
-            />
-          )
-        }
-        keyExtractor={(item: any) => (loading ? `skeleton-${String(item)}` : item.id)}
-        contentContainerStyle={styles.listContent}
-        refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#FF6B35" />
-        }
-        ListEmptyComponent={
-          loading ? null : (
+      {dashboardMode === 'overview' ? (
+        <ScrollView
+          contentContainerStyle={styles.overviewContent}
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#FF6B35" />}
+        >
+          {loading ? (
+            <View style={styles.loadingContainer}>
+              <ActivityIndicator size="large" color="#FF6B35" />
+            </View>
+          ) : cohortCount === 0 ? (
             <View style={styles.emptyState}>
               <Text style={styles.emptyText}>No cadets being tracked.</Text>
               <TouchableOpacity onPress={() => setModalVisible(true)} style={styles.emptyButton}>
                 <Text style={styles.emptyButtonText}>Select Cadets to View</Text>
               </TouchableOpacity>
             </View>
-          )
-        }
-      />
+          ) : (
+            <>
+              <View style={styles.overviewHeaderRow}>
+                <Text style={styles.overviewTitle}>Cohort Overview</Text>
+                <View style={styles.autoFlagWrap}>
+                  <TouchableOpacity
+                    style={[styles.autoFlagBtn, (autoFlagState === 'loading' || isAutoFlagCoolingDown) && styles.autoFlagBtnDisabled]}
+                    onPress={runAutoFlagAI}
+                    disabled={autoFlagState === 'loading' || isAutoFlagCoolingDown}
+                  >
+                  <Ionicons name="sparkles-outline" size={16} color="#FF6B35" />
+                  <Text style={styles.autoFlagBtnText}>Auto-Flag</Text>
+                  </TouchableOpacity>
+
+                  {isAutoFlagCoolingDown && (
+                    <Text style={styles.autoFlagCooldownText}>Wait {formatCooldown(autoFlagCooldownRemainingSec)}</Text>
+                  )}
+
+                  {autoFlagState === 'loading' && (
+                    <ActivityIndicator size="small" color="#FF6B35" style={styles.autoFlagIndicator} />
+                  )}
+                  {autoFlagState === 'success_ai' && (
+                    <Pressable
+                      onHoverIn={() => showAutoFlagTooltip('Flags successfully generated')}
+                      onHoverOut={hideAutoFlagTooltip}
+                      style={styles.autoFlagIndicatorHover}
+                      accessibilityLabel="Flags successfully generated"
+                    >
+                      <Ionicons name="checkmark-circle" size={18} color="#00B894" style={styles.autoFlagIndicator} />
+                      {Platform.OS === 'web' && autoFlagTooltipText && (
+                        <View pointerEvents="none" style={styles.autoFlagTooltip}>
+                          <Text style={styles.autoFlagTooltipText}>{autoFlagTooltipText}</Text>
+                        </View>
+                      )}
+                    </Pressable>
+                  )}
+                  {autoFlagState === 'success_fallback' && (
+                    <Pressable
+                      onHoverIn={() => showAutoFlagTooltip('Flags not geneerated, fallback onto algorithm')}
+                      onHoverOut={hideAutoFlagTooltip}
+                      style={styles.autoFlagIndicatorHover}
+                      accessibilityLabel="Flags not geneerated, fallback onto algorithm"
+                    >
+                      <Ionicons name="checkmark-circle" size={18} color="#FDCB6E" style={styles.autoFlagIndicator} />
+                      {Platform.OS === 'web' && autoFlagTooltipText && (
+                        <View pointerEvents="none" style={styles.autoFlagTooltip}>
+                          <Text style={styles.autoFlagTooltipText}>{autoFlagTooltipText}</Text>
+                        </View>
+                      )}
+                    </Pressable>
+                  )}
+                  {autoFlagState === 'error' && (
+                    <Pressable
+                      onHoverIn={() => showAutoFlagTooltip('Flags failed to generate')}
+                      onHoverOut={hideAutoFlagTooltip}
+                      style={styles.autoFlagIndicatorHover}
+                      accessibilityLabel="Flags failed to generate"
+                    >
+                      <Ionicons name="alert-circle" size={18} color="#D63031" style={styles.autoFlagIndicator} />
+                      {Platform.OS === 'web' && autoFlagTooltipText && (
+                        <View pointerEvents="none" style={styles.autoFlagTooltip}>
+                          <Text style={styles.autoFlagTooltipText}>{autoFlagTooltipText}</Text>
+                        </View>
+                      )}
+                    </Pressable>
+                  )}
+                </View>
+              </View>
+
+              <View style={styles.summaryGrid}>
+                <View style={styles.summaryCard}>
+                  <Text style={styles.summaryLabel}>{activityMetric === 'steps' ? 'Avg Steps' : 'Avg Distance (m)'}</Text>
+                  <Text style={styles.summaryValue}>
+                    {formatMobileCompactNumber(activityMetric === 'steps' ? cohortAverages.avgSteps : cohortAverages.avgDistance)}
+                  </Text>
+                </View>
+                <View style={styles.summaryCard}>
+                  <Text style={styles.summaryLabel}>Avg Calories</Text>
+                  <Text style={styles.summaryValue}>{formatMobileCompactNumber(cohortAverages.avgCalories)}</Text>
+                </View>
+                <View style={styles.summaryCard}>
+                  <Text style={styles.summaryLabel}>Avg HR</Text>
+                  <Text style={styles.summaryValue}>{cohortAverages.avgHr > 0 ? cohortAverages.avgHr : '-'}</Text>
+                </View>
+                <View style={styles.summaryCard}>
+                  <Text style={styles.summaryLabel}>Avg Sleep</Text>
+                  <Text style={styles.summaryValue}>{cohortAverages.avgSleep > 0 ? cohortAverages.avgSleep : '-'}</Text>
+                </View>
+              </View>
+
+              <View style={styles.flagRow}>
+                <View style={[styles.flagPill, styles.flagPillGood]}>
+                  <Ionicons name="thumbs-up" size={14} color="#00B894" />
+                  <Text style={[styles.flagPillText, styles.flagPillTextGood]}>{flaggedCounts.good} good</Text>
+                </View>
+                <View style={[styles.flagPill, styles.flagPillBad]}>
+                  <Ionicons name="thumbs-down" size={14} color="#D63031" />
+                  <Text style={[styles.flagPillText, styles.flagPillTextBad]}>{flaggedCounts.bad} needs attention</Text>
+                </View>
+                <View style={[styles.flagPill, styles.flagPillNone]}>
+                  <Ionicons name="remove-outline" size={14} color="#636E72" />
+                  <Text style={[styles.flagPillText, styles.flagPillTextNone]}>{flaggedCounts.none} unflagged</Text>
+                </View>
+              </View>
+
+              <View style={styles.syncInfoRow}>
+                <Ionicons name="sync-outline" size={16} color="#636E72" />
+                <Text style={styles.syncInfoText}>
+                  {cohortAverages.recentSyncCount}/{cohortCount} synced in last 24h
+                </Text>
+              </View>
+
+              <View style={styles.overviewLists}>
+                <View style={[styles.overviewListCard, styles.overviewListCardGood]}>
+                  <Text style={[styles.listTitle, styles.listTitleGood]}>Top Performers</Text>
+                  {flaggedGoodCadets.length === 0 ? (
+                    <Text style={styles.emptyListHint}>No cadets flagged as good yet.</Text>
+                  ) : (
+                    flaggedGoodCadets.slice(0, 6).map((s) => (
+                      <View key={s.id} style={styles.overviewCadetRow}>
+                        <View style={styles.overviewCadetTextCol}>
+                          <View style={styles.overviewCadetNameRow}>
+                            <Text style={styles.overviewCadetName}>{s.displayName}</Text>
+                          </View>
+                          <View style={styles.overviewCadetMetaRow}>
+                            <Text style={styles.overviewCadetMeta}>
+                              {formatMobileCompactNumber(activityMetric === 'steps' ? s.avgSteps : s.avgDistance)}
+                              {activityMetric === 'steps' ? ' steps' : ' m'}
+                              {'  •  '}
+                              {formatMobileCompactNumber(s.avgCalories)} kcal
+                              {'  •  '}
+                              {s.avgSleep > 0 ? `${s.avgSleep} sleep` : 'sleep -'}
+                              {'  •  '}
+                              {formatLastSyncShort(s.lastSync)}
+                              {getCadetFlagSource(s.id) === 'ai' ? '  |' : ''}
+                            </Text>
+
+                            {getCadetFlagSource(s.id) === 'ai' && (
+                              <View style={styles.aiReasonRow}>
+                                <View style={styles.aiFlagBadge}>
+                                  <Ionicons name="sparkles" size={10} color="#636E72" />
+                                  <Text style={styles.aiFlagBadgeText}>AI</Text>
+                                </View>
+                                <Text style={styles.aiFlagReasonText} numberOfLines={2}>
+                                  {getCadetFlagReason(s.id) || 'Auto-flagged'}
+                                </Text>
+                              </View>
+                            )}
+                          </View>
+                        </View>
+                        <View style={styles.overviewCadetActions}>
+                          <TouchableOpacity
+                            style={[styles.flagActionBtn, getCadetFlag(s.id) === 'good' && styles.flagActionBtnActiveGood]}
+                            onPress={() => setCadetFlag(s.id, 'none', 'manual')}
+                          >
+                            <Ionicons name="thumbs-up" size={16} color="#00B894" />
+                          </TouchableOpacity>
+                          <TouchableOpacity
+                            style={[styles.flagActionBtn, getCadetFlag(s.id) === 'bad' && styles.flagActionBtnActiveBad]}
+                            onPress={() => setCadetFlag(s.id, 'bad', 'manual')}
+                          >
+                            <Ionicons name="thumbs-down" size={16} color="#D63031" />
+                          </TouchableOpacity>
+                        </View>
+                      </View>
+                    ))
+                  )}
+                </View>
+
+                <View style={[styles.overviewListCard, styles.overviewListCardBad]}>
+                  <Text style={[styles.listTitle, styles.listTitleBad]}>Needs Attention</Text>
+                  {flaggedBadCadets.length === 0 ? (
+                    <Text style={styles.emptyListHint}>No cadets flagged as needing attention yet.</Text>
+                  ) : (
+                    flaggedBadCadets.slice(0, 6).map((s) => (
+                      <View key={s.id} style={styles.overviewCadetRow}>
+                        <View style={styles.overviewCadetTextCol}>
+                          <View style={styles.overviewCadetNameRow}>
+                            <Text style={styles.overviewCadetName}>{s.displayName}</Text>
+                          </View>
+                          <View style={styles.overviewCadetMetaRow}>
+                            <Text style={styles.overviewCadetMeta}>
+                              {formatMobileCompactNumber(activityMetric === 'steps' ? s.avgSteps : s.avgDistance)}
+                              {activityMetric === 'steps' ? ' steps' : ' m'}
+                              {'  •  '}
+                              {formatMobileCompactNumber(s.avgCalories)} kcal
+                              {'  •  '}
+                              {s.avgSleep > 0 ? `${s.avgSleep} sleep` : 'sleep -'}
+                              {'  •  '}
+                              {formatLastSyncShort(s.lastSync)}
+                              {getCadetFlagSource(s.id) === 'ai' ? '  |' : ''}
+                            </Text>
+
+                            {getCadetFlagSource(s.id) === 'ai' && (
+                              <View style={styles.aiReasonRow}>
+                                <View style={styles.aiFlagBadge}>
+                                  <Ionicons name="sparkles" size={10} color="#636E72" />
+                                  <Text style={styles.aiFlagBadgeText}>AI</Text>
+                                </View>
+                                <Text style={styles.aiFlagReasonText} numberOfLines={2}>
+                                  {getCadetFlagReason(s.id) || 'Auto-flagged'}
+                                </Text>
+                              </View>
+                            )}
+                          </View>
+                        </View>
+                        <View style={styles.overviewCadetActions}>
+                          <TouchableOpacity
+                            style={[styles.flagActionBtn, getCadetFlag(s.id) === 'good' && styles.flagActionBtnActiveGood]}
+                            onPress={() => setCadetFlag(s.id, 'good', 'manual')}
+                          >
+                            <Ionicons name="thumbs-up" size={16} color="#00B894" />
+                          </TouchableOpacity>
+                          <TouchableOpacity
+                            style={[styles.flagActionBtn, getCadetFlag(s.id) === 'bad' && styles.flagActionBtnActiveBad]}
+                            onPress={() => setCadetFlag(s.id, 'none', 'manual')}
+                          >
+                            <Ionicons name="thumbs-down" size={16} color="#D63031" />
+                          </TouchableOpacity>
+                        </View>
+                      </View>
+                    ))
+                  )}
+                </View>
+              </View>
+
+              {(flaggedGoodCadets.length === 0 && flaggedBadCadets.length === 0) && (
+                <Text style={styles.emptyListHintCenter}>
+                  No flags yet. Use Auto-Flag or tap thumbs to flag cadets.
+                </Text>
+              )}
+
+              <Text style={styles.overviewHint}>
+                Tip: Switch to “Cadets” to see the full list.
+              </Text>
+            </>
+          )}
+        </ScrollView>
+      ) : (
+        <FlatList
+          data={
+            loading
+              ? ([1, 2, 3] as const)
+              : displayedStudents.filter(s => s.displayName.toLowerCase().includes(normalizedSearchQuery.toLowerCase()))
+          }
+          renderItem={({ item }) =>
+            loading ? (
+              <StudentCardSkeleton />
+            ) : (
+              <StudentCard
+                item={item as any}
+                isSelectionMode={false}
+                chartConfig={chartConfig}
+                activityMetric={activityMetric}
+                flag={getCadetFlag((item as any).id)}
+                flagSource={getCadetFlagSource((item as any).id)}
+                onChangeFlag={(nextFlag) => setCadetFlag((item as any).id, nextFlag, 'manual')}
+              />
+            )
+          }
+          keyExtractor={(item: any) => (loading ? `skeleton-${String(item)}` : item.id)}
+          contentContainerStyle={styles.listContent}
+          refreshControl={
+            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#FF6B35" />
+          }
+          ListEmptyComponent={
+            loading ? null : (
+              <View style={styles.emptyState}>
+                <Text style={styles.emptyText}>No cadets being tracked.</Text>
+                <TouchableOpacity onPress={() => setModalVisible(true)} style={styles.emptyButton}>
+                  <Text style={styles.emptyButtonText}>Select Cadets to View</Text>
+                </TouchableOpacity>
+              </View>
+            )
+          }
+        />
+      )}
 
       {/* Selection Modal */}
       <Modal
@@ -616,15 +1352,22 @@ export default function InstructorDashboard() {
         onRequestClose={() => setSettingsVisible(false)}
       >
         <SafeAreaView style={styles.modalContainer}>
-          <View style={styles.modalContent}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Chart Settings</Text>
-              <TouchableOpacity onPress={() => setSettingsVisible(false)}>
-                <Text style={styles.modalDone}>Done</Text>
+          <View style={[styles.modalContent, styles.settingsModalContent]}>
+            <View style={styles.settingsModalHeader}>
+              <TouchableOpacity
+                onPress={() => setSettingsVisible(false)}
+                accessibilityRole="button"
+                accessibilityLabel="Close chart settings"
+                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                style={styles.settingsModalClose}
+              >
+                <Ionicons name="chevron-down" size={30} color="#FF6B35" />
               </TouchableOpacity>
+
+              <Text style={styles.modalTitle}>Chart Settings</Text>
             </View>
             
-            <View style={styles.settingsContent}>
+            <ScrollView style={styles.settingsContent} contentContainerStyle={styles.settingsContentContainer}>
               <Text style={styles.sectionTitle}>Customize Graphs</Text>
 
               <View style={styles.settingRow}>
@@ -658,34 +1401,31 @@ export default function InstructorDashboard() {
               {(['distance', 'hr', 'sleep', 'calories'] as const).map((metric) => {
                 const type = chartConfig[metric];
                 return (
-                <View key={metric} style={styles.settingRow}>
-                  <Text style={styles.settingLabel}>
-                    {metric === 'hr' ? 'Heart Rate' : 
-                     metric.charAt(0).toUpperCase() + metric.slice(1)}
-                  </Text>
-                  <View style={styles.typeSelector}>
-                    {(['line', 'bar', 'area', 'scatter'] as const).map((t) => (
-                      <TouchableOpacity
-                        key={t}
-                        style={[
-                          styles.typeOption,
-                          type === t && styles.typeOptionSelected
-                        ]}
-                        onPress={() => setChartConfig(prev => ({ ...prev, [metric]: t }))}
-                      >
-                        <Text style={[
-                          styles.typeOptionText,
-                          type === t && styles.typeOptionTextSelected
-                        ]}>
-                          {t.charAt(0).toUpperCase() + t.slice(1)}
-                        </Text>
-                      </TouchableOpacity>
-                    ))}
+                  <View key={metric} style={styles.settingRow}>
+                    <Text style={styles.settingLabel}>
+                      {metric === 'hr'
+                        ? 'Heart Rate'
+                        : metric === 'calories'
+                          ? 'Calories'
+                          : metric.charAt(0).toUpperCase() + metric.slice(1)}
+                    </Text>
+                    <View style={styles.typeSelector}>
+                      {(['line', 'bar', 'area', 'scatter'] as const).map((t) => (
+                        <TouchableOpacity
+                          key={t}
+                          style={[styles.typeOption, type === t && styles.typeOptionSelected]}
+                          onPress={() => setChartConfig((prev) => ({ ...prev, [metric]: t }))}
+                        >
+                          <Text style={[styles.typeOptionText, type === t && styles.typeOptionTextSelected]}>
+                            {t.charAt(0).toUpperCase() + t.slice(1)}
+                          </Text>
+                        </TouchableOpacity>
+                      ))}
+                    </View>
                   </View>
-                </View>
                 );
               })}
-            </View>
+            </ScrollView>
           </View>
         </SafeAreaView>
       </Modal>
@@ -713,13 +1453,7 @@ export default function InstructorDashboard() {
                       setDateRange(prev => ({ ...prev, start: date, type: 'custom' }));
                     }
                   },
-                  style: {
-                    padding: 8,
-                    borderRadius: 8,
-                    borderWidth: 1,
-                    borderColor: '#D1D5DB',
-                    fontSize: 16,
-                  }
+                  style: WEB_DATE_INPUT_STYLE,
                 })}
               </View>
 
@@ -734,13 +1468,7 @@ export default function InstructorDashboard() {
                       setDateRange(prev => ({ ...prev, end: date, type: 'custom' }));
                     }
                   },
-                  style: {
-                    padding: 8,
-                    borderRadius: 8,
-                    borderWidth: 1,
-                    borderColor: '#D1D5DB',
-                    fontSize: 16,
-                  }
+                  style: WEB_DATE_INPUT_STYLE,
                 })}
               </View>
 
@@ -767,389 +1495,3 @@ export default function InstructorDashboard() {
     </SafeAreaView>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#F8F9FA',
-  },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  header: {
-    paddingHorizontal: 20,
-    paddingVertical: 16,
-    backgroundColor: '#FFFFFF',
-    borderBottomWidth: 1,
-    borderBottomColor: '#E5E7EB',
-  },
-  headerTop: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  headerWideRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: 16,
-    position: 'relative',
-    minHeight: 60,
-    paddingVertical: 2,
-  },
-  headerLeftControls: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'flex-start',
-    flexShrink: 0,
-    zIndex: 1,
-  },
-  headerCenterOverlay: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    top: 0,
-    bottom: 0,
-    alignItems: 'center',
-    justifyContent: 'center',
-    zIndex: 0,
-  },
-  headerRightControls: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'flex-end',
-    gap: 10,
-    flexShrink: 0,
-    zIndex: 1,
-  },
-  title: {
-    fontSize: 28,
-    fontWeight: 'bold',
-    color: '#2D3436',
-    textAlign: 'center',
-  },
-  headerTitleWideWeb: {
-    lineHeight: 34,
-  },
-  selectButton: {
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 20,
-    backgroundColor: '#F3F4F6',
-  },
-  selectButtonActive: {
-    backgroundColor: '#FF6B35',
-  },
-  selectButtonText: {
-    color: '#636E72',
-    fontWeight: '600',
-  },
-  selectButtonTextActive: {
-    color: '#FFFFFF',
-  },
-  subtitle: {
-    fontSize: 16,
-    color: '#636E72',
-    marginTop: 4,
-    textAlign: 'center',
-  },
-  headerSubtitleWideWeb: {
-    marginTop: 2,
-    lineHeight: 20,
-    marginBottom:6,
-  },
-  filterContainer: {
-    flexDirection: 'column',
-    alignItems: 'center',
-    marginTop: 16,
-    gap: 12,
-  },
-  filterContainerWideWeb: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginTop: 16,
-    gap: 16,
-  },
-  rangeRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    flexWrap: 'wrap',
-    gap: 8,
-  },
-  rangeRowWideWeb: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'flex-start',
-    gap: 10,
-    flexShrink: 1,
-  },
-  actionsRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    flexWrap: 'wrap',
-    gap: 10,
-  },
-  actionsRowWideWeb: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'flex-end',
-    gap: 10,
-    flexShrink: 0,
-  },
-  filterLabel: {
-    color: '#636E72',
-    marginRight: 2,
-  },
-  filterLabelWeb: {
-    fontSize: 11,
-    marginTop: 15,
-  },
-  filterLabelMobile: {
-    fontSize: 15,
-    marginTop: 0,
-  },
-  rangeButtons: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    alignItems: 'center',
-    flexWrap: 'wrap',
-    gap: 8,
-  },
-  rangeButtonsWideWeb: {
-    flexDirection: 'row',
-    justifyContent: 'flex-start',
-    alignItems: 'center',
-    flexWrap: 'nowrap',
-    gap: 8,
-  },
-  rangeButton: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 16,
-    backgroundColor: '#F3F4F6',
-  },
-  rangeButtonActive: {
-    backgroundColor: '#2D3436',
-  },
-  rangeButtonText: {
-    fontSize: 12,
-    color: '#636E72',
-    fontWeight: '600',
-  },
-  rangeButtonTextActive: {
-    color: '#FFFFFF',
-  },
-  searchBar: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#F3F4F6',
-    borderRadius: 12,
-    paddingHorizontal: 12,
-    height: 24,
-    marginTop: 5,
-  },
-
-  searchInput: {
-    flex: 1,
-    fontSize: 12,
-    color: '#2D3436',
-  },
-  selectionInfo: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginTop: 12,
-    padding: 8,
-    backgroundColor: '#FFF5F0',
-    borderRadius: 8,
-  },
-  selectionText: {
-    color: '#FF6B35',
-    fontWeight: 'bold',
-    marginRight: 8,
-  },
-  selectionHint: {
-    color: '#FF6B35',
-    fontSize: 12,
-  },
-  clearButtonText: {
-    color: '#FF6B35',
-    fontWeight: 'bold',
-    textDecorationLine: 'underline',
-  },
-  listContent: {
-    padding: 16,
-  },
-  emptyState: {
-    padding: 40,
-    alignItems: 'center',
-  },
-  emptyText: {
-    color: '#636E72',
-    fontSize: 16,
-    marginBottom: 16,
-  },
-  emptyButton: {
-    backgroundColor: '#FF6B35',
-    paddingHorizontal: 20,
-    paddingVertical: 12,
-    borderRadius: 24,
-  },
-  emptyButtonText: {
-    color: '#FFFFFF',
-    fontWeight: 'bold',
-  },
-  modalContainer: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.5)',
-    justifyContent: 'flex-end',
-  },
-  modalContent: {
-    backgroundColor: '#FFFFFF',
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-    height: '80%',
-    padding: 20,
-  },
-  modalHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 20,
-    paddingBottom: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: '#F3F4F6',
-  },
-  modalTitle: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: '#2D3436',
-  },
-  modalDone: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    color: '#FF6B35',
-  },
-  modalItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: '#F3F4F6',
-  },
-  checkbox: {
-    width: 24,
-    height: 24,
-    borderRadius: 12,
-    borderWidth: 2,
-    borderColor: '#D1D5DB',
-    marginRight: 12,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  checkboxSelected: {
-    backgroundColor: '#FF6B35',
-    borderColor: '#FF6B35',
-  },
-  modalItemText: {
-    fontSize: 16,
-    color: '#2D3436',
-  },
-  iconButton: {
-    padding: 8,
-    borderRadius: 20,
-    backgroundColor: '#FFF5F0',
-  },
-  settingsContent: {
-    flex: 1,
-  },
-  sectionTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#2D3436',
-    marginBottom: 16,
-  },
-  settingRow: {
-    marginBottom: 24,
-  },
-  settingLabel: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#636E72',
-    marginBottom: 12,
-  },
-  typeSelector: {
-    flexDirection: 'row',
-    backgroundColor: '#F3F4F6',
-    borderRadius: 12,
-    padding: 4,
-  },
-  typeOption: {
-    flex: 1,
-    paddingVertical: 8,
-    alignItems: 'center',
-    borderRadius: 8,
-  },
-  typeOptionSelected: {
-    backgroundColor: '#FFFFFF',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
-    elevation: 2,
-  },
-  typeOptionText: {
-    fontSize: 12,
-    color: '#636E72',
-    fontWeight: '500',
-  },
-  typeOptionTextSelected: {
-    color: '#FF6B35',
-    fontWeight: 'bold',
-  },
-  webModalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.5)',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  webModalContent: {
-    backgroundColor: 'white',
-    padding: 20,
-    borderRadius: 12,
-    width: '80%',
-    maxWidth: 400,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.25,
-    shadowRadius: 4,
-    elevation: 5,
-  },
-  webDateRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: 16,
-  },
-  webDateLabel: {
-    fontSize: 16,
-    color: '#2D3436',
-    fontWeight: '500',
-  },
-  webApplyButton: {
-    backgroundColor: '#FF6B35',
-    padding: 12,
-    borderRadius: 8,
-    alignItems: 'center',
-    marginTop: 8,
-  },
-  webApplyButtonText: {
-    color: 'white',
-    fontWeight: 'bold',
-    fontSize: 16,
-  },
-});

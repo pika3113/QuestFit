@@ -1,9 +1,10 @@
 import React from 'react';
-import { View, Pressable } from 'react-native';
+import { Platform, View, Pressable } from 'react-native';
 import { Text } from '@/components/Themed';
 import { router } from 'expo-router';
 import { instructorDashboardStyles as styles } from '@/src/styles/screens/instructorDashboardStyles';
 import { User, UserOverview } from '../types';
+import { formatCompactNumber } from '@/src/utils/numberFormat';
 
 interface UserCardProps {
   user: User;
@@ -12,6 +13,11 @@ interface UserCardProps {
 
 export const UserCard = ({ user, overview }: UserCardProps) => {
   const displayName = user.displayName || user.id;
+
+  const formatValue = (value: number) => {
+    if (Platform.OS !== 'web' && Math.abs(value) >= 1000) return formatCompactNumber(value);
+    return Math.round(value).toLocaleString();
+  };
 
   return (
     <Pressable
@@ -39,10 +45,10 @@ export const UserCard = ({ user, overview }: UserCardProps) => {
           {overview?.todayActivity ? (
             <>
               <Text style={styles.statValue}>
-                {overview.todayActivity.steps?.toLocaleString() || 0} steps
+                {formatValue(overview.todayActivity.steps || 0)} steps
               </Text>
               <Text style={styles.statSubValue}>
-                {overview.todayActivity.calories || 0} cal
+                {formatValue(overview.todayActivity.calories || 0)} cal
               </Text>
             </>
           ) : (

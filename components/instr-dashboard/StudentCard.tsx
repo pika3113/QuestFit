@@ -5,6 +5,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import Sparkline from './Sparkline';
 import { SkeletonBlock } from '@/components/Skeleton';
+import { formatCompactNumber } from '@/src/utils/numberFormat';
 
 export interface StudentStats {
   id: string;
@@ -33,6 +34,9 @@ export interface StudentStats {
 
 export type ChartType = 'line' | 'bar' | 'area' | 'scatter';
 
+export type CadetFlag = 'good' | 'bad' | 'none';
+export type CadetFlagSource = 'manual' | 'ai' | 'none';
+
 interface StudentCardProps {
   item: StudentStats;
   isSelectionMode?: boolean;
@@ -40,6 +44,9 @@ interface StudentCardProps {
   onToggleSelection?: (id: string) => void;
   chartConfig?: Record<MetricType, ChartType>;
   activityMetric?: 'steps' | 'distance';
+  flag?: CadetFlag;
+  flagSource?: CadetFlagSource;
+  onChangeFlag?: (flag: CadetFlag) => void;
 }
 
 type MetricType = 'hr' | 'distance' | 'sleep' | 'calories';
@@ -68,11 +75,21 @@ export const StudentCard: React.FC<StudentCardProps> = ({
   isSelected = false, 
   onToggleSelection,
   chartConfig = { hr: 'line', distance: 'bar', sleep: 'line', calories: 'area' },
-  activityMetric = 'steps'
+  activityMetric = 'steps',
+  flag = 'none',
+  flagSource = 'none',
+  onChangeFlag,
 }) => {
   const { width: windowWidth, height: windowHeight } = useWindowDimensions();
   const [selectedMetric, setSelectedMetric] = useState<MetricType>('distance');
   const [isChartExpanded, setIsChartExpanded] = useState(false);
+
+  const formatMobileCompact = (value: number) => {
+    if (Platform.OS !== 'web' && typeof value === 'number' && Number.isFinite(value) && Math.abs(value) >= 1000) {
+      return formatCompactNumber(value);
+    }
+    return Math.round(value).toLocaleString();
+  };
 
   const expandedModalMaxWidth = Platform.OS === 'web' ? 1200 : 720;
   const expandedModalTargetWidth = Platform.OS === 'web' ? windowWidth * 0.92 : windowWidth - 40;
@@ -151,6 +168,34 @@ export const StudentCard: React.FC<StudentCardProps> = ({
           </View>
         </View>
         <View style={styles.trendContainer}>
+          {!!onChangeFlag && !isSelectionMode ? (
+            <View style={styles.flagActionsRow}>
+              <TouchableOpacity
+                style={[styles.flagActionBtn, flag === 'good' && styles.flagActionBtnActiveGood]}
+                onPress={() => onChangeFlag(flag === 'good' ? 'none' : 'good')}
+                accessibilityRole="button"
+                accessibilityLabel={flag === 'good' ? 'Unflag good' : 'Flag good'}
+              >
+                <Ionicons name="thumbs-up" size={16} color="#00B894" />
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[styles.flagActionBtn, flag === 'bad' && styles.flagActionBtnActiveBad]}
+                onPress={() => onChangeFlag(flag === 'bad' ? 'none' : 'bad')}
+                accessibilityRole="button"
+                accessibilityLabel={flag === 'bad' ? 'Unflag needs attention' : 'Flag needs attention'}
+              >
+                <Ionicons name="thumbs-down" size={16} color="#D63031" />
+              </TouchableOpacity>
+            </View>
+          ) : (
+            <>
+              {flag === 'good' && <Ionicons name="thumbs-up" size={18} color="#00B894" />}
+              {flag === 'bad' && <Ionicons name="thumbs-down" size={18} color="#D63031" />}
+              {flag !== 'none' && flagSource === 'ai' && <Ionicons name="sparkles" size={16} color="#636E72" />}
+            </>
+          )}
+
           {item.trend === 'up' && <Ionicons name="trending-up" size={24} color="#FF6B35" />}
           {item.trend === 'down' && <Ionicons name="trending-down" size={24} color="#00B894" />}
           {item.trend === 'stable' && <Ionicons name="remove" size={24} color="#636E72" />}
@@ -165,7 +210,7 @@ export const StudentCard: React.FC<StudentCardProps> = ({
         >
           <Ionicons name="walk" size={16} color="#2E86AB" />
           <Text style={styles.statValue}>
-            {(activityMetric === 'steps' ? item.avgSteps : item.avgDistance).toLocaleString()}
+            {formatMobileCompact(activityMetric === 'steps' ? item.avgSteps : item.avgDistance)}
           </Text>
           <Text style={styles.statLabel}>{activityMetric === 'steps' ? 'Steps' : 'Dist (m)'}</Text>
         </TouchableOpacity>
@@ -193,7 +238,7 @@ export const StudentCard: React.FC<StudentCardProps> = ({
           onPress={() => setSelectedMetric('calories')}
         >
           <Ionicons name="flame" size={16} color="#FDCB6E" />
-          <Text style={styles.statValue}>{item.avgCalories.toLocaleString()}</Text>
+          <Text style={styles.statValue}>{formatMobileCompact(item.avgCalories)}</Text>
           <Text style={styles.statLabel}>Kcal</Text>
         </TouchableOpacity>
       </View>
@@ -212,6 +257,7 @@ export const StudentCard: React.FC<StudentCardProps> = ({
               color={getChartColor()} 
               height={270}
               type={chartConfig[selectedMetric]}
+              compactNumbers={Platform.OS !== 'web'}
             />
           </View>
         </TouchableOpacity>
@@ -244,6 +290,7 @@ export const StudentCard: React.FC<StudentCardProps> = ({
                 color={getChartColor()} 
                 height={expandedChartHeight}
                 type={chartConfig[selectedMetric]}
+                compactNumbers={Platform.OS !== 'web'}
               />
             </View>
           </View>
@@ -362,6 +409,29 @@ const styles = StyleSheet.create({
     padding: 8,
     backgroundColor: '#F8F9FA',
     borderRadius: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  flagActionsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  flagActionBtn: {
+    backgroundColor: '#F3F4F6',
+    borderRadius: 10,
+    padding: 8,
+  },
+  flagActionBtnActiveGood: {
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#00B894',
+  },
+  flagActionBtnActiveBad: {
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#D63031',
   },
   statsGrid: {
     flexDirection: 'row',

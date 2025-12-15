@@ -1,8 +1,9 @@
 import React from 'react';
-import { View } from 'react-native';
+import { Platform, View } from 'react-native';
 import { Text } from '@/components/Themed';
 import Svg, { Path, Circle, Line, Defs, LinearGradient, Stop } from 'react-native-svg';
 import { formatDateDdMmYyyy } from '@/src/utils/dateFormat';
+import { formatCompactNumber } from '@/src/utils/numberFormat';
 
 interface DailyStepsAreaChartProps {
   chartData: { name: string; steps: number }[];
@@ -27,6 +28,11 @@ export const DailyStepsAreaChart = ({ chartData, date }: DailyStepsAreaChartProp
   const title = (date && !isToday(date))
     ? `Steps by User - ${formatDateDdMmYyyy(date)}`
     : "Today's Steps by User";
+
+  const formatValue = (value: number) => {
+    if (Platform.OS !== 'web' && Math.abs(value) >= 1000) return formatCompactNumber(value);
+    return Math.round(value).toLocaleString();
+  };
 
   const chartHeight = 200;
   const padding = { top: 20, right: 10, bottom: 60, left: 35 };
@@ -76,7 +82,7 @@ export const DailyStepsAreaChart = ({ chartData, date }: DailyStepsAreaChartProp
         <View style={{ width: padding.left, height: chartHeight, justifyContent: 'space-between', paddingRight: 8, paddingVertical: padding.top }}>
           {yAxisValues.reverse().map((val, i) => (
             <Text key={i} style={{ fontSize: 10, color: '#888', textAlign: 'right', position: 'absolute', top: padding.top + (plotHeight / yAxisSteps) * i - 6, right: 8, width: 40 }}>
-              {val.toLocaleString()}
+              {formatValue(val)}
             </Text>
           ))}
         </View>

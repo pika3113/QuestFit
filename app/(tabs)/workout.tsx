@@ -597,7 +597,7 @@ export default function WorkoutScreen() {
   return (
     <SafeAreaView
       style={[styles.container, { flex: 1, backgroundColor: Colors[colorScheme ?? 'light'].background }]}
-      edges={['left', 'right', 'bottom']}
+      edges={['top', 'left', 'right', 'bottom']}
     >
       <ScrollView style={styles.container} contentContainerStyle={styles.contentContainer}>
         <View style={styles.header}>

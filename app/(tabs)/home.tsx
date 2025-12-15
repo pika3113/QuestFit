@@ -98,6 +98,16 @@ export default function HomeScreen() {
     }
   };
 
+  const formatRewardLabelForBar = (rewardName: string) => {
+    const base = typeof rewardName === 'string' ? rewardName.replace(/\s+tier\s*$/i, '').trim() : '';
+    if (!base) return '';
+
+    const match = base.match(/^\$(\d+(?:\.\d+)?)\b[\s\S]*\bvoucher\b/i);
+    if (match) return `$${match[1]} Voucher`;
+
+    return base;
+  };
+
   const handleRedeem = async (reward: Reward) => {
     if ((profile?.xp || 0) < reward.xpThreshold) {
       if (Platform.OS === 'web') {
@@ -141,7 +151,7 @@ export default function HomeScreen() {
   const creatureCount = profile?.capturedCreatures?.length || 0;
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: ModernColors.background }} edges={['left', 'right', 'bottom']}>
+    <SafeAreaView style={{ flex: 1, backgroundColor: ModernColors.background }} edges={['top', 'left', 'right', 'bottom']}>
     <ScrollView 
       style={styles.scrollView} 
       contentContainerStyle={styles.contentContainer}
@@ -182,7 +192,7 @@ export default function HomeScreen() {
         <View style={styles.rewardLabelsContainer}>
           {REWARDS.map((reward) => {
             const percentage = (reward.xpThreshold / MAX_XP) * 100;
-            const name = reward.name.replace(' Tier', '');
+            const name = formatRewardLabelForBar(reward.name);
             return (
               <Text 
                 key={reward.id} 
