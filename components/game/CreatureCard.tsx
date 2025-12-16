@@ -385,7 +385,7 @@ export const CreatureDetailsModal: React.FC<CreatureDetailsModalProps> = ({
                         {creature.unlockRequirements.minDuration && (
                           <Text style={styles.requirement}>• {creature.unlockRequirements.minDuration} minutes</Text>
                         )}
-                        {creature.sport != 'NEUTRAL' && (
+                        {creature.sport != 'GENERAL' && (
                           <Text style={styles.requirement}>• {creature.sport} workout</Text>
                         )}
                     </View>
