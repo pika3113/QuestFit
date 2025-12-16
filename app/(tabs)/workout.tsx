@@ -1,9 +1,10 @@
-  import React, { memo, useCallback, useEffect, useMemo, useState } from 'react';
-import { ScrollView, ActivityIndicator, Alert, Pressable, TextInput } from 'react-native';
+import React, { memo, useCallback, useEffect, useMemo, useState } from 'react';
+import { ScrollView, ActivityIndicator, Alert, Pressable, TextInput, Platform } from 'react-native';
 import Slider from '@react-native-community/slider';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Text, View } from '@/components/Themed';
 import { useLocalSearchParams } from 'expo-router';
+  import { useAuth } from '@/src/hooks/useAuth';
 import { useMultiDeviceWorkout } from '@/src/hooks/useMultiDeviceWorkout';
 import { useEmulatedHeartRate } from '@/src/hooks/useEmulatedHeartRate';
 import { BaselineRange, usePolarHistoricalBaseline } from '@/src/hooks/usePolarHistoricalBaseline';
@@ -13,6 +14,9 @@ import { BluetoothDevice, ConnectedDeviceInfo } from '@/src/services/bluetoothTy
 import { liveStyles as styles } from '@/src/styles';
 import { collection, query, where, getDocs, doc, getDoc } from 'firebase/firestore';
 import { db } from '@/src/services/firebase';
+  import workoutCompletionService from '@/src/services/workoutCompletionService';
+  import { CreatureUnlockModal } from '@/components/game/CreatureUnlockModal';
+  import type { Creature } from '@/src/types/polar';
 import {
   addEmulationDevice,
   clearEmulationDevices,
@@ -32,9 +36,166 @@ type AgeCacheEntry = { fetchedAtMs: number; age: number | null };
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const GLOBAL_AGE_CACHE: Record<string, AgeCacheEntry> = ((globalThis as any).__QUESTFIT_AGE_CACHE__ ??= {});
 
-export default function WorkoutScreen() {
+function WorkoutFakeScreen() {
+  const { user } = useAuth();
+  const colorScheme = useColorScheme();
+  const tint = Colors[colorScheme ?? 'light'].tint;
+
+  const [fakeCalories, setFakeCalories] = useState('600');
+  const [fakeDurationMin, setFakeDurationMin] = useState('60');
+  const [fakeSport, setFakeSport] = useState('FITNESS');
+  const [fakeSubmitting, setFakeSubmitting] = useState(false);
+  const [fakeSummary, setFakeSummary] = useState('');
+  const [fakeUnlocked, setFakeUnlocked] = useState<Creature[]>([]);
+  const [fakeShowUnlockedModal, setFakeShowUnlockedModal] = useState(false);
+
+  const runFakeWorkout = useCallback(async () => {
+    if (!user?.uid) {
+      Alert.alert('Not signed in', 'Sign in first so we can apply rewards to your profile.');
+      return;
+    }
+
+    const calories = Number(fakeCalories);
+    const durationMin = Number(fakeDurationMin);
+    const sport = (fakeSport || 'FITNESS').trim().toUpperCase();
+
+    if (!Number.isFinite(calories) || calories <= 0) {
+      Alert.alert('Invalid calories', 'Enter a positive number.');
+      return;
+    }
+    if (!Number.isFinite(durationMin) || durationMin <= 0) {
+      Alert.alert('Invalid duration', 'Enter a positive number of minutes.');
+      return;
+    }
+
+    setFakeSubmitting(true);
+    setFakeSummary('');
+    try {
+      const result = await workoutCompletionService.completeLiveWorkout(
+        user.uid,
+        {
+          duration: Math.round(durationMin * 60),
+          averageHeartRate: 150,
+          maxHeartRate: 175,
+          minHeartRate: 95,
+          caloriesBurned: Math.round(calories),
+          distanceMeters: 0,
+          currentZone: 3,
+        },
+        sport
+      );
+
+      const summary = workoutCompletionService.getWorkoutSummary(result);
+      setFakeSummary(summary);
+      setFakeUnlocked(result.unlockedCreatures ?? []);
+      if ((result.unlockedCreatures ?? []).length > 0) {
+        setFakeShowUnlockedModal(true);
+      } else {
+        Alert.alert('Fake workout complete', 'No creatures unlocked this run.');
+      }
+    } catch (e) {
+      console.error('Fake workout failed:', e);
+      Alert.alert('Error', 'Failed to simulate workout. Check logs.');
+    } finally {
+      setFakeSubmitting(false);
+    }
+  }, [user?.uid, fakeCalories, fakeDurationMin, fakeSport]);
+
+  return (
+    <SafeAreaView style={styles.container}>
+      <ScrollView contentContainerStyle={styles.contentContainer} keyboardShouldPersistTaps="handled">
+        <View style={styles.header}>
+          <Text style={styles.title}>Workout (Fake)</Text>
+          <Text style={styles.subtitle}>Simulate a completed workout quickly (creature unlock testing).</Text>
+        </View>
+
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Inputs</Text>
+
+          <Text style={{ color: '#6B7280', marginBottom: 6 }}>Calories</Text>
+          <TextInput
+            value={fakeCalories}
+            onChangeText={setFakeCalories}
+            keyboardType="numeric"
+            placeholder="e.g. 600"
+            style={{
+              borderWidth: 1,
+              borderColor: '#E5E7EB',
+              borderRadius: 8,
+              paddingHorizontal: 12,
+              paddingVertical: 10,
+              marginBottom: 12,
+              backgroundColor: '#FFFFFF',
+            }}
+          />
+
+          <Text style={{ color: '#6B7280', marginBottom: 6 }}>Duration (minutes)</Text>
+          <TextInput
+            value={fakeDurationMin}
+            onChangeText={setFakeDurationMin}
+            keyboardType="numeric"
+            placeholder="e.g. 60"
+            style={{
+              borderWidth: 1,
+              borderColor: '#E5E7EB',
+              borderRadius: 8,
+              paddingHorizontal: 12,
+              paddingVertical: 10,
+              marginBottom: 12,
+              backgroundColor: '#FFFFFF',
+            }}
+          />
+
+          <Text style={{ color: '#6B7280', marginBottom: 6 }}>Sport</Text>
+          <TextInput
+            value={fakeSport}
+            onChangeText={setFakeSport}
+            placeholder="FITNESS / RUNNING / CYCLING ..."
+            autoCapitalize="characters"
+            style={{
+              borderWidth: 1,
+              borderColor: '#E5E7EB',
+              borderRadius: 8,
+              paddingHorizontal: 12,
+              paddingVertical: 10,
+              marginBottom: 12,
+              backgroundColor: '#FFFFFF',
+            }}
+          />
+
+          <Pressable
+            disabled={fakeSubmitting}
+            onPress={runFakeWorkout}
+            style={[styles.scanButton, { backgroundColor: tint }, fakeSubmitting ? styles.scanButtonDisabled : null]}
+          >
+            <Text style={{ color: '#FFFFFF', fontSize: 16, fontWeight: '700' }}>
+              {fakeSubmitting ? 'Simulating…' : 'Simulate workout'}
+            </Text>
+          </Pressable>
+
+          {fakeSummary ? (
+            <View style={{ marginTop: 12, backgroundColor: '#F9FAFB', borderRadius: 8, padding: 12 }}>
+              <Text style={{ color: '#111827', fontFamily: Platform.OS === 'web' ? 'monospace' : undefined }}>
+                {fakeSummary}
+              </Text>
+            </View>
+          ) : null}
+        </View>
+
+        <CreatureUnlockModal
+          visible={fakeShowUnlockedModal}
+          creatures={fakeUnlocked}
+          onClose={() => setFakeShowUnlockedModal(false)}
+        />
+      </ScrollView>
+    </SafeAreaView>
+  );
+}
+
+function WorkoutRealScreen() {
   const searchParams = useLocalSearchParams();
-  const emulate = String(searchParams.emulate ?? '').toLowerCase() === 'true';
+  const emulateParam = String(searchParams.emulate ?? '').toLowerCase();
+  const emulate = emulateParam === 'true' || emulateParam === '1' || emulateParam === 'yes';
 
   const colorScheme = useColorScheme();
   const {
@@ -933,4 +1094,12 @@ export default function WorkoutScreen() {
       </ScrollView>
     </SafeAreaView>
   );
+}
+
+export default function WorkoutScreen() {
+  const searchParams = useLocalSearchParams();
+  const fakeParam = String(searchParams.fake ?? '').toLowerCase();
+  const fake = fakeParam === 'true' || fakeParam === '1' || fakeParam === 'yes';
+
+  return fake ? <WorkoutFakeScreen /> : <WorkoutRealScreen />;
 }

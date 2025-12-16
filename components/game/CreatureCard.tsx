@@ -70,7 +70,7 @@ export const CreatureCard: React.FC<CreatureCardProps> = ({ creature, captured =
           <View style={styles.header}>
             <Text
               style={[
-                styles.rarity,
+                styles.sport,
                 { color: getSportColor(creature.sport)[0] },
               ]}
             >
@@ -88,7 +88,7 @@ export const CreatureCard: React.FC<CreatureCardProps> = ({ creature, captured =
             ) : (
               <Text
                 style={[
-                  styles.sportBadge,
+                  styles.rarityBadge,
                   {
                     backgroundColor: getRarityColor(creature.rarity),
                     color: '#FFFFFF',
