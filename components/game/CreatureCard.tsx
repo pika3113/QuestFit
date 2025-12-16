@@ -130,7 +130,7 @@ export const CreatureCardGrid: React.FC<CardGridProps> = ({
   const [containerWidth, setContainerWidth] = React.useState(0);
   const effectiveWidth = containerWidth > 0 ? containerWidth : windowWidth;
   const columns = Math.max(Math.floor(effectiveWidth / minCardWidth), 1); // at least 1 column
-  const cardWidthPercent = `${100 / columns}%`;
+  const cardWidthPercent = `${100 / columns}%` as `${number}%`;
 
   return (
     <View
@@ -184,7 +184,7 @@ export const CreatureCardGridSkeleton: React.FC<{ count?: number; minCardWidth?:
   const [containerWidth, setContainerWidth] = React.useState(0);
   const effectiveWidth = containerWidth > 0 ? containerWidth : windowWidth;
   const columns = Math.max(Math.floor(effectiveWidth / minCardWidth), 1);
-  const cardWidthPercent = `${100 / columns}%`;
+  const cardWidthPercent = `${100 / columns}%` as `${number}%`;
 
   return (
     <View

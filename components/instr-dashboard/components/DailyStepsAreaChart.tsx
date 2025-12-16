@@ -1,5 +1,5 @@
 import React from 'react';
-import { Platform, View } from 'react-native';
+import { Platform, View, useWindowDimensions } from 'react-native';
 import { Text } from '@/components/Themed';
 import Svg, { Path, Circle, Line, Defs, LinearGradient, Stop } from 'react-native-svg';
 import { formatDateDdMmYyyy } from '@/src/utils/dateFormat';
@@ -11,6 +11,9 @@ interface DailyStepsAreaChartProps {
 }
 
 export const DailyStepsAreaChart = ({ chartData, date }: DailyStepsAreaChartProps) => {
+  const { width: windowWidth } = useWindowDimensions();
+  const compactNumbers = Platform.OS !== 'web' || windowWidth <= 420;
+
   const maxSteps = Math.max(...chartData.map(d => d.steps), 1);
   const axisMax = maxSteps + 400;
   const yAxisSteps = 5;
@@ -30,7 +33,7 @@ export const DailyStepsAreaChart = ({ chartData, date }: DailyStepsAreaChartProp
     : "Today's Steps by User";
 
   const formatValue = (value: number) => {
-    if (Platform.OS !== 'web' && Math.abs(value) >= 1000) return formatCompactNumber(value);
+    if (compactNumbers && Math.abs(value) >= 1000) return formatCompactNumber(value);
     return Math.round(value).toLocaleString();
   };
 

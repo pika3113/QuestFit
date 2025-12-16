@@ -1,7 +1,6 @@
 "use dom";
 
 import React, { useEffect, useState } from 'react';
-import { Platform } from 'react-native';
 import { formatCompactNumber } from '@/src/utils/numberFormat';
 
 // Client-only load to avoid SSR "window is not defined".
@@ -29,15 +28,14 @@ interface SparklineProps {
 export default function Sparkline({ data, labels, color, height = 100, type = 'line', compactNumbers }: SparklineProps) {
   const [isMounted, setIsMounted] = useState(false);
 
-  const isExpoNativeHost = (() => {
-    // When using Expo DOM Components, this file can run in a DOM environment even on iOS/Android.
-    // In that case, Platform.OS may still read as 'web', so we also check the user agent.
-    if (Platform.OS !== 'web') return true;
+  const isReactNativeOrExpoUserAgent = (() => {
+    // This file is a DOM component; avoid importing `react-native` here.
     if (typeof navigator === 'undefined' || typeof navigator.userAgent !== 'string') return false;
     return /Expo|ReactNative/i.test(navigator.userAgent);
   })();
 
-  const shouldCompactNumbers = compactNumbers ?? isExpoNativeHost;
+  // Prefer explicit caller intent (native StudentCard passes this), fallback to UA detection.
+  const shouldCompactNumbers = compactNumbers ?? isReactNativeOrExpoUserAgent;
 
   useEffect(() => {
     setIsMounted(true);
@@ -119,7 +117,7 @@ export default function Sparkline({ data, labels, color, height = 100, type = 'l
     dataLabels: {
       enabled: true,
       formatter: (val: number) => {
-        if (typeof val !== 'number' || !Number.isFinite(val) || val === 0) return '';
+        if (typeof val !== 'number' || !Number.isFinite(val)) return '';
 
         // Mobile: keep labels compact so they don't crowd the plot.
         if (shouldCompactNumbers && Math.abs(val) >= 1_000) {

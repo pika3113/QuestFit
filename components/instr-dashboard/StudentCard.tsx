@@ -44,6 +44,7 @@ interface StudentCardProps {
   onToggleSelection?: (id: string) => void;
   chartConfig?: Record<MetricType, ChartType>;
   activityMetric?: 'steps' | 'distance';
+  rangeDays?: number;
   flag?: CadetFlag;
   flagSource?: CadetFlagSource;
   onChangeFlag?: (flag: CadetFlag) => void;
@@ -76,6 +77,7 @@ export const StudentCard: React.FC<StudentCardProps> = ({
   onToggleSelection,
   chartConfig = { hr: 'line', distance: 'bar', sleep: 'line', calories: 'area' },
   activityMetric = 'steps',
+  rangeDays,
   flag = 'none',
   flagSource = 'none',
   onChangeFlag,
@@ -84,8 +86,24 @@ export const StudentCard: React.FC<StudentCardProps> = ({
   const [selectedMetric, setSelectedMetric] = useState<MetricType>('distance');
   const [isChartExpanded, setIsChartExpanded] = useState(false);
 
+  const isCompactViewport = windowHeight <= 760;
+  const collapsedChartHeight = isCompactViewport ? 210 : 270;
+
+  const chartDaysLabel = (() => {
+    const days = typeof rangeDays === 'number' && Number.isFinite(rangeDays) ? Math.max(1, Math.round(rangeDays)) : 7;
+    return days === 1 ? 'Last 1 Day' : `Last ${days} Days`;
+  })();
+  const isNarrowScreen = windowWidth <= 420;
+  const compactNumbers = Platform.OS !== 'web' || isNarrowScreen;
+
+  const isCompactHeader = Platform.OS === 'android' || windowWidth <= 380;
+  const thumbIconSize = isCompactHeader ? 12 : 16;
+  const trendIconSize = isCompactHeader ? 18 : 24;
+  const flagIconSize = isCompactHeader ? 14 : 18;
+  const sparklesIconSize = isCompactHeader ? 12 : 16;
+
   const formatMobileCompact = (value: number) => {
-    if (Platform.OS !== 'web' && typeof value === 'number' && Number.isFinite(value) && Math.abs(value) >= 1000) {
+    if (compactNumbers && typeof value === 'number' && Number.isFinite(value) && Math.abs(value) >= 1000) {
       return formatCompactNumber(value);
     }
     return Math.round(value).toLocaleString();
@@ -140,14 +158,26 @@ export const StudentCard: React.FC<StudentCardProps> = ({
     ? data
     : (item.labels?.length ? new Array(item.labels.length).fill(0) : [0]);
 
+  const trendIcon = (
+    item.trend === 'up'
+      ? <Ionicons name="trending-up" size={trendIconSize} color="#00B894" />
+      : item.trend === 'down'
+        ? <Ionicons name="trending-down" size={trendIconSize} color="#D63031" />
+        : <Ionicons name="remove" size={trendIconSize} color="#636E72" />
+  );
+
   return (
     <TouchableOpacity 
-      style={[styles.card, isSelected && styles.cardSelected]}
+      style={[
+        styles.card,
+        isSelected && styles.cardSelected,
+        isCompactViewport && { padding: 12, marginBottom: 12 },
+      ]}
       onPress={handlePress}
       activeOpacity={0.9}
       disabled={isChartExpanded}
     >
-      <View style={styles.cardHeader}>
+      <View style={[styles.cardHeader, isCompactViewport && { marginBottom: 12 }]}>
         <View style={styles.userInfo}>
           {isSelectionMode && (
             <View style={[styles.checkbox, isSelected && styles.checkboxSelected]}>
@@ -167,48 +197,89 @@ export const StudentCard: React.FC<StudentCardProps> = ({
             <Text style={styles.lastSync}>Last Checked: {formatLastSync(item.lastChecked)}</Text>
           </View>
         </View>
-        <View style={styles.trendContainer}>
-          {!!onChangeFlag && !isSelectionMode ? (
-            <View style={styles.flagActionsRow}>
-              <TouchableOpacity
-                style={[styles.flagActionBtn, flag === 'good' && styles.flagActionBtnActiveGood]}
-                onPress={() => onChangeFlag(flag === 'good' ? 'none' : 'good')}
-                accessibilityRole="button"
-                accessibilityLabel={flag === 'good' ? 'Unflag good' : 'Flag good'}
-              >
-                <Ionicons name="thumbs-up" size={16} color="#00B894" />
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={[styles.flagActionBtn, flag === 'bad' && styles.flagActionBtnActiveBad]}
-                onPress={() => onChangeFlag(flag === 'bad' ? 'none' : 'bad')}
-                accessibilityRole="button"
-                accessibilityLabel={flag === 'bad' ? 'Unflag needs attention' : 'Flag needs attention'}
-              >
-                <Ionicons name="thumbs-down" size={16} color="#D63031" />
-              </TouchableOpacity>
+        <View
+          style={[
+            styles.trendContainer,
+            isCompactHeader && { flexDirection: 'column', alignItems: 'center', gap: 6, padding: 6 },
+          ]}
+        >
+          {isCompactHeader && (
+            <View style={styles.trendIconBlock}>
+              {trendIcon}
             </View>
-          ) : (
-            <>
-              {flag === 'good' && <Ionicons name="thumbs-up" size={18} color="#00B894" />}
-              {flag === 'bad' && <Ionicons name="thumbs-down" size={18} color="#D63031" />}
-              {flag !== 'none' && flagSource === 'ai' && <Ionicons name="sparkles" size={16} color="#636E72" />}
-            </>
           )}
 
-          {item.trend === 'up' && <Ionicons name="trending-up" size={24} color="#FF6B35" />}
-          {item.trend === 'down' && <Ionicons name="trending-down" size={24} color="#00B894" />}
-          {item.trend === 'stable' && <Ionicons name="remove" size={24} color="#636E72" />}
+          {isCompactHeader && <View style={styles.trendDividerHorizontal} />}
+
+          <View style={styles.flagBlock}>
+            {!!onChangeFlag && !isSelectionMode ? (
+              <View style={styles.flagActionsRow}>
+                <TouchableOpacity
+                  style={[styles.flagActionBtn, flag === 'good' && styles.flagActionBtnActiveGood]}
+                  onPress={() => onChangeFlag(flag === 'good' ? 'none' : 'good')}
+                  accessibilityRole="button"
+                  accessibilityLabel={flag === 'good' ? 'Unflag good' : 'Flag good'}
+                >
+                  <View style={styles.flagIconWrap}>
+                    <Ionicons name="thumbs-up" size={thumbIconSize} color="#00B894" />
+                    {flag === 'good' && flagSource === 'ai' && (
+                      <Ionicons
+                        name="sparkles"
+                        size={Math.max(10, sparklesIconSize - 4)}
+                        color="#636E72"
+                        style={styles.aiBadge}
+                        accessibilityLabel="AI flagged"
+                      />
+                    )}
+                  </View>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={[styles.flagActionBtn, flag === 'bad' && styles.flagActionBtnActiveBad]}
+                  onPress={() => onChangeFlag(flag === 'bad' ? 'none' : 'bad')}
+                  accessibilityRole="button"
+                  accessibilityLabel={flag === 'bad' ? 'Unflag needs attention' : 'Flag needs attention'}
+                >
+                  <View style={styles.flagIconWrap}>
+                    <Ionicons name="thumbs-down" size={thumbIconSize} color="#D63031" />
+                    {flag === 'bad' && flagSource === 'ai' && (
+                      <Ionicons
+                        name="sparkles"
+                        size={Math.max(10, sparklesIconSize - 4)}
+                        color="#636E72"
+                        style={styles.aiBadge}
+                        accessibilityLabel="AI flagged"
+                      />
+                    )}
+                  </View>
+                </TouchableOpacity>
+              </View>
+            ) : (
+              <>
+                {flag === 'good' && <Ionicons name="thumbs-up" size={flagIconSize} color="#00B894" />}
+                {flag === 'bad' && <Ionicons name="thumbs-down" size={flagIconSize} color="#D63031" />}
+                {flag !== 'none' && flagSource === 'ai' && <Ionicons name="sparkles" size={sparklesIconSize} color="#636E72" />}
+              </>
+            )}
+          </View>
+
+          {!isCompactHeader && <View style={styles.trendDividerVertical} />}
+
+          {!isCompactHeader && (
+            <View style={styles.trendIconBlock}>
+              {trendIcon}
+            </View>
+          )}
         </View>
       </View>
 
       {/* Stats Grid - Clickable to switch chart */}
-      <View style={styles.statsGrid}>
+      <View style={[styles.statsGrid, isCompactViewport && { marginBottom: 12 }]}>
         <TouchableOpacity 
           style={[styles.statItem, selectedMetric === 'distance' && styles.statItemActive]}
           onPress={() => setSelectedMetric('distance')}
         >
-          <Ionicons name="walk" size={16} color="#2E86AB" />
+          <Ionicons name="walk" size={14} color="#2E86AB" />
           <Text style={styles.statValue}>
             {formatMobileCompact(activityMetric === 'steps' ? item.avgSteps : item.avgDistance)}
           </Text>
@@ -219,7 +290,7 @@ export const StudentCard: React.FC<StudentCardProps> = ({
           style={[styles.statItem, selectedMetric === 'hr' && styles.statItemActive]}
           onPress={() => setSelectedMetric('hr')}
         >
-          <Ionicons name="heart" size={16} color="#FF6B35" />
+          <Ionicons name="heart" size={14} color="#FF6B35" />
           <Text style={styles.statValue}>{item.avgHr > 0 ? item.avgHr : '-'}</Text>
           <Text style={styles.statLabel}>BPM</Text>
         </TouchableOpacity>
@@ -228,7 +299,7 @@ export const StudentCard: React.FC<StudentCardProps> = ({
           style={[styles.statItem, selectedMetric === 'sleep' && styles.statItemActive]}
           onPress={() => setSelectedMetric('sleep')}
         >
-          <Ionicons name="moon" size={16} color="#A23B72" />
+          <Ionicons name="moon" size={14} color="#A23B72" />
           <Text style={styles.statValue}>{item.avgSleep > 0 ? item.avgSleep : '-'}</Text>
           <Text style={styles.statLabel}>Sleep</Text>
         </TouchableOpacity>
@@ -237,27 +308,27 @@ export const StudentCard: React.FC<StudentCardProps> = ({
           style={[styles.statItem, selectedMetric === 'calories' && styles.statItemActive]}
           onPress={() => setSelectedMetric('calories')}
         >
-          <Ionicons name="flame" size={16} color="#FDCB6E" />
+          <Ionicons name="flame" size={14} color="#FDCB6E" />
           <Text style={styles.statValue}>{formatMobileCompact(item.avgCalories)}</Text>
           <Text style={styles.statLabel}>Kcal</Text>
         </TouchableOpacity>
       </View>
 
       <View style={styles.chartContainer}>
-        <Text style={styles.chartLabel}>{getChartLabel()} (Last 7 Days)</Text>
+        <Text style={[styles.chartLabel, isCompactViewport && { marginBottom: 6 }]}>{getChartLabel()} ({chartDaysLabel})</Text>
         <TouchableOpacity 
           onPress={() => setIsChartExpanded(true)}
           activeOpacity={0.8}
           style={{ width: '100%' }}
         >
-          <View style={{ height: 270, width: '100%', overflow: 'hidden', borderRadius: 16 }}>
+          <View style={{ height: collapsedChartHeight, width: '100%', overflow: 'hidden', borderRadius: 16 }}>
             <Sparkline 
               data={safeData}
               labels={item.labels}
               color={getChartColor()} 
-              height={270}
+              height={collapsedChartHeight}
               type={chartConfig[selectedMetric]}
-              compactNumbers={Platform.OS !== 'web'}
+              compactNumbers={compactNumbers}
             />
           </View>
         </TouchableOpacity>
@@ -290,7 +361,7 @@ export const StudentCard: React.FC<StudentCardProps> = ({
                 color={getChartColor()} 
                 height={expandedChartHeight}
                 type={chartConfig[selectedMetric]}
-                compactNumbers={Platform.OS !== 'web'}
+                compactNumbers={compactNumbers}
               />
             </View>
           </View>
@@ -301,9 +372,13 @@ export const StudentCard: React.FC<StudentCardProps> = ({
 };
 
 export function StudentCardSkeleton() {
+  const { height: windowHeight } = useWindowDimensions();
+  const isCompactViewport = windowHeight <= 760;
+  const collapsedChartHeight = isCompactViewport ? 210 : 270;
+
   return (
-    <View style={styles.card}>
-      <View style={styles.cardHeader}>
+    <View style={[styles.card, isCompactViewport && { padding: 12, marginBottom: 12 }]}>
+      <View style={[styles.cardHeader, isCompactViewport && { marginBottom: 12 }]}>
         <View style={styles.userInfo}>
           <View style={styles.avatarContainer}>
             <SkeletonBlock width={44} height={44} radius={22} />
@@ -316,7 +391,7 @@ export function StudentCardSkeleton() {
         <SkeletonBlock width={24} height={24} radius={12} />
       </View>
 
-      <View style={styles.statsGrid}>
+      <View style={[styles.statsGrid, isCompactViewport && { marginBottom: 12 }]}>
         {Array.from({ length: 4 }).map((_, idx) => (
           <View key={idx} style={styles.statItem}>
             <SkeletonBlock width={18} height={18} radius={9} />
@@ -328,7 +403,16 @@ export function StudentCardSkeleton() {
 
       <View style={styles.chartContainer}>
         <SkeletonBlock width={220} height={12} radius={6} />
-        <View style={{ height: 270, width: '100%', overflow: 'hidden', borderRadius: 16, marginTop: 10, backgroundColor: '#E0E0E0' }} />
+        <View
+          style={{
+            height: collapsedChartHeight,
+            width: '100%',
+            overflow: 'hidden',
+            borderRadius: 16,
+            marginTop: 10,
+            backgroundColor: '#E0E0E0',
+          }}
+        />
       </View>
     </View>
   );
@@ -413,10 +497,38 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 8,
   },
+  trendIconBlock: {
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  flagBlock: {
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  trendDividerVertical: {
+    width: 2,
+    height: 22,
+    backgroundColor: '#D1D5DB',
+  },
+  trendDividerHorizontal: {
+    height: 2,
+    alignSelf: 'stretch',
+    backgroundColor: '#D1D5DB',
+  },
   flagActionsRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
+  },
+  flagIconWrap: {
+    position: 'relative',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  aiBadge: {
+    position: 'absolute',
+    top: -6,
+    right: -6,
   },
   flagActionBtn: {
     backgroundColor: '#F3F4F6',
@@ -439,12 +551,12 @@ const styles = StyleSheet.create({
     marginBottom: 16,
     backgroundColor: '#F8F9FA',
     borderRadius: 12,
-    padding: 8,
+    padding: 5,
   },
   statItem: {
     flex: 1,
     alignItems: 'center',
-    paddingVertical: 8,
+    paddingVertical: 5,
     borderRadius: 8,
   },
   statItemActive: {
@@ -456,15 +568,15 @@ const styles = StyleSheet.create({
     elevation: 1,
   },
   statValue: {
-    fontSize: 16,
+    fontSize: 14,
     fontWeight: 'bold',
     color: '#2D3436',
-    marginTop: 4,
+    marginTop: 2,
   },
   statLabel: {
-    fontSize: 10,
+    fontSize: 9,
     color: '#636E72',
-    marginTop: 2,
+    marginTop: 1,
     textTransform: 'uppercase',
   },
   chartContainer: {

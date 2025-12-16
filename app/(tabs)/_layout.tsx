@@ -57,7 +57,10 @@ export default function TabLayout() {
 
   const defaultTabBarPaddingBottom = Platform.OS === 'ios' ? 28 : 10;
   const tabBarPaddingBottom = Math.max(insets.bottom, defaultTabBarPaddingBottom);
-  const tabBarHeight = (Platform.OS === 'ios' ? 85 : 65) + (tabBarPaddingBottom - defaultTabBarPaddingBottom);
+  const TAB_BAR_HEIGHT_SCALE = 0.85;
+  const tabBarBaseHeight = Platform.OS === 'ios' ? 85 : 65;
+  const tabBarHeight = tabBarBaseHeight * TAB_BAR_HEIGHT_SCALE + (tabBarPaddingBottom - defaultTabBarPaddingBottom);
+  const tabBarPaddingTop = Math.round(10 * TAB_BAR_HEIGHT_SCALE);
 
   const overlayAnim = React.useRef(new Animated.Value(0)).current;
 
@@ -186,7 +189,7 @@ export default function TabLayout() {
           borderTopWidth: 0,
           height: tabBarHeight,
           paddingBottom: tabBarPaddingBottom,
-          paddingTop: 10,
+          paddingTop: tabBarPaddingTop,
           shadowColor: "#000",
           shadowOffset: {
             width: 0,
@@ -219,6 +222,7 @@ export default function TabLayout() {
           textAlign: 'center',
           color: '#000000',
           fontWeight: 'bold',
+          fontSize: 20,
         },
       }}>
       <Tabs.Screen
