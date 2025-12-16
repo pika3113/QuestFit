@@ -178,7 +178,7 @@ export const battleStyles = StyleSheet.create({
     borderRadius: 4,
     backgroundColor: '#6B7280',
     height: '100%',
-    width: '80%',
+    width: '100%',
     maxWidth: 300,
     marginTop: 4,
   },
@@ -186,7 +186,6 @@ export const battleStyles = StyleSheet.create({
     borderRadius: 4,
     backgroundColor: '#10B981',
     height: '100%',
-    width: '75%',
   },
   creatureStats: {
     width: '100%',

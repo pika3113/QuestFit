@@ -1,11 +1,11 @@
 import { View, Text } from '@/components/Themed';
-import { battleStyles as styles } from '@/src/styles';
+import { battleStyles as styles, getRarityColor, getSportColor } from '@/src/styles';
 import creatureService from '@/src/services/creatureService';
 import { Image } from 'expo-image';
-import React, { useEffect, useRef } from 'react';
-import { Animated, Easing } from 'react-native';
+import React, { useEffect, useRef, useState } from 'react';
+import { Animated, Easing, Pressable } from 'react-native';
 import { Creature } from '@/src/types/polar';
-import { getRarityColor, getSportColor } from '@/src/styles';
+import {  } from '@/src/styles';
 import Svg, { G, Path, Defs, ClipPath, Rect } from 'react-native-svg';
 
 const creatureImages = require.context(
@@ -14,15 +14,25 @@ const creatureImages = require.context(
   /^\.\/creature_icon_\d+\.png$/
 );
 
+const typeMatchups = [[1, 1, 1, 1, 1, 1, 1], // NEUTRAL
+                      [1, 1, 0.5, 2, 2, 0.5, 0.5], // RUNNING
+                      [1, 2, 1, 0.5, 1, 1, 2], // SWIMMING
+                      [1, 0.5, 2, 0.5, 0.5, 2, 1], // HIKING
+                      [1, 0.5, 1, 2, 2, 2, 1], // FITNESS
+                      [1, 2, 2, 0.5, 1, 1, 1], // CYCLING
+                      [1, 0.5, 1, 1, 2, 1, 1] // CIRCUIT
+                    ];
+
 function getCreatureImage(id: string) {
   return creatureImages(`./creature_icon_${id}.png`);
 }
 
-type IconProps = {
+interface IconProps {
   creature: Creature;
 };
 
 function IdleIcon ({ creature }: IconProps) {
+
   const translateY = useRef(new Animated.Value(0)).current;
   const delay = 800/(1+Math.exp(0.03*(creature.stats.speed-50)))+100;
 
@@ -63,7 +73,7 @@ function IdleIcon ({ creature }: IconProps) {
   );
 }
 
-type SpecialProps = {
+interface SpecialProps {
   max: number;
   current: number;
   sport: "NEUTRAL" | "RUNNING" | "SWIMMING" | "HIKING" | "FITNESS" | "CYCLING" | "CIRCUIT";
@@ -113,6 +123,33 @@ function SpecialSvg({ max, current, sport }: SpecialProps) {
   );
 }
 
+interface HealthBarProps {
+  health: number;
+  maxHealth: number;
+};
+
+function HealthBar ({ health, maxHealth }: HealthBarProps) {
+  return (
+    <View style={styles.healthBarContainer}>
+      <View style={styles.emptyHealthBar}>
+        <View style={[styles.healthBar, {width: `${health/maxHealth*100}%`}]}/>
+      </View>
+    </View>
+  );
+}
+
+function calcDamage(attacker: Creature, defender: Creature): number {
+  const typeDict = {'NEUTRAL': 0, 'RUNNING': 1, 'SWIMMING': 2, 'HIKING': 3, 'FITNESS': 4, 'CYCLING': 5, 'CIRCUIT': 6};
+  return Math.floor((attacker.stats.power/defender.stats.endurance*4+1)*typeMatchups[typeDict[attacker.sport]][typeDict[defender.sport]]);
+}
+
+function calcDelay(creature: Creature): number {
+  return 100000/(creature.stats.speed+9);
+}
+
+function calcChargeMax(creature: Creature): number {
+  return Math.ceil((creature.stats.power**2*creature.stats.endurance/(100*creature.stats.speed))**(1/3));
+}
 
 export default function BattleScreen() {
 
@@ -120,11 +157,47 @@ export default function BattleScreen() {
   const opponent = 'PlaceholderOpponent'; // Placeholder for opponent
 
   const allCreatures = creatureService.getAllCreatures(); // This is just for the placeholders lol
-  const userCreatures = [allCreatures[0], allCreatures[3], allCreatures[5]]; // Placeholder for user's creatures
-  const opponentCreatures = [allCreatures[6], allCreatures[21], allCreatures[22]]; // Placeholder for opponent's creatures
 
-  const userSelectedCreature = 2; // Placeholder user selected index
-  const opponentSelectedCreature = 2; // Placeholder opponent selected index
+  const creatures = [allCreatures[0], allCreatures[3], allCreatures[5], allCreatures[6], allCreatures[21], allCreatures[22]]; // Placeholder for creatures, first 3 is user, last 3 is opponent
+  const delays = [calcDelay(creatures[0]), calcDelay(creatures[1]), calcDelay(creatures[2]), calcDelay(creatures[3]), calcDelay(creatures[4]), calcDelay(creatures[5])];
+  const [healths, setHealths] = useState<number[]>(
+    creatures.map(c => c.stats.endurance)
+  );
+  const [charges, setCharges] = useState<number[]>(
+    Array(creatures.length).fill(0)
+  );
+  const chargeMaxes = [calcChargeMax(creatures[0]), calcChargeMax(creatures[1]), calcChargeMax(creatures[2]), calcChargeMax(creatures[3]), calcChargeMax(creatures[4]), calcChargeMax(creatures[5])];
+
+  const [userSelectedCreature, setUserSelectedCreature] = useState<0 | 1 | 2>(0);
+  const [opponentSelectedCreature, setOpponentSelectedCreature] = useState<3 | 4 | 5>(3);
+
+  const isLocked = useRef(false);
+  const battlePress = (delay: number) => {
+    if (isLocked.current) return;
+
+    isLocked.current = true;
+    console.log('Battle area pressed, delay of', delay, 'ms');
+    console.log(calcDamage(creatures[userSelectedCreature], creatures[opponentSelectedCreature]), 'damage dealt from user to opponent');
+    
+    setHealths(prev => {
+      const next = [...prev];
+      next[opponentSelectedCreature] = Math.max(
+        0,
+        next[opponentSelectedCreature]-calcDamage(creatures[userSelectedCreature], creatures[opponentSelectedCreature])
+      );
+      return next;
+    });
+
+    setCharges(prev => {
+      const next = [...prev];
+      next[userSelectedCreature] += 1;
+      return next;
+    });
+
+    setTimeout(() => {
+      isLocked.current = false;
+    }, delay);
+  };
 
   return (
     <View style={styles.container}>
@@ -136,19 +209,19 @@ export default function BattleScreen() {
         <View style={styles.creatureHeader}>
           <View style={[styles.creatureIconContainer, {borderColor: '#3B82F6'}]}>
             <Image 
-              source={getCreatureImage(userCreatures[0].id)}
+              source={getCreatureImage(creatures[0].id)}
               style={styles.creatureIcon} 
             />
           </View>
           <View style={[styles.creatureIconContainer, {borderColor: '#3B82F6'}]}>
             <Image 
-              source={getCreatureImage(userCreatures[1].id)}
+              source={getCreatureImage(creatures[1].id)}
               style={styles.creatureIcon} 
             />
           </View>
           <View style={[styles.creatureIconContainer, {borderColor: '#3B82F6'}]}>
             <Image 
-              source={getCreatureImage(userCreatures[2].id)}
+              source={getCreatureImage(creatures[2].id)}
               style={styles.creatureIcon} 
             />
           </View>
@@ -156,87 +229,87 @@ export default function BattleScreen() {
         <View style={styles.creatureHeader}>
           <View style={[styles.creatureIconContainer, {borderColor: '#EF4444'}]}>
             <Image 
-              source={getCreatureImage(opponentCreatures[0].id)}
+              source={getCreatureImage(creatures[3].id)}
               style={styles.creatureIcon} 
             />
           </View>
           <View style={[styles.creatureIconContainer, {borderColor: '#EF4444'}]}>
             <Image 
-              source={getCreatureImage(opponentCreatures[1].id)}
+              source={getCreatureImage(creatures[4].id)}
               style={styles.creatureIcon} 
             />
           </View>
           <View style={[styles.creatureIconContainer, {borderColor: '#EF4444'}]}>
             <Image 
-              source={getCreatureImage(opponentCreatures[2].id)}
+              source={getCreatureImage(creatures[5].id)}
               style={styles.creatureIcon} 
             />
           </View>
         </View>
       </View>
-      <View style={styles.battleArea}> 
-        <View style={[styles.creature, {transform: [ {scaleX: -1} ]}]}>
-          <View style={[styles.creatureStats, {transform: [ {scaleX: -1} ], marginTop: 12}]}>
-            <Text style={styles.creatureName}>
-              {userCreatures[userSelectedCreature].name}  <Text style={styles.creatureStat}>
-                ⚔️ {userCreatures[userSelectedCreature].stats.power} ⚡ {userCreatures[userSelectedCreature].stats.speed} 🛡️ {userCreatures[userSelectedCreature].stats.endurance}
+      <Pressable style={{flex: 1}} onPress={() => { battlePress(delays[userSelectedCreature]); }}>
+        <View style={styles.battleArea}> 
+          <View style={[styles.creature, {transform: [ {scaleX: -1} ]}]}>
+            <View style={[styles.creatureStats, {transform: [ {scaleX: -1} ], marginTop: 12}]}>
+              <Text style={styles.creatureName}>
+                {creatures[userSelectedCreature].name}  <Text style={styles.creatureStat}>
+                  ⚔️ {creatures[userSelectedCreature].stats.power} ⚡ {creatures[userSelectedCreature].stats.speed} 🛡️ {creatures[userSelectedCreature].stats.endurance}
+                </Text>
               </Text>
-            </Text>
-          </View>
-          <View style={[styles.creatureStats, {transform: [ {scaleX: -1} ], marginTop: 4}]}>
-            <Text style={[styles.creatureRarity, { color: getRarityColor(userCreatures[userSelectedCreature].rarity) }]}>
-              {userCreatures[userSelectedCreature].rarity.toUpperCase()}
-            </Text>
-            <Text style={[styles.creatureSportBadge, { 
-              backgroundColor: getSportColor(userCreatures[userSelectedCreature].sport)[0],
-             color: getSportColor(userCreatures[userSelectedCreature].sport)[1] }]}>
-              {userCreatures[userSelectedCreature].sport}
-            </Text>
-          </View>
-          <View style={styles.healthBarContainer}>
-            <View style={styles.emptyHealthBar}>
-              <View style={styles.healthBar}/>
             </View>
-          </View>
-          <IdleIcon 
-              creature={userCreatures[userSelectedCreature]}
-          /> 
-        </View>
-        <View style={styles.creature}>
-          <View style={[styles.creatureStats, {justifyContent: 'flex-end', marginTop: 12}]}>
-            <Text style={styles.creatureName}>
-              {opponentCreatures[opponentSelectedCreature].name}  <Text style={styles.creatureStat}>
-                ⚔️ {opponentCreatures[opponentSelectedCreature].stats.power} ⚡ {opponentCreatures[opponentSelectedCreature].stats.speed} 🛡️ {opponentCreatures[opponentSelectedCreature].stats.endurance}
+            <View style={[styles.creatureStats, {transform: [ {scaleX: -1} ], marginTop: 4}]}>
+              <Text style={[styles.creatureRarity, { color: getRarityColor(creatures[userSelectedCreature].rarity) }]}>
+                {creatures[userSelectedCreature].rarity.toUpperCase()}
               </Text>
-            </Text>
-          </View>
-          <View style={[styles.creatureStats, {justifyContent: 'flex-end', marginTop: 4}]}>
-            <Text style={[styles.creatureRarity, { color: getRarityColor(opponentCreatures[opponentSelectedCreature].rarity) }]}>
-              {opponentCreatures[opponentSelectedCreature].rarity.toUpperCase()}
-            </Text>
-            <Text style={[styles.creatureSportBadge, { 
-              backgroundColor: getSportColor(opponentCreatures[opponentSelectedCreature].sport)[0],
-             color: getSportColor(opponentCreatures[opponentSelectedCreature].sport)[1] }]}>
-              {opponentCreatures[opponentSelectedCreature].sport}
-            </Text>
-          </View>
-          <View style={styles.healthBarContainer}>
-            <View style={styles.emptyHealthBar}>
-              <View style={styles.healthBar}/>
+              <Text style={[styles.creatureSportBadge, { 
+                backgroundColor: getSportColor(creatures[userSelectedCreature].sport)[0],
+                color: getSportColor(creatures[userSelectedCreature].sport)[1] }]}>
+                {creatures[userSelectedCreature].sport}
+              </Text>
             </View>
+            <HealthBar 
+              health={healths[userSelectedCreature]} 
+              maxHealth={creatures[userSelectedCreature].stats.endurance} 
+            />
+            <IdleIcon 
+                creature={creatures[userSelectedCreature]}
+            /> 
           </View>
-          <IdleIcon 
-              creature={opponentCreatures[opponentSelectedCreature]}
-          /> 
+          <View style={styles.creature}>
+            <View style={[styles.creatureStats, {justifyContent: 'flex-end', marginTop: 12}]}>
+              <Text style={styles.creatureName}>
+                {creatures[opponentSelectedCreature].name}  <Text style={styles.creatureStat}>
+                  ⚔️ {creatures[opponentSelectedCreature].stats.power} ⚡ {creatures[opponentSelectedCreature].stats.speed} 🛡️ {creatures[opponentSelectedCreature].stats.endurance}
+                </Text>
+              </Text>
+            </View>
+            <View style={[styles.creatureStats, {justifyContent: 'flex-end', marginTop: 4}]}>
+              <Text style={[styles.creatureRarity, { color: getRarityColor(creatures[opponentSelectedCreature].rarity) }]}>
+                {creatures[opponentSelectedCreature].rarity.toUpperCase()}
+              </Text>
+              <Text style={[styles.creatureSportBadge, { 
+                backgroundColor: getSportColor(creatures[opponentSelectedCreature].sport)[0],
+                color: getSportColor(creatures[opponentSelectedCreature].sport)[1] }]}>
+                {creatures[opponentSelectedCreature].sport}
+              </Text>
+            </View>
+            <HealthBar 
+              health={healths[opponentSelectedCreature]} 
+              maxHealth={creatures[opponentSelectedCreature].stats.endurance} 
+            />
+            <IdleIcon 
+                creature={creatures[opponentSelectedCreature]}
+            /> 
+          </View>
         </View>
-      </View>
-      <View style={styles.specialContainer}>
-        <SpecialSvg 
-          max={100}
-          current={100}
-          sport={userCreatures[userSelectedCreature].sport}
-        />
-      </View>
+        <View style={styles.specialContainer}>
+          <SpecialSvg 
+            max={chargeMaxes[userSelectedCreature]}
+            current={charges[userSelectedCreature]}
+            sport={creatures[userSelectedCreature].sport}
+          />
+        </View>
+      </Pressable>
     </View>
   );
 }
