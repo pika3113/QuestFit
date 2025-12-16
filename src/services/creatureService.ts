@@ -72,6 +72,9 @@ class CreatureService {
   }, alreadyCaptured: string[]): Creature[] {
     const unlockedCreatures: Creature[] = [];
 
+    const normalizeSport = (s: unknown) => (typeof s === 'string' ? s.trim().toUpperCase() : '');
+    const workoutSport = normalizeSport(workoutData.sport);
+
     console.log('🔍 Checking workout for unlocks:', workoutData);
     console.log(`📊 Already captured: ${alreadyCaptured.length}/${this.creatures.length} creatures`);
     console.log(`🔓 Checking ${this.creatures.length - alreadyCaptured.length} locked creatures...`);
@@ -99,9 +102,12 @@ class CreatureService {
       }
 
       // make sure its the right sport type if that matters
-      if (creature.sport !== 'GENERAL' && workoutData.sport !== creature.sport) {
+      // NOTE: Some creatures are tagged as GENERAL in data; treat that as "any sport".
+      const creatureSport = normalizeSport(creature.sport);
+      const sportIsNeutral = creatureSport === 'NEUTRAL' || creatureSport === 'GENERAL' || creatureSport === '';
+      if (!sportIsNeutral && workoutSport !== creatureSport) {
         meetsRequirements = false;
-        failedRequirements.push(`sport: ${workoutData.sport} !== ${creature.sport}`);
+        failedRequirements.push(`sport: ${workoutSport || '(none)'} !== ${creatureSport}`);
       }
 
       if (meetsRequirements) {

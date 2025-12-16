@@ -1,4 +1,3 @@
-import { getRarityColor, getSportColor } from '@/src/styles';
 import { StyleSheet } from 'react-native';
 
 export const LEGENDARY_BADGE_GRADIENT_COLORS = ['#FF5A5F', '#00D084', '#A855F7'] as const;
@@ -47,13 +46,13 @@ export const creatureCardStyles = StyleSheet.create({
     alignSelf: 'center',
     fontWeight: 'normal',
   },
-  rarity: {
+  sport: {
     fontSize: 12,
     fontWeight: '600',
     alignSelf: 'center',
     marginLeft: 8,
   },
-  sportBadge: {
+  rarityBadge: {
     fontSize: 12,
     paddingHorizontal: 12,
     paddingVertical: 4,

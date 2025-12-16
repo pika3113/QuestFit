@@ -2,26 +2,50 @@ import { StyleSheet } from 'react-native';
 import { white, black } from '@/constants/Colors';
 import { Creature } from './types/polar';
 
-export const getRarityColor = (type: Creature['rarity']) => {
-  switch (type) {
-  case 'rare': return '#43C073';
-  case 'epic': return '#8B5CF6';
-  case 'legendary': return '#F59E0B';
-  default: return '#3BA8F6';
-  }
-};
+type ColorPair = readonly [background: string, foreground: string];
 
-export const getSportColor = (type: Creature['sport']) => {
-  switch (type) {
-    case 'RUNNING': return ['#AE0000', '#FFFFFF'];
-    case 'SWIMMING': return ['#53E8f6', '#1F2937'];
-    case 'HIKING': return ['#13780E', '#FFFFFF'];
-    case 'FITNESS': return ['#FB008A', '#FFFFFF'];
-    case 'CYCLING': return ['rgba(232, 65, 13, 1)', '#FFFFFF'];
-    case 'CIRCUIT': return ['#BB00FF', '#FFFFFF'];
-    default: return ['#676767', '#FFFFFF'];
-  }
-};
+export const RARITY_COLORS: Record<Creature['rarity'], string> = {
+  common: '#3BA8F6',
+  rare: '#43C073',
+  epic: '#8B5CF6',
+  // Used for badges/borders/text; legendary use gradient elsewhere.
+  legendary: '#A855F7', // esentially a fallbackplaceholder
+} as const;
+
+export const SPORT_PRIMARY_COLORS: Record<string, string> = {
+  NEUTRAL: '#676767',
+  GENERAL: '#676767',
+  RUNNING: '#AE0000',
+  SWIMMING: '#53E8F6',
+  HIKING: '#13780E',
+  FITNESS: '#FB008A',
+  CYCLING: '#F59E0B',
+  CIRCUIT: '#BB00FF',
+  FLYING: '#0EA5E9',
+} as const;
+
+function getReadableTextColor(hexColor: string): string {
+  const hex = (hexColor || '').replace('#', '').trim();
+  if (hex.length !== 6) return '#FFFFFF';
+
+  const r = parseInt(hex.slice(0, 2), 16);
+  const g = parseInt(hex.slice(2, 4), 16);
+  const b = parseInt(hex.slice(4, 6), 16);
+
+  // Relative luminance (sRGB), range 0..1
+  const luminance = (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255;
+  return luminance > 0.7 ? '#111827' : '#FFFFFF';
+}
+
+export function getRarityColor(rarity: Creature['rarity']): string {
+  return RARITY_COLORS[rarity] ?? RARITY_COLORS.common;
+}
+
+export function getSportColor(sport: Creature['sport'] | string): ColorPair {
+  const key = (sport || '').trim().toUpperCase();
+  const background = SPORT_PRIMARY_COLORS[key] ?? SPORT_PRIMARY_COLORS.GENERAL;
+  return [background, getReadableTextColor(background)] as const;
+}
 
 // Home/Index Tab Styles
 export const indexStyles = StyleSheet.create({
