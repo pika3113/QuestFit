@@ -13,6 +13,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Text, View } from '@/components/Themed';
+import { SkeletonBlock } from '@/components/Skeleton';
 import { useColorScheme } from '@/components/useColorScheme';
 import { useAuth } from '@/src/hooks/useAuth';
 import { db } from '@/src/services/firebase';
@@ -186,9 +187,11 @@ export default function MeScreen() {
 
   if (loading && !refreshing) {
     return (
-      <View style={[styles.container, styles.centerContent]}>
-        <ActivityIndicator size="large" color={ModernColors.primary} />
-      </View>
+      <SafeAreaView style={styles.container} edges={['top', 'left', 'right', 'bottom']}>
+        <ScrollView contentContainerStyle={styles.scrollContent} scrollEnabled={false}>
+          <MeSkeleton />
+        </ScrollView>
+      </SafeAreaView>
     );
   }
 
@@ -348,6 +351,107 @@ export default function MeScreen() {
         readOnly={true}
       />
     </SafeAreaView>
+  );
+}
+
+function MeSkeleton() {
+  return (
+    <View style={{ backgroundColor: 'transparent' }}>
+      {/* Header */}
+      <View style={styles.headerCard}>
+        <View style={[styles.avatarContainer, { backgroundColor: 'rgba(0,0,0,0.06)' }]}>
+          <SkeletonBlock width={46} height={46} radius={23} />
+        </View>
+        <SkeletonBlock width={200} height={18} radius={10} style={{ marginTop: 14 }} />
+        <View style={[styles.xpBadge, { backgroundColor: 'rgba(0,0,0,0.06)' }]}>
+          <SkeletonBlock width={70} height={14} radius={8} />
+        </View>
+      </View>
+
+      {/* Overview */}
+      <SkeletonBlock width={120} height={16} radius={8} style={{ marginTop: 18, marginBottom: 12 }} />
+      <View style={styles.statsGrid}>
+        {Array.from({ length: 4 }).map((_, idx) => (
+          <View key={`me-stat-skel-${idx}`} style={styles.statCard}>
+            <View style={[styles.statIcon, { backgroundColor: 'rgba(0,0,0,0.06)' }]}>
+              <SkeletonBlock width={18} height={18} radius={9} />
+            </View>
+            <SkeletonBlock width={70} height={18} radius={8} style={{ marginTop: 10 }} />
+            <SkeletonBlock width={80} height={10} radius={6} style={{ marginTop: 8 }} />
+          </View>
+        ))}
+      </View>
+
+      {/* Physical Profile */}
+      <SkeletonBlock width={160} height={16} radius={8} style={{ marginTop: 18, marginBottom: 12 }} />
+      <View style={styles.card}>
+        <View style={styles.attributesGrid}>
+          {Array.from({ length: 4 }).map((_, idx) => (
+            <View key={`me-attr-skel-${idx}`} style={styles.attributeItem}>
+              <View style={[styles.attributeIcon, { backgroundColor: 'rgba(0,0,0,0.06)' }]}>
+                <SkeletonBlock width={18} height={18} radius={9} />
+              </View>
+              <SkeletonBlock width={80} height={10} radius={6} style={{ marginTop: 10 }} />
+              <SkeletonBlock width={60} height={14} radius={6} style={{ marginTop: 8 }} />
+            </View>
+          ))}
+        </View>
+        <SkeletonBlock width={180} height={12} radius={6} style={{ marginTop: 14 }} />
+      </View>
+
+      {/* Recent Activity */}
+      <SkeletonBlock width={150} height={16} radius={8} style={{ marginTop: 18, marginBottom: 12 }} />
+      <View style={styles.card}>
+        {Array.from({ length: 3 }).map((_, idx) => (
+          <View
+            key={`me-history-skel-${idx}`}
+            style={[styles.historyItem, idx === 2 && { borderBottomWidth: 0 }]}
+          >
+            <View style={[styles.historyIcon, { backgroundColor: 'rgba(0,0,0,0.06)' }]}>
+              <SkeletonBlock width={18} height={18} radius={9} />
+            </View>
+            <View style={styles.historyInfo}>
+              <SkeletonBlock width={140} height={12} radius={6} />
+              <SkeletonBlock width={110} height={10} radius={6} style={{ marginTop: 8 }} />
+            </View>
+            <View style={styles.historyStats}>
+              <SkeletonBlock width={56} height={12} radius={6} />
+              <SkeletonBlock width={46} height={10} radius={6} style={{ marginTop: 8 }} />
+            </View>
+          </View>
+        ))}
+      </View>
+
+      {/* History */}
+      <SkeletonBlock width={90} height={16} radius={8} style={{ marginTop: 18, marginBottom: 12 }} />
+      <View style={styles.card}>
+        {Array.from({ length: 2 }).map((_, idx) => (
+          <View key={`me-row-skel-h-${idx}`} style={styles.settingsRow}>
+            <View style={[styles.settingsIcon, { backgroundColor: 'rgba(0,0,0,0.06)' }]}>
+              <SkeletonBlock width={18} height={18} radius={9} />
+            </View>
+            <View style={{ flex: 1, backgroundColor: 'transparent' }}>
+              <SkeletonBlock width={'85%'} height={12} radius={6} />
+            </View>
+          </View>
+        ))}
+      </View>
+
+      {/* Settings */}
+      <SkeletonBlock width={100} height={16} radius={8} style={{ marginTop: 18, marginBottom: 12 }} />
+      <View style={styles.card}>
+        {Array.from({ length: 3 }).map((_, idx) => (
+          <View key={`me-row-skel-s-${idx}`} style={styles.settingsRow}>
+            <View style={[styles.settingsIcon, { backgroundColor: 'rgba(0,0,0,0.06)' }]}>
+              <SkeletonBlock width={18} height={18} radius={9} />
+            </View>
+            <View style={{ flex: 1, backgroundColor: 'transparent' }}>
+              <SkeletonBlock width={'75%'} height={12} radius={6} />
+            </View>
+          </View>
+        ))}
+      </View>
+    </View>
   );
 }
 

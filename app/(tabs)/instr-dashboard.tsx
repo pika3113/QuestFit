@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useMemo, useState, useEffect, useCallback } from 'react';
 import {
   View,
   ActivityIndicator,
@@ -18,6 +18,7 @@ import DateTimePicker from '@react-native-community/datetimepicker';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Text } from '@/components/Themed';
+import { SkeletonBlock } from '@/components/Skeleton';
 import { useAuth } from '@/src/hooks/useAuth';
 import { useInstructor } from '@/src/hooks/useInstructor';
 import { useInstructorStudents } from '@/src/hooks/useInstructorStudents';
@@ -52,8 +53,13 @@ function formatLocalIsoDate(d: Date) {
 }
 
 export default function InstructorDashboard() {
-  const { width: windowWidth } = useWindowDimensions();
+  const { width: windowWidth, height: windowHeight } = useWindowDimensions();
   const isWideWeb = Platform.OS === 'web' && windowWidth >= 900;
+  const isNarrowScreen = windowWidth <= 420;
+  const isCompactRange = Platform.OS !== 'web' || isNarrowScreen;
+  const quickRangeDays = isCompactRange ? [3, 7, 10] : [7, 14, 30];
+
+  const isCompactViewport = windowHeight <= 760;
 
   const { user } = useAuth();
   const { isInstructor, loading: instructorLoading } = useInstructor(user?.uid);
@@ -89,11 +95,18 @@ export default function InstructorDashboard() {
   const [autoFlagNextAllowedAtMs, setAutoFlagNextAllowedAtMs] = useState<number | null>(null);
   const [autoFlagCooldownTick, setAutoFlagCooldownTick] = useState(0);
 
+  const selectedRangeDays = useMemo(() => {
+    const start = startOfLocalDay(dateRange.start);
+    const end = startOfLocalDay(dateRange.end);
+    const diffDays = Math.floor((end.getTime() - start.getTime()) / MS_PER_DAY);
+    return Math.max(1, diffDays + 1);
+  }, [dateRange.start, dateRange.end]);
+
   const formatMobileCompactNumber = useCallback((value: number) => {
     if (typeof value !== 'number' || !Number.isFinite(value)) return '';
-    if (Platform.OS !== 'web' && Math.abs(value) >= 1000) return formatCompactNumber(value);
+    if (isCompactRange && Math.abs(value) >= 1000) return formatCompactNumber(value);
     return Math.round(value).toLocaleString();
-  }, []);
+  }, [isCompactRange]);
 
   const persistAutoFlagResult = useCallback(
     async (result: 'success_ai' | 'success_fallback' | 'error') => {
@@ -866,7 +879,7 @@ export default function InstructorDashboard() {
 
   return (
     <SafeAreaView style={styles.container} edges={['top', 'left', 'right', 'bottom']}>
-      <View style={styles.header}>
+      <View style={[styles.header, isCompactViewport && { paddingVertical: 10 }]}>
         {isWideWeb ? (
           <View style={styles.headerWideRow}>
             <View style={styles.headerLeftControls}>
@@ -875,7 +888,7 @@ export default function InstructorDashboard() {
                   Range:
                 </Text>
                 <View style={styles.rangeButtonsWideWeb}>
-                  {[7, 14, 30].map((days) => (
+                  {quickRangeDays.map((days) => (
                     <TouchableOpacity
                       key={days}
                       style={[styles.rangeButton, dateRange.type === `${days}d` && styles.rangeButtonActive]}
@@ -934,13 +947,14 @@ export default function InstructorDashboard() {
             <Text style={styles.subtitle}>{students.length} Cadets Enrolled</Text>
 
             {/* Date Range Selector */}
-          <View style={styles.filterContainer}>
+          <View style={[styles.filterContainer, isCompactViewport && { paddingTop: 8, paddingBottom: 8 }]}
+          >
             <View style={styles.rangeRow}>
               <Text style={[styles.filterLabel, styles.filterLabelMobile]}>
                 Range:
               </Text>
               <View style={styles.rangeButtons}>
-                {(Platform.OS === 'web' ? [7, 14, 30] : [3, 7, 10]).map((days) => (
+                {quickRangeDays.map((days) => (
                   <TouchableOpacity
                     key={days}
                     style={[styles.rangeButton, dateRange.type === `${days}d` && styles.rangeButtonActive]}
@@ -981,20 +995,40 @@ export default function InstructorDashboard() {
           </>
         )}
 
-        <View style={styles.modeToggleRow}>
+        <View style={[styles.modeToggleRow, isCompactViewport && { marginTop: 8, padding: 3 }]}>
           <TouchableOpacity
-            style={[styles.modeToggleBtn, dashboardMode === 'overview' && styles.modeToggleBtnActive]}
+            style={[
+              styles.modeToggleBtn,
+              dashboardMode === 'overview' && styles.modeToggleBtnActive,
+              isCompactViewport && { paddingVertical: 6 },
+            ]}
             onPress={() => setDashboardMode('overview')}
           >
-            <Text style={[styles.modeToggleText, dashboardMode === 'overview' && styles.modeToggleTextActive]}>
+            <Text
+              style={[
+                styles.modeToggleText,
+                dashboardMode === 'overview' && styles.modeToggleTextActive,
+                isCompactViewport && { fontSize: 11 },
+              ]}
+            >
               Overview
             </Text>
           </TouchableOpacity>
           <TouchableOpacity
-            style={[styles.modeToggleBtn, dashboardMode === 'cadets' && styles.modeToggleBtnActive]}
+            style={[
+              styles.modeToggleBtn,
+              dashboardMode === 'cadets' && styles.modeToggleBtnActive,
+              isCompactViewport && { paddingVertical: 6 },
+            ]}
             onPress={() => setDashboardMode('cadets')}
           >
-            <Text style={[styles.modeToggleText, dashboardMode === 'cadets' && styles.modeToggleTextActive]}>
+            <Text
+              style={[
+                styles.modeToggleText,
+                dashboardMode === 'cadets' && styles.modeToggleTextActive,
+                isCompactViewport && { fontSize: 11 },
+              ]}
+            >
               Cadets
             </Text>
           </TouchableOpacity>
@@ -1021,9 +1055,7 @@ export default function InstructorDashboard() {
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#FF6B35" />}
         >
           {loading ? (
-            <View style={styles.loadingContainer}>
-              <ActivityIndicator size="large" color="#FF6B35" />
-            </View>
+            <InstructorOverviewSkeleton />
           ) : cohortCount === 0 ? (
             <View style={styles.emptyState}>
               <Text style={styles.emptyText}>No cadets being tracked.</Text>
@@ -1116,7 +1148,7 @@ export default function InstructorDashboard() {
                   <Text style={styles.summaryValue}>{cohortAverages.avgHr > 0 ? cohortAverages.avgHr : '-'}</Text>
                 </View>
                 <View style={styles.summaryCard}>
-                  <Text style={styles.summaryLabel}>Avg Sleep</Text>
+                  <Text style={styles.summaryLabel}>Avg Sleep Quality /100</Text>
                   <Text style={styles.summaryValue}>{cohortAverages.avgSleep > 0 ? cohortAverages.avgSleep : '-'}</Text>
                 </View>
               </View>
@@ -1285,6 +1317,7 @@ export default function InstructorDashboard() {
                 isSelectionMode={false}
                 chartConfig={chartConfig}
                 activityMetric={activityMetric}
+                rangeDays={selectedRangeDays}
                 flag={getCadetFlag((item as any).id)}
                 flagSource={getCadetFlagSource((item as any).id)}
                 onChangeFlag={(nextFlag) => setCadetFlag((item as any).id, nextFlag, 'manual')}
@@ -1292,7 +1325,10 @@ export default function InstructorDashboard() {
             )
           }
           keyExtractor={(item: any) => (loading ? `skeleton-${String(item)}` : item.id)}
-          contentContainerStyle={styles.listContent}
+          contentContainerStyle={[
+            styles.listContent,
+            isCompactViewport && { paddingTop: 10, paddingBottom: 10, paddingHorizontal: 12 },
+          ]}
           refreshControl={
             <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#FF6B35" />
           }
@@ -1450,7 +1486,25 @@ export default function InstructorDashboard() {
                   onChange: (e: any) => {
                     const date = new Date(e.target.value);
                     if (!isNaN(date.getTime())) {
-                      setDateRange(prev => ({ ...prev, start: date, type: 'custom' }));
+                      setDateRange((prev) => {
+                        const nextStart = date;
+                        let nextEnd = prev.end;
+
+                        if (startOfLocalDay(nextEnd).getTime() < startOfLocalDay(nextStart).getTime()) {
+                          nextEnd = nextStart;
+                        }
+
+                        if (isCompactRange) {
+                          const startDay = startOfLocalDay(nextStart);
+                          const endDay = startOfLocalDay(nextEnd);
+                          const diffDaysInclusive = Math.floor((endDay.getTime() - startDay.getTime()) / MS_PER_DAY) + 1;
+                          if (diffDaysInclusive > MOBILE_CUSTOM_MAX_DAYS) {
+                            nextEnd = new Date(startDay.getTime() + (MOBILE_CUSTOM_MAX_DAYS - 1) * MS_PER_DAY);
+                          }
+                        }
+
+                        return { ...prev, start: nextStart, end: nextEnd, type: 'custom' };
+                      });
                     }
                   },
                   style: WEB_DATE_INPUT_STYLE,
@@ -1465,7 +1519,26 @@ export default function InstructorDashboard() {
                   onChange: (e: any) => {
                     const date = new Date(e.target.value);
                     if (!isNaN(date.getTime())) {
-                      setDateRange(prev => ({ ...prev, end: date, type: 'custom' }));
+                      setDateRange((prev) => {
+                        let nextStart = prev.start;
+                        const nextEnd = date;
+
+                        if (startOfLocalDay(nextEnd).getTime() < startOfLocalDay(nextStart).getTime()) {
+                          nextStart = nextEnd;
+                        }
+
+                        let finalEnd = nextEnd;
+                        if (isCompactRange) {
+                          const startDay = startOfLocalDay(nextStart);
+                          const endDay = startOfLocalDay(nextEnd);
+                          const diffDaysInclusive = Math.floor((endDay.getTime() - startDay.getTime()) / MS_PER_DAY) + 1;
+                          if (diffDaysInclusive > MOBILE_CUSTOM_MAX_DAYS) {
+                            finalEnd = new Date(startDay.getTime() + (MOBILE_CUSTOM_MAX_DAYS - 1) * MS_PER_DAY);
+                          }
+                        }
+
+                        return { ...prev, start: nextStart, end: finalEnd, type: 'custom' };
+                      });
                     }
                   },
                   style: WEB_DATE_INPUT_STYLE,
@@ -1493,5 +1566,65 @@ export default function InstructorDashboard() {
         />
       )}
     </SafeAreaView>
+  );
+}
+
+function InstructorOverviewSkeleton() {
+  return (
+    <View style={{ width: '100%' }}>
+      <View style={styles.overviewHeaderRow}>
+        <SkeletonBlock width={160} height={18} radius={10} />
+        <View style={styles.autoFlagWrap}>
+          <View style={[styles.autoFlagBtn, { backgroundColor: '#E0E0E0' }]}
+          >
+            <SkeletonBlock width={14} height={14} radius={7} />
+            <SkeletonBlock width={70} height={12} radius={6} style={{ marginLeft: 8 }} />
+          </View>
+        </View>
+      </View>
+
+      <View style={styles.summaryGrid}>
+        {Array.from({ length: 4 }).map((_, idx) => (
+          <View key={`sum-skel-${idx}`} style={styles.summaryCard}>
+            <SkeletonBlock width={'70%'} height={10} radius={6} />
+            <SkeletonBlock width={'45%'} height={18} radius={10} style={{ marginTop: 10 }} />
+          </View>
+        ))}
+      </View>
+
+      <View style={styles.flagRow}>
+        {Array.from({ length: 3 }).map((_, idx) => (
+          <View key={`pill-skel-${idx}`} style={[styles.flagPill, { backgroundColor: '#EDEDED' }]}>
+            <SkeletonBlock width={14} height={14} radius={7} />
+            <SkeletonBlock width={90} height={10} radius={6} style={{ marginLeft: 8 }} />
+          </View>
+        ))}
+      </View>
+
+      <View style={styles.syncInfoRow}>
+        <SkeletonBlock width={16} height={16} radius={8} />
+        <SkeletonBlock width={190} height={12} radius={6} style={{ marginLeft: 8 }} />
+      </View>
+
+      <View style={styles.overviewLists}>
+        {Array.from({ length: 2 }).map((_, cardIdx) => (
+          <View key={`list-card-skel-${cardIdx}`} style={styles.overviewListCard}>
+            <SkeletonBlock width={140} height={14} radius={8} style={{ marginBottom: 12 }} />
+            {Array.from({ length: 4 }).map((__, rowIdx) => (
+              <View key={`row-skel-${cardIdx}-${rowIdx}`} style={styles.overviewCadetRow}>
+                <View style={styles.overviewCadetTextCol}>
+                  <SkeletonBlock width={160} height={12} radius={6} />
+                  <SkeletonBlock width={'90%'} height={10} radius={6} style={{ marginTop: 8 }} />
+                </View>
+                <View style={styles.overviewCadetActions}>
+                  <SkeletonBlock width={28} height={28} radius={14} />
+                  <SkeletonBlock width={28} height={28} radius={14} style={{ marginLeft: 10 }} />
+                </View>
+              </View>
+            ))}
+          </View>
+        ))}
+      </View>
+    </View>
   );
 }

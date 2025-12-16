@@ -11,6 +11,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Text, View } from '@/components/Themed';
+import { SkeletonBlock } from '@/components/Skeleton';
 import { useGameProfile } from '@/src/hooks/useGameProfile';
 import { useAuth } from '@/src/hooks/useAuth';
 import { useInstructor } from '@/src/hooks/useInstructor';
@@ -140,9 +141,15 @@ export default function HomeScreen() {
 
   if (loading && !profile) {
     return (
-      <View style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
-        <Text>Loading your adventure...</Text>
-      </View>
+      <SafeAreaView style={{ flex: 1, backgroundColor: ModernColors.background }} edges={['top', 'left', 'right', 'bottom']}>
+        <ScrollView
+          style={styles.scrollView}
+          contentContainerStyle={styles.contentContainer}
+          scrollEnabled={false}
+        >
+          <HomeSkeleton />
+        </ScrollView>
+      </SafeAreaView>
     );
   }
 
@@ -365,6 +372,83 @@ export default function HomeScreen() {
       </Modal>
     </ScrollView>
     </SafeAreaView>
+  );
+}
+
+function HomeSkeleton() {
+  return (
+    <View style={{ backgroundColor: 'transparent' }}>
+      {/* Header */}
+      <View style={styles.header}>
+        <View style={{ backgroundColor: 'transparent', flex: 1, paddingRight: 12 }}>
+          <SkeletonBlock width={120} height={12} radius={6} />
+          <SkeletonBlock width={180} height={22} radius={10} style={{ marginTop: 10 }} />
+          <SkeletonBlock width={220} height={26} radius={12} style={{ marginTop: 10 }} />
+        </View>
+        <View style={styles.avatarPlaceholder}>
+          <SkeletonBlock width={46} height={46} radius={23} />
+        </View>
+      </View>
+
+      {/* Progress / Level Card */}
+      <View style={styles.levelCard}>
+        <View style={[styles.levelInfo, { backgroundColor: 'transparent' }]}>
+          <View style={{ backgroundColor: 'transparent' }}>
+            <SkeletonBlock width={160} height={12} radius={6} />
+            <SkeletonBlock width={110} height={34} radius={12} style={{ marginTop: 12 }} />
+          </View>
+          <View style={[styles.xpBadge, { backgroundColor: 'rgba(255,255,255,0.12)' }]}>
+            <SkeletonBlock width={140} height={14} radius={8} />
+          </View>
+        </View>
+
+        <View style={[styles.progressBarContainer, { backgroundColor: 'rgba(255,255,255,0.12)' }]}>
+          <View style={{ height: '100%', width: '45%', backgroundColor: 'rgba(255,255,255,0.25)', borderRadius: 6 }} />
+        </View>
+
+        <View style={[styles.redeemButton, { backgroundColor: 'rgba(255,255,255,0.10)' }]}>
+          <SkeletonBlock width={140} height={14} radius={8} />
+        </View>
+      </View>
+
+      {/* Quick Actions */}
+      <SkeletonBlock width={140} height={16} radius={8} style={{ marginBottom: 12 }} />
+      <View style={styles.quickActionsContainer}>
+        {Array.from({ length: 6 }).map((_, idx) => (
+          <View key={`qa-skel-${idx}`} style={styles.actionButton}>
+            <View style={[styles.iconContainer, { backgroundColor: 'rgba(0,0,0,0.06)' }]}>
+              <SkeletonBlock width={24} height={24} radius={12} />
+            </View>
+            <SkeletonBlock width={54} height={12} radius={6} style={{ marginTop: 10 }} />
+          </View>
+        ))}
+      </View>
+
+      {/* Stats */}
+      <SkeletonBlock width={140} height={16} radius={8} style={{ marginTop: 8, marginBottom: 12 }} />
+      <View style={styles.statsGrid}>
+        {Array.from({ length: 4 }).map((_, idx) => (
+          <View key={`stat-skel-${idx}`} style={styles.statCard}>
+            <View style={[styles.miniIcon, { backgroundColor: 'rgba(0,0,0,0.06)' }]}>
+              <SkeletonBlock width={18} height={18} radius={9} />
+            </View>
+            <SkeletonBlock width={70} height={18} radius={8} style={{ marginTop: 10 }} />
+            <SkeletonBlock width={90} height={10} radius={6} style={{ marginTop: 8 }} />
+          </View>
+        ))}
+      </View>
+
+      {/* Motivation */}
+      <View style={styles.motivationCard}>
+        <View style={{ backgroundColor: 'transparent', flexDirection: 'row', alignItems: 'center', marginBottom: 8 }}>
+          <SkeletonBlock width={24} height={24} radius={12} style={{ marginRight: 8 }} />
+          <SkeletonBlock width={120} height={14} radius={8} />
+        </View>
+        <SkeletonBlock width={'100%'} height={12} radius={8} />
+        <SkeletonBlock width={'90%'} height={12} radius={8} style={{ marginTop: 8 }} />
+        <SkeletonBlock width={'70%'} height={12} radius={8} style={{ marginTop: 8 }} />
+      </View>
+    </View>
   );
 }
 

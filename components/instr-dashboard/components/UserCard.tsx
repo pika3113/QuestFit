@@ -1,5 +1,5 @@
 import React from 'react';
-import { Platform, View, Pressable } from 'react-native';
+import { Platform, View, Pressable, useWindowDimensions } from 'react-native';
 import { Text } from '@/components/Themed';
 import { router } from 'expo-router';
 import { instructorDashboardStyles as styles } from '@/src/styles/screens/instructorDashboardStyles';
@@ -12,10 +12,13 @@ interface UserCardProps {
 }
 
 export const UserCard = ({ user, overview }: UserCardProps) => {
+  const { width: windowWidth } = useWindowDimensions();
+  const compactNumbers = Platform.OS !== 'web' || windowWidth <= 420;
+
   const displayName = user.displayName || user.id;
 
   const formatValue = (value: number) => {
-    if (Platform.OS !== 'web' && Math.abs(value) >= 1000) return formatCompactNumber(value);
+    if (compactNumbers && Math.abs(value) >= 1000) return formatCompactNumber(value);
     return Math.round(value).toLocaleString();
   };
 

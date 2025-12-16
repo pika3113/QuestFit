@@ -60,7 +60,7 @@ export default function CreaturesScreen() {
   return (
     <SafeAreaView style={styles.container} edges={['top', 'left', 'right', 'bottom']}>
       <View style={styles.header}>
-        <Text style={styles.title}>Creatures</Text>
+        <Text style={[styles.title, localStyles.headerTitle]}>Creatures</Text>
         <Text style={styles.subtitle}>
           View creatures here. Complete workout challenges to unlock even more creatures!
         </Text>
@@ -248,6 +248,10 @@ export default function CreaturesScreen() {
 }
 
 const localStyles = StyleSheet.create({
+  headerTitle: {
+    fontSize: 20,
+    lineHeight: 24,
+  },
   searchContainer: {
     flexDirection: 'row',
     alignItems: 'center',

@@ -69,13 +69,13 @@ export const instructorDashboardScreenStyles = StyleSheet.create({
     zIndex: 1,
   },
   title: {
-    fontSize: 28,
+    fontSize: 20,
     fontWeight: 'bold',
     color: '#2D3436',
     textAlign: 'center',
   },
   headerTitleWideWeb: {
-    lineHeight: 34,
+    lineHeight: 24,
   },
   selectButton: {
     paddingHorizontal: 16,
