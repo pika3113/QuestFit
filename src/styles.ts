@@ -220,6 +220,11 @@ export const battleStyles = StyleSheet.create({
     color: '#6B7280',
     fontWeight: '600',
   },
+  specialContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  }
 });
 
 // Live Workout Tab Styles

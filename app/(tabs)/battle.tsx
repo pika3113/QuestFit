@@ -6,6 +6,7 @@ import React, { useEffect, useRef } from 'react';
 import { Animated, Easing } from 'react-native';
 import { Creature } from '@/src/types/polar';
 import { getRarityColor, getSportColor } from '@/src/styles';
+import SpecialIcon from '../../assets/images/special.svg'
 
 const creatureImages = require.context(
   '../../assets/images/creatures',
@@ -71,7 +72,7 @@ export default function BattleScreen() {
   const userCreatures = [allCreatures[0], allCreatures[3], allCreatures[5]]; // Placeholder for user's creatures
   const opponentCreatures = [allCreatures[6], allCreatures[21], allCreatures[22]]; // Placeholder for opponent's creatures
 
-  const userSelectedCreature = 0; // Placeholder user selected index
+  const userSelectedCreature = 2; // Placeholder user selected index
   const opponentSelectedCreature = 2; // Placeholder opponent selected index
 
   return (
@@ -174,9 +175,15 @@ export default function BattleScreen() {
             </View>
           </View>
           <IdleIcon 
-              creature={opponentCreatures[2]}
+              creature={opponentCreatures[opponentSelectedCreature]}
           /> 
         </View>
+      </View>
+      <View style={styles.specialContainer}>
+        <SpecialIcon 
+          style={{marginBottom: 12}} 
+          fill={getSportColor(userCreatures[userSelectedCreature].sport)[0]}
+        />
       </View>
     </View>
   );
