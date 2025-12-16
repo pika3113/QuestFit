@@ -320,7 +320,7 @@ export default function TabLayout() {
             <Pressable style={styles.overlayDismissLayer} onPress={() => setOverlayMenuVisible(false)} />
           )}
 
-          <View style={[styles.logoOverlay, { top: insets.top + 16 }]}>
+          <View pointerEvents="box-none" style={[styles.logoOverlay, { top: insets.top + 16 }]}>
             <Pressable
               accessibilityRole="button"
               accessibilityLabel="QuestFit menu"

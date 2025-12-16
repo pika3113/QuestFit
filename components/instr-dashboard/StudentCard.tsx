@@ -48,6 +48,7 @@ interface StudentCardProps {
   flag?: CadetFlag;
   flagSource?: CadetFlagSource;
   onChangeFlag?: (flag: CadetFlag) => void;
+  isLightDuty?: boolean;
 }
 
 type MetricType = 'hr' | 'distance' | 'sleep' | 'calories';
@@ -81,6 +82,7 @@ export const StudentCard: React.FC<StudentCardProps> = ({
   flag = 'none',
   flagSource = 'none',
   onChangeFlag,
+  isLightDuty = false,
 }) => {
   const { width: windowWidth, height: windowHeight } = useWindowDimensions();
   const [selectedMetric, setSelectedMetric] = useState<MetricType>('distance');
@@ -192,7 +194,14 @@ export const StudentCard: React.FC<StudentCardProps> = ({
             )}
           </View>
           <View>
-            <Text style={styles.userName}>{item.displayName}</Text>
+            <View style={styles.nameRow}>
+              <Text style={styles.userName}>{item.displayName}</Text>
+              {isLightDuty && (
+                <View style={styles.ldBadge}>
+                  <Text style={styles.ldBadgeText}>LD</Text>
+                </View>
+              )}
+            </View>
             <Text style={styles.lastSync}>Last Sync: {formatLastSync(item.lastSync)}</Text>
             <Text style={styles.lastSync}>Last Checked: {formatLastSync(item.lastChecked)}</Text>
           </View>
@@ -483,6 +492,24 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: '600',
     color: '#2D3436',
+  },
+  nameRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flexWrap: 'wrap',
+    columnGap: 8,
+    rowGap: 6,
+  },
+  ldBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 10,
+    backgroundColor: '#F3F4F6',
+  },
+  ldBadgeText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#636E72',
   },
   lastSync: {
     fontSize: 12,
