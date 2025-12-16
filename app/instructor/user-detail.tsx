@@ -277,7 +277,61 @@ export default function UserDetailScreen() {
     return `${year}-${month}-${day}`;
   };
 
-  const toUtcDateKey = (d: Date) => d.toISOString().split('T')[0];
+  const SG_TZ_OFFSET_MINUTES = 8 * 60;
+
+  const toTzOffsetDateKey = (d: Date, offsetMinutes: number) => {
+    const shifted = new Date(d.getTime() + offsetMinutes * 60_000);
+    const y = shifted.getUTCFullYear();
+    const m = String(shifted.getUTCMonth() + 1).padStart(2, '0');
+    const day = String(shifted.getUTCDate()).padStart(2, '0');
+    return `${y}-${m}-${day}`;
+  };
+
+  // Historical fallback: some docs were keyed using a UTC-based ISO date string.
+  // Use a fixed UTC+8 conversion instead of raw UTC to avoid shifting calendar days.
+  const toUtcDateKey = (d: Date) => toTzOffsetDateKey(d, SG_TZ_OFFSET_MINUTES);
+
+  const parseLocalDateKey = (ds: string) => {
+    const parts = String(ds).split('-').map((p) => Number(p));
+    if (parts.length !== 3) return new Date(NaN);
+    const [y, m, d] = parts;
+    return new Date(y, (m || 1) - 1, d || 1);
+  };
+
+  const toUtcKeyFromLocalKey = (ds: string) => {
+    const d = parseLocalDateKey(ds);
+    if (Number.isNaN(d.getTime())) return ds;
+    return toUtcDateKey(d);
+  };
+
+  const getDocsWithUtcFallback = useCallback(
+    async (uid: string, kind: 'activities' | 'exercises' | 'sleep' | 'cardioLoad', dateKeys: string[]) => {
+      const localKeys = dateKeys;
+      const utcKeys = dateKeys.map(toUtcKeyFromLocalKey);
+
+      const basePath = `users/${uid}/polarData/${kind}/all`;
+      const localSnaps = await Promise.all(localKeys.map((k) => getDoc(doc(db, `${basePath}/${k}`))));
+
+      const missingIdx: number[] = [];
+      for (let i = 0; i < localSnaps.length; i++) {
+        if (!localSnaps[i]?.exists() && utcKeys[i] && utcKeys[i] !== localKeys[i]) {
+          missingIdx.push(i);
+        }
+      }
+
+      if (missingIdx.length === 0) return localSnaps;
+
+      const fallbackSnaps = await Promise.all(
+        missingIdx.map((i) => getDoc(doc(db, `${basePath}/${utcKeys[i]}`)))
+      );
+
+      const fallbackByIndex = new Map<number, any>();
+      missingIdx.forEach((idx, j) => fallbackByIndex.set(idx, fallbackSnaps[j]));
+
+      return localSnaps.map((snap, i) => (snap?.exists() ? snap : (fallbackByIndex.get(i) || snap)));
+    },
+    []
+  );
 
   const rangeStartEndIso = useMemo(() => {
     const start = new Date(dateRange.start);
@@ -336,7 +390,7 @@ export default function UserDetailScreen() {
       for (let i = 0; i < days; i++) {
         const d = new Date(endDate);
         d.setDate(d.getDate() - i);
-        dates.push(toUtcDateKey(d));
+        dates.push(formatDate(d));
       }
       return dates;
     }
@@ -351,7 +405,7 @@ export default function UserDetailScreen() {
     for (let i = 0; i < boundedCount; i++) {
       const d = new Date(endDate);
       d.setDate(d.getDate() - i);
-      dates.push(toUtcDateKey(d));
+      dates.push(formatDate(d));
     }
 
     return dates;
@@ -395,18 +449,10 @@ export default function UserDetailScreen() {
   // Fetch radar data for a single user
   const fetchUserRadarData = async (uid: string, datesToCheck: string[]): Promise<RadarDataPoint> => {
     const [activityDocs, exercisesDocs, sleepDocs, cardioLoadDocs] = await Promise.all([
-      Promise.all(datesToCheck.map(date =>
-        getDoc(doc(db, `users/${uid}/polarData/activities/all/${date}`))
-      )),
-      Promise.all(datesToCheck.map(date =>
-        getDoc(doc(db, `users/${uid}/polarData/exercises/all/${date}`))
-      )),
-      Promise.all(datesToCheck.map(date =>
-        getDoc(doc(db, `users/${uid}/polarData/sleep/all/${date}`))
-      )),
-      Promise.all(datesToCheck.map(date =>
-        getDoc(doc(db, `users/${uid}/polarData/cardioLoad/all/${date}`))
-      )),
+      getDocsWithUtcFallback(uid, 'activities', datesToCheck),
+      getDocsWithUtcFallback(uid, 'exercises', datesToCheck),
+      getDocsWithUtcFallback(uid, 'sleep', datesToCheck),
+      getDocsWithUtcFallback(uid, 'cardioLoad', datesToCheck),
     ]);
 
     let totalSteps = 0, stepsCount = 0;
@@ -550,9 +596,36 @@ export default function UserDetailScreen() {
       const results = await Promise.all(
         dateStrings.map(async (ds) => {
           const [activitySnap, exercisesSnap, sleepSnap] = await Promise.all([
-            getDoc(doc(db, `users/${userId}/polarData/activities/all/${ds}`)),
-            getDoc(doc(db, `users/${userId}/polarData/exercises/all/${ds}`)),
-            getDoc(doc(db, `users/${userId}/polarData/sleep/all/${ds}`)),
+            (async () => {
+              const local = await getDoc(doc(db, `users/${userId}/polarData/activities/all/${ds}`));
+              if (local.exists()) return local;
+              const utcKey = toUtcKeyFromLocalKey(ds);
+              if (utcKey && utcKey !== ds) {
+                const fallback = await getDoc(doc(db, `users/${userId}/polarData/activities/all/${utcKey}`));
+                if (fallback.exists()) return fallback;
+              }
+              return local;
+            })(),
+            (async () => {
+              const local = await getDoc(doc(db, `users/${userId}/polarData/exercises/all/${ds}`));
+              if (local.exists()) return local;
+              const utcKey = toUtcKeyFromLocalKey(ds);
+              if (utcKey && utcKey !== ds) {
+                const fallback = await getDoc(doc(db, `users/${userId}/polarData/exercises/all/${utcKey}`));
+                if (fallback.exists()) return fallback;
+              }
+              return local;
+            })(),
+            (async () => {
+              const local = await getDoc(doc(db, `users/${userId}/polarData/sleep/all/${ds}`));
+              if (local.exists()) return local;
+              const utcKey = toUtcKeyFromLocalKey(ds);
+              if (utcKey && utcKey !== ds) {
+                const fallback = await getDoc(doc(db, `users/${userId}/polarData/sleep/all/${utcKey}`));
+                if (fallback.exists()) return fallback;
+              }
+              return local;
+            })(),
           ]);
 
           const activity = activitySnap.exists() ? activitySnap.data() : undefined;
@@ -626,7 +699,7 @@ export default function UserDetailScreen() {
     } finally {
       setLoadingRange(false);
     }
-  }, [dateStrings, userId]);
+  }, [dateStrings, userId, toUtcKeyFromLocalKey]);
 
   const checkExistingAISummary = async () => {
     if (!userId) return;

@@ -1,5 +1,17 @@
-import { getRarityColor, getSportColor } from '@/src/styles';
 import { StyleSheet } from 'react-native';
+
+export const LEGENDARY_BADGE_GRADIENT_COLORS = ['#FF5A5F', '#00D084', '#A855F7'] as const;
+
+export const LEGENDARY_SPECTRUM_GRADIENT_COLORS = [
+  '#FF3B30',
+  '#FF9500',
+  '#FFCC00',
+  '#34C759',
+  '#5AC8FA',
+  '#007AFF',
+  '#5856D6',
+  '#AF52DE',
+] as const;
 
 export const creatureCardStyles = StyleSheet.create({
   container: {
@@ -34,18 +46,29 @@ export const creatureCardStyles = StyleSheet.create({
     alignSelf: 'center',
     fontWeight: 'normal',
   },
-  rarity: {
+  sport: {
     fontSize: 12,
     fontWeight: '600',
     alignSelf: 'center',
     marginLeft: 8,
   },
-  sportBadge: {
+  rarityBadge: {
     fontSize: 12,
     paddingHorizontal: 12,
     paddingVertical: 4,
     borderRadius: 12,
     marginLeft: 8,
+  },
+  legendaryBadge: {
+    paddingHorizontal: 12,
+    paddingVertical: 4,
+    borderRadius: 12,
+    marginLeft: 8,
+  },
+  legendaryBadgeText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#FFFFFF',
   },
   stats: {
     flexDirection: 'row',
@@ -131,6 +154,35 @@ export const creatureCardStyles = StyleSheet.create({
     shadowRadius: 3.84,
     elevation: 5,
   },
+
+  legendaryCardBorderWrap: {
+    borderRadius: 12,
+    padding: 2,
+    shadowColor: '#1F2937',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.1,
+    shadowRadius: 3.84,
+    elevation: 5,
+  },
+  legendaryCardInner: {
+    borderWidth: 0,
+    margin: 0,
+    width: '100%',
+    borderRadius: 10,
+    overflow: 'hidden',
+  },
+  legendaryCardBackground: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    top: 0,
+    bottom: 0,
+    opacity: 0.2,
+    borderRadius: 10,
+  },
   closeButton: {
     backgroundColor: '#3B82F6',
     paddingHorizontal: 24,
@@ -168,5 +220,37 @@ export const creatureCardStyles = StyleSheet.create({
     shadowOpacity: 0.3,
     shadowRadius: 8,
     elevation: 10,
+  },
+
+  legendaryModalBorderWrap: {
+    borderRadius: 20,
+    padding: 3,
+    width: '100%',
+    maxWidth: 400,
+  },
+  legendaryModalInner: {
+    borderRadius: 17,
+    overflow: 'hidden',
+    backgroundColor: '#FFFFFF',
+    padding: 24,
+    width: '100%',
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 4,
+    },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 10,
+  },
+  legendaryModalBackground: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    top: 0,
+    bottom: 0,
+    opacity: 0.2,
+    borderRadius: 17,
   },
 });
