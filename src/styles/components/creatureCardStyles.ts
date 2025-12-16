@@ -38,12 +38,14 @@ export const creatureCardStyles = StyleSheet.create({
     fontSize: 18,
     fontWeight: 'bold',
     color: '#1F2937',
-    alignSelf: 'center',
+    alignSelf: 'flex-start',
+    textAlign: 'left',
   },
   id: {
     fontSize: 12,
     color: '#6B7280',
-    alignSelf: 'center',
+    alignSelf: 'flex-start',
+    textAlign: 'left',
     fontWeight: 'normal',
   },
   sport: {
