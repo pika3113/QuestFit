@@ -9,13 +9,16 @@ import {
   Modal,
   Alert
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { Text, View } from '@/components/Themed';
+import { SkeletonBlock } from '@/components/Skeleton';
 import { useGameProfile } from '@/src/hooks/useGameProfile';
 import { useAuth } from '@/src/hooks/useAuth';
 import { useInstructor } from '@/src/hooks/useInstructor';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { getNextReward, getRewardProgress, REWARDS, Reward, MAX_XP } from '@/src/utils/rewardsSystem';
+import { formatDateDdMmYyyy } from '@/src/utils/dateFormat';
 
 const { width } = Dimensions.get('window');
 
@@ -58,8 +61,7 @@ export default function HomeScreen() {
   };
 
   const formatDate = () => {
-    const options: Intl.DateTimeFormatOptions = { weekday: 'long', month: 'long', day: 'numeric' };
-    return new Date().toLocaleDateString('en-US', options);
+    return formatDateDdMmYyyy(new Date());
   };
 
   const performRedemption = async (reward: Reward) => {
@@ -97,6 +99,16 @@ export default function HomeScreen() {
     }
   };
 
+  const formatRewardLabelForBar = (rewardName: string) => {
+    const base = typeof rewardName === 'string' ? rewardName.replace(/\s+tier\s*$/i, '').trim() : '';
+    if (!base) return '';
+
+    const match = base.match(/^\$(\d+(?:\.\d+)?)\b[\s\S]*\bvoucher\b/i);
+    if (match) return `$${match[1]} Voucher`;
+
+    return base;
+  };
+
   const handleRedeem = async (reward: Reward) => {
     if ((profile?.xp || 0) < reward.xpThreshold) {
       if (Platform.OS === 'web') {
@@ -108,14 +120,14 @@ export default function HomeScreen() {
     }
     
     if (Platform.OS === 'web') {
-      const confirmed = window.confirm(`Are you sure you want to redeem ${reward.name} for ${reward.xpThreshold} XP?`);
+      const confirmed = window.confirm(`Are you sure you want to redeem ${reward.name} for ${reward.xpThreshold} QP?`);
       if (confirmed) {
         await performRedemption(reward);
       }
     } else {
       Alert.alert(
         "Redeem Reward",
-        `Are you sure you want to redeem ${reward.name} for ${reward.xpThreshold} XP?`,
+        `Are you sure you want to redeem ${reward.name} for ${reward.xpThreshold} QP?`,
         [
           { text: "Cancel", style: "cancel" },
           { 
@@ -129,9 +141,15 @@ export default function HomeScreen() {
 
   if (loading && !profile) {
     return (
-      <View style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
-        <Text>Loading your adventure...</Text>
-      </View>
+      <SafeAreaView style={{ flex: 1, backgroundColor: ModernColors.background }} edges={['top', 'left', 'right', 'bottom']}>
+        <ScrollView
+          style={styles.scrollView}
+          contentContainerStyle={styles.contentContainer}
+          scrollEnabled={false}
+        >
+          <HomeSkeleton />
+        </ScrollView>
+      </SafeAreaView>
     );
   }
 
@@ -140,6 +158,7 @@ export default function HomeScreen() {
   const creatureCount = profile?.capturedCreatures?.length || 0;
 
   return (
+    <SafeAreaView style={{ flex: 1, backgroundColor: ModernColors.background }} edges={['top', 'left', 'right', 'bottom']}>
     <ScrollView 
       style={styles.scrollView} 
       contentContainerStyle={styles.contentContainer}
@@ -168,7 +187,7 @@ export default function HomeScreen() {
       <View style={styles.levelCard}>
         <View style={styles.levelInfo}>
           <View style={{ backgroundColor: 'transparent' }}>
-            <Text style={styles.levelLabel}>Total Experience</Text>
+            <Text style={styles.levelLabel}>Total QuestPoints</Text>
             <Text style={styles.levelValue}>{profile?.xp || 0}</Text>
           </View>
           <View style={styles.xpBadge}>
@@ -180,7 +199,7 @@ export default function HomeScreen() {
         <View style={styles.rewardLabelsContainer}>
           {REWARDS.map((reward) => {
             const percentage = (reward.xpThreshold / MAX_XP) * 100;
-            const name = reward.name.replace(' Tier', '');
+            const name = formatRewardLabelForBar(reward.name);
             return (
               <Text 
                 key={reward.id} 
@@ -232,13 +251,19 @@ export default function HomeScreen() {
           icon="fitness" 
           label="Workout" 
           color="#FF6B35" 
-          onPress={() => router.push('/(tabs)/multi-device')} 
+          onPress={() => router.push('/(tabs)/workout')} 
         />
         <QuickActionButton 
           icon="paw" 
           label="Creatures" 
           color="#2E86AB" 
           onPress={() => router.push('/(tabs)/creatures')} 
+        />
+        <QuickActionButton 
+          icon="medal"
+          label="Achievements"
+          color="#00B894"
+          onPress={() => router.push('/achievements')}
         />
         <QuickActionButton 
           icon="trophy" 
@@ -318,7 +343,7 @@ export default function HomeScreen() {
                 <Ionicons name="close" size={24} color={ModernColors.text} />
               </TouchableOpacity>
             </View>
-            <Text style={styles.modalSubtitle}>Current XP: {profile?.xp || 0}</Text>
+            <Text style={styles.modalSubtitle}>Current QPs: {profile?.xp || 0}</Text>
             
             <ScrollView style={styles.rewardsList}>
               {REWARDS.map((reward) => {
@@ -327,7 +352,7 @@ export default function HomeScreen() {
                   <View key={reward.id} style={styles.rewardItem}>
                     <View style={{flex: 1, backgroundColor: 'transparent'}}>
                       <Text style={styles.rewardName}>{reward.name}</Text>
-                      <Text style={styles.rewardCost}>{reward.xpThreshold} XP</Text>
+                      <Text style={styles.rewardCost}>{reward.xpThreshold} QP</Text>
                     </View>
                     <TouchableOpacity 
                       style={[styles.redeemActionBtn, !canRedeem && styles.redeemActionBtnDisabled]}
@@ -346,6 +371,84 @@ export default function HomeScreen() {
         </View>
       </Modal>
     </ScrollView>
+    </SafeAreaView>
+  );
+}
+
+function HomeSkeleton() {
+  return (
+    <View style={{ backgroundColor: 'transparent' }}>
+      {/* Header */}
+      <View style={styles.header}>
+        <View style={{ backgroundColor: 'transparent', flex: 1, paddingRight: 12 }}>
+          <SkeletonBlock width={120} height={12} radius={6} />
+          <SkeletonBlock width={180} height={22} radius={10} style={{ marginTop: 10 }} />
+          <SkeletonBlock width={220} height={26} radius={12} style={{ marginTop: 10 }} />
+        </View>
+        <View style={styles.avatarPlaceholder}>
+          <SkeletonBlock width={46} height={46} radius={23} />
+        </View>
+      </View>
+
+      {/* Progress / Level Card */}
+      <View style={styles.levelCard}>
+        <View style={[styles.levelInfo, { backgroundColor: 'transparent' }]}>
+          <View style={{ backgroundColor: 'transparent' }}>
+            <SkeletonBlock width={160} height={12} radius={6} />
+            <SkeletonBlock width={110} height={34} radius={12} style={{ marginTop: 12 }} />
+          </View>
+          <View style={[styles.xpBadge, { backgroundColor: 'rgba(255,255,255,0.12)' }]}>
+            <SkeletonBlock width={140} height={14} radius={8} />
+          </View>
+        </View>
+
+        <View style={[styles.progressBarContainer, { backgroundColor: 'rgba(255,255,255,0.12)' }]}>
+          <View style={{ height: '100%', width: '45%', backgroundColor: 'rgba(255,255,255,0.25)', borderRadius: 6 }} />
+        </View>
+
+        <View style={[styles.redeemButton, { backgroundColor: 'rgba(255,255,255,0.10)' }]}>
+          <SkeletonBlock width={140} height={14} radius={8} />
+        </View>
+      </View>
+
+      {/* Quick Actions */}
+      <SkeletonBlock width={140} height={16} radius={8} style={{ marginBottom: 12 }} />
+      <View style={styles.quickActionsContainer}>
+        {Array.from({ length: 6 }).map((_, idx) => (
+          <View key={`qa-skel-${idx}`} style={styles.actionButton}>
+            <View style={[styles.iconContainer, { backgroundColor: 'rgba(0,0,0,0.06)' }]}>
+              <SkeletonBlock width={24} height={24} radius={12} />
+            </View>
+            <SkeletonBlock width={54} height={12} radius={6} style={{ marginTop: 10 }} />
+          </View>
+        ))}
+      </View>
+
+      {/* Stats */}
+      <SkeletonBlock width={140} height={16} radius={8} style={{ marginTop: 8, marginBottom: 12 }} />
+      <View style={styles.statsGrid}>
+        {Array.from({ length: 4 }).map((_, idx) => (
+          <View key={`stat-skel-${idx}`} style={styles.statCard}>
+            <View style={[styles.miniIcon, { backgroundColor: 'rgba(0,0,0,0.06)' }]}>
+              <SkeletonBlock width={18} height={18} radius={9} />
+            </View>
+            <SkeletonBlock width={70} height={18} radius={8} style={{ marginTop: 10 }} />
+            <SkeletonBlock width={90} height={10} radius={6} style={{ marginTop: 8 }} />
+          </View>
+        ))}
+      </View>
+
+      {/* Motivation */}
+      <View style={styles.motivationCard}>
+        <View style={{ backgroundColor: 'transparent', flexDirection: 'row', alignItems: 'center', marginBottom: 8 }}>
+          <SkeletonBlock width={24} height={24} radius={12} style={{ marginRight: 8 }} />
+          <SkeletonBlock width={120} height={14} radius={8} />
+        </View>
+        <SkeletonBlock width={'100%'} height={12} radius={8} />
+        <SkeletonBlock width={'90%'} height={12} radius={8} style={{ marginTop: 8 }} />
+        <SkeletonBlock width={'70%'} height={12} radius={8} style={{ marginTop: 8 }} />
+      </View>
+    </View>
   );
 }
 

@@ -1,5 +1,6 @@
 import { useEffect } from 'react';
 import { View, ActivityIndicator, StyleSheet } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Text } from '@/components/Themed';
 
@@ -30,10 +31,10 @@ export default function PolarOAuthCallback() {
   }, [params, router]);
 
   return (
-    <View style={styles.container}>
+    <SafeAreaView style={styles.container}>
       <ActivityIndicator size="large" color="#007AFF" />
       <Text style={styles.text}>Completing authorization...</Text>
-    </View>
+    </SafeAreaView>
   );
 }
 

@@ -1,27 +1,72 @@
-import type { VercelRequest, VercelResponse } from '@vercel/node';
+import type { VercelRequest, VercelResponse } from '../vercel-types';
 import crypto from 'crypto';
 import axios from 'axios';
 import dotenv from 'dotenv';
 
 dotenv.config();
 
-const admin = require('firebase-admin');
+// Polar signs the raw request body. Vercel's default JSON body parsing can
+// change formatting and break signature verification, so we disable it.
+export const config = {
+  api: {
+    bodyParser: false,
+  },
+};
 
-// Initialize Firebase Admin
-if (admin.apps.length === 0) {
-  admin.initializeApp({
-    credential: admin.credential.cert({
-      projectId: process.env.FIREBASE_PROJECT_ID,
-      clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
-      privateKey: process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, '\n'),
-    }),
+let admin: any;
+let db: any;
+
+function getDb() {
+  if (db) return db;
+  if (!admin) admin = require('firebase-admin');
+
+  if (admin.apps.length === 0) {
+    admin.initializeApp({
+      credential: admin.credential.cert({
+        projectId: process.env.FIREBASE_PROJECT_ID,
+        clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
+        privateKey: process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, '\n'),
+      }),
+    });
+  }
+
+  db = admin.firestore();
+  return db;
+}
+
+// Signature secret from Polar webhook creation (store in env)
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null;
+}
+
+function getString(obj: Record<string, unknown>, key: string): string | undefined {
+  const value = obj[key];
+  return typeof value === 'string' ? value : undefined;
+}
+
+async function readRawBody(req: any): Promise<Buffer> {
+  return await new Promise<Buffer>((resolve, reject) => {
+    const chunks: Buffer[] = [];
+    req.on('data', (chunk: Buffer) => chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk)));
+    req.on('end', () => resolve(Buffer.concat(chunks)));
+    req.on('error', reject);
   });
 }
 
-const db = admin.firestore();
+function getHeader(req: VercelRequest, name: string): string | undefined {
+  const value =
+    (req.headers?.[name] ??
+      req.headers?.[name.toLowerCase()] ??
+      req.headers?.[name.toUpperCase()]) as string | string[] | undefined;
+  return Array.isArray(value) ? value[0] : value;
+}
 
-// Signature secret from Polar webhook creation
-const SIGNATURE_SECRET = 'b9ea4ffb-963e-4c44-b607-cc0617124ebc';
+function isPing(body: Record<string, unknown>, req: VercelRequest) {
+  const event = getString(body, 'event');
+  const headerEvent = getHeader(req, 'polar-webhook-event');
+  return (event && event.toUpperCase() === 'PING') || (headerEvent && headerEvent.toUpperCase() === 'PING');
+}
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   console.log('Webhook received:', req.method);
@@ -34,35 +79,71 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     });
   }
 
-  // Handle ping from Polar during webhook creation
-  if (req.method === 'POST' && req.body?.ping) {
-    console.log('Ping received from Polar');
-    return res.status(200).json({ message: 'Pong' });
-  }
-
-  // Handle actual webhook notifications
   if (req.method === 'POST') {
-    const signature = req.headers['polar-webhook-signature'] as string;
-    
-    // Verify signature
-    if (signature) {
-      const body = JSON.stringify(req.body);
-      const expectedSignature = crypto
-        .createHmac('sha256', SIGNATURE_SECRET)
-        .update(body)
-        .digest('hex');
-      
-      if (signature !== expectedSignature) {
-        console.error('Invalid signature - Expected:', expectedSignature, 'Got:', signature);
-        return res.status(401).json({ error: 'Invalid signature' });
-      }
-      
-      console.log('Signature verified');
+    let parsedBody: unknown;
+    const rawBodyBuf = await readRawBody(req as any);
+    const rawBody = rawBodyBuf.toString('utf8');
+    try {
+      parsedBody = rawBody ? JSON.parse(rawBody) : undefined;
+    } catch {
+      console.log('Webhook body is not valid JSON; ignoring');
+      return res.status(200).json({ message: 'Invalid payload, ignoring' });
     }
 
-    console.log('Webhook event received:', JSON.stringify(req.body, null, 2));
-    
-    const { event, url, user_id: polarUserId, date: webhookDate } = req.body;
+    const bodyRecord = isRecord(parsedBody) ? (parsedBody as Record<string, unknown>) : undefined;
+    if (!bodyRecord) {
+      console.log('Webhook body is not an object; ignoring');
+      return res.status(200).json({ message: 'Invalid payload, ignoring' });
+    }
+
+    // Handle ping from Polar during webhook creation/validation.
+    // Polar can send event=PING and/or Polar-Webhook-Event: PING.
+    if (isPing(bodyRecord, req)) {
+      console.log('Ping received from Polar');
+      return res.status(200).json({ message: 'Pong' });
+    }
+
+    const signature = getHeader(req, 'polar-webhook-signature');
+    const signatureSecret = process.env.POLAR_WEBHOOK_SIGNATURE_SECRET;
+
+    // Verify signature (fail closed) for real webhook deliveries
+    if (!signatureSecret) {
+      console.error('Missing POLAR_WEBHOOK_SIGNATURE_SECRET env var');
+      return res.status(500).json({ error: 'Server misconfigured' });
+    }
+
+    if (!signature) {
+      console.error('Missing polar-webhook-signature header');
+      return res.status(401).json({ error: 'Missing signature' });
+    }
+
+    const expectedSignature = crypto
+      .createHmac('sha256', signatureSecret)
+      .update(rawBody)
+      .digest('hex');
+
+    const sigBuf = Buffer.from(signature, 'utf8');
+    const expBuf = Buffer.from(expectedSignature, 'utf8');
+    const ok = sigBuf.length === expBuf.length && crypto.timingSafeEqual(sigBuf, expBuf);
+    if (!ok) {
+      console.error('Invalid signature');
+      return res.status(401).json({ error: 'Invalid signature' });
+    }
+
+    console.log('Signature verified');
+
+    console.log('Webhook event received:', JSON.stringify(bodyRecord, null, 2));
+
+    const event = getString(bodyRecord, 'event');
+    const url = getString(bodyRecord, 'url');
+    const webhookDate = getString(bodyRecord, 'date');
+    const polarUserIdRaw = bodyRecord['user_id'];
+    const polarUserId =
+      typeof polarUserIdRaw === 'string'
+        ? polarUserIdRaw
+        : typeof polarUserIdRaw === 'number'
+          ? String(polarUserIdRaw)
+          : undefined;
 
     if (!url || !polarUserId) {
         console.log('Missing url or user_id in webhook payload');
@@ -70,6 +151,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
 
     try {
+      const db = getDb();
         // 1. Find the user
         // The document ID is the Polar User ID
         console.log(`Looking up user for Polar ID: ${polarUserId}`);
@@ -82,6 +164,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     
         const userId = userDoc.id;
         console.log(`Found Firebase User ID: ${userId}`);
+
+        // Record that we received/processed a valid webhook delivery for this user.
+        const checkedAt = new Date().toISOString();
+        await db.collection('users').doc(userId).set({ lastChecked: checkedAt }, { merge: true });
 
         const userData = userDoc.data();
         const accessToken = userData.polarAccessToken;
@@ -122,11 +208,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                  const date = startTime.split('T')[0];
                  console.log(`Processing EXERCISE for date: ${date}`);
                  
-                 // Update deviceId if present in the exercise data
+                 // Update deviceID if present in the exercise data
                  if (data.device_id) {
-                     console.log(`Updating deviceId for user ${userId} to ${data.device_id}`);
+                     console.log(`Updating deviceID for user ${userId} to ${data.device_id}`);
                      await db.collection('users').doc(userId).set({
-                         deviceId: data.device_id
+                         deviceID: data.device_id
                      }, { merge: true });
                  }
 

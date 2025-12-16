@@ -8,18 +8,23 @@ import {
   Platform,
   Modal,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { Text } from '@/components/Themed';
 import { useLocalSearchParams, router, Stack } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import DateTimePicker from '@react-native-community/datetimepicker';
+import { formatDateDdMmYyyy } from '@/src/utils/dateFormat';
 import { db } from '@/src/services/firebase';
 import { collection, getDocs, doc, getDoc, query, where, documentId } from 'firebase/firestore';
 import Colors from '@/constants/Colors';
+import { formatIsoDurationHms as formatDuration } from '@/src/utils/formatDuration';
+import { SkeletonBlock } from '@/components/Skeleton';
 
 interface Exercise {
   id: string;
   userId: string;
   userName: string;
+  date: string; // YYYY-MM-DD (Firestore doc id)
   sport: string;
   startTime: string;
   duration: string;
@@ -38,6 +43,29 @@ export default function AllExercisesScreen() {
   const params = useLocalSearchParams();
   const userIdsParam = params.userIds as string;
   const initialDateParam = params.initialDate as string;
+  const startDateParam = params.startDate as string;
+  const endDateParam = params.endDate as string;
+
+  const parseIsoDateLocal = (value?: string) => {
+    if (!value) return null;
+    const m = String(value).match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    if (m) {
+      const y = Number(m[1]);
+      const mo = Number(m[2]) - 1;
+      const d = Number(m[3]);
+      const dt = new Date(y, mo, d);
+      return isNaN(dt.getTime()) ? null : dt;
+    }
+    const dt = new Date(value);
+    return isNaN(dt.getTime()) ? null : dt;
+  };
+
+  const formatYmdLocal = (date: Date) => {
+    const y = date.getFullYear();
+    const m = String(date.getMonth() + 1).padStart(2, '0');
+    const d = String(date.getDate()).padStart(2, '0');
+    return `${y}-${m}-${d}`;
+  };
 
   const [loading, setLoading] = useState(true);
   const [exercises, setExercises] = useState<Exercise[]>([]);
@@ -45,11 +73,15 @@ export default function AllExercisesScreen() {
 
   // Filters
   const [startDate, setStartDate] = useState(() => {
-    const d = initialDateParam ? new Date(initialDateParam) : new Date();
+    const explicitStart = parseIsoDateLocal(startDateParam);
+    if (explicitStart) return explicitStart;
+    const d = parseIsoDateLocal(initialDateParam) ?? new Date();
     return new Date(d.getFullYear(), d.getMonth(), 1);
   });
   const [endDate, setEndDate] = useState(() => {
-    const d = initialDateParam ? new Date(initialDateParam) : new Date();
+    const explicitEnd = parseIsoDateLocal(endDateParam);
+    if (explicitEnd) return explicitEnd;
+    const d = parseIsoDateLocal(initialDateParam) ?? new Date();
     return new Date(d.getFullYear(), d.getMonth() + 1, 0);
   });
   const [selectedUserId, setSelectedUserId] = useState<string>('all');
@@ -84,8 +116,8 @@ export default function AllExercisesScreen() {
 
       // 2. Fetch Exercises
       const allExercises: Exercise[] = [];
-      const startStr = start.toISOString().split('T')[0];
-      const endStr = end.toISOString().split('T')[0];
+      const startStr = formatYmdLocal(start);
+      const endStr = formatYmdLocal(end);
 
       for (const user of userProfiles) {
         // Query documents by ID range (dates)
@@ -105,6 +137,7 @@ export default function AllExercisesScreen() {
                 id: ex.id,
                 userId: user.id,
                 userName: user.displayName,
+                date: doc.id,
                 sport: ex.sport || 'Unknown Sport',
                 startTime: ex.start_time,
                 duration: ex.duration,
@@ -164,32 +197,24 @@ export default function AllExercisesScreen() {
     loadData(startDate, endDate);
   };
 
-  const formatDuration = (isoDuration: string) => {
-    if (!isoDuration) return '-';
-    const match = isoDuration.match(/PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+(?:\.\d+)?)S)?/);
-    if (!match) return isoDuration;
-    const h = match[1] ? `${match[1]}h ` : '';
-    const m = match[2] ? `${match[2]}m` : '';
-    return `${h}${m}`.trim() || '0m';
-  };
-
   const formatDate = (isoString: string) => {
-    return new Date(isoString).toLocaleDateString() + ' ' + new Date(isoString).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    const d = new Date(isoString);
+    return `${formatDateDdMmYyyy(d)} ${d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
   };
 
   return (
-    <View style={styles.container}>
+    <SafeAreaView style={styles.container} edges={['top', 'left', 'right', 'bottom']}>
       <Stack.Screen options={{ title: 'All Exercises' }} />
       
       {/* Filters Header */}
       <View style={styles.filtersContainer}>
         <View style={styles.dateRow}>
             <Pressable onPress={() => setShowStartDatePicker(true)} style={styles.dateButton}>
-                <Text style={styles.dateLabel}>From: {startDate.toLocaleDateString()}</Text>
+                <Text style={styles.dateLabel}>From: {formatDateDdMmYyyy(startDate)}</Text>
             </Pressable>
             <Ionicons name="arrow-forward" size={16} color="#666" />
             <Pressable onPress={() => setShowEndDatePicker(true)} style={styles.dateButton}>
-                <Text style={styles.dateLabel}>To: {endDate.toLocaleDateString()}</Text>
+                <Text style={styles.dateLabel}>To: {formatDateDdMmYyyy(endDate)}</Text>
             </Pressable>
             <Pressable onPress={handleRefresh} style={styles.refreshButton}>
                 <Ionicons name="refresh" size={20} color="#FF6B35" />
@@ -219,45 +244,84 @@ export default function AllExercisesScreen() {
 
       {/* Content */}
       {loading ? (
-        <View style={styles.centerContainer}>
-          <ActivityIndicator size="large" color="#FF6B35" />
-          <Text style={{ marginTop: 10 }}>Loading exercises...</Text>
-        </View>
+        <ScrollView style={styles.listContainer} contentContainerStyle={{ paddingTop: 8 }}>
+          <Text style={styles.resultsCount}>Loading…</Text>
+          {Array.from({ length: 6 }).map((_, idx) => (
+            <View key={idx} style={styles.card}>
+              <View style={styles.cardHeader}>
+                <SkeletonBlock width={140} height={14} radius={6} />
+                <SkeletonBlock width={110} height={12} radius={6} />
+              </View>
+              <View style={styles.cardBody}>
+                <View style={styles.statRow}>
+                  <View style={styles.statItem}>
+                    <SkeletonBlock width={60} height={10} radius={6} />
+                    <SkeletonBlock width={120} height={14} radius={6} style={{ marginTop: 8 }} />
+                  </View>
+                  <View style={styles.statItem}>
+                    <SkeletonBlock width={70} height={10} radius={6} />
+                    <SkeletonBlock width={90} height={14} radius={6} style={{ marginTop: 8 }} />
+                  </View>
+                </View>
+                <View style={styles.statRow}>
+                  <View style={styles.statItem}>
+                    <SkeletonBlock width={70} height={10} radius={6} />
+                    <SkeletonBlock width={110} height={14} radius={6} style={{ marginTop: 8 }} />
+                  </View>
+                  <View style={styles.statItem}>
+                    <SkeletonBlock width={55} height={10} radius={6} />
+                    <SkeletonBlock width={80} height={14} radius={6} style={{ marginTop: 8 }} />
+                  </View>
+                </View>
+              </View>
+            </View>
+          ))}
+          <View style={{ height: 40 }} />
+        </ScrollView>
       ) : (
         <ScrollView style={styles.listContainer}>
             <Text style={styles.resultsCount}>{filteredExercises.length} exercises found</Text>
             
             {filteredExercises.map((ex) => (
-                <View key={ex.id} style={styles.card}>
-                    <View style={styles.cardHeader}>
-                        <Text style={styles.userName}>{ex.userName}</Text>
-                        <Text style={styles.date}>{formatDate(ex.startTime)}</Text>
-                    </View>
-                    
-                    <View style={styles.cardBody}>
-                        <View style={styles.statRow}>
-                            <View style={styles.statItem}>
-                                <Text style={styles.statLabel}>Sport</Text>
-                                <Text style={styles.statValue}>{ex.sport}</Text>
-                            </View>
-                            <View style={styles.statItem}>
-                                <Text style={styles.statLabel}>Duration</Text>
-                                <Text style={styles.statValue}>{formatDuration(ex.duration)}</Text>
-                            </View>
-                        </View>
-                        
-                        <View style={styles.statRow}>
-                            <View style={styles.statItem}>
-                                <Text style={styles.statLabel}>Calories</Text>
-                                <Text style={[styles.statValue, { color: '#FF6B35' }]}>{ex.calories} kcal</Text>
-                            </View>
-                            <View style={styles.statItem}>
-                                <Text style={styles.statLabel}>Avg HR</Text>
-                                <Text style={styles.statValue}>{ex.heartRateAvg} bpm</Text>
-                            </View>
-                        </View>
-                    </View>
+              <Pressable
+                key={`${ex.userId}-${ex.date}-${ex.id}`}
+                style={styles.card}
+                onPress={() => {
+                  router.push({
+                    pathname: '/exercise/[date]/[exerciseId]',
+                    params: { date: ex.date, exerciseId: ex.id, userId: ex.userId },
+                  });
+                }}
+              >
+                <View style={styles.cardHeader}>
+                  <Text style={styles.userName}>{ex.userName}</Text>
+                  <Text style={styles.date}>{formatDate(ex.startTime)}</Text>
                 </View>
+                    
+                <View style={styles.cardBody}>
+                  <View style={styles.statRow}>
+                    <View style={styles.statItem}>
+                      <Text style={styles.statLabel}>Sport</Text>
+                      <Text style={styles.statValue}>{ex.sport}</Text>
+                    </View>
+                    <View style={styles.statItem}>
+                      <Text style={styles.statLabel}>Duration</Text>
+                      <Text style={styles.statValue}>{formatDuration(ex.duration)}</Text>
+                    </View>
+                  </View>
+                        
+                  <View style={styles.statRow}>
+                    <View style={styles.statItem}>
+                      <Text style={styles.statLabel}>Calories</Text>
+                      <Text style={[styles.statValue, { color: '#FF6B35' }]}>{ex.calories} kcal</Text>
+                    </View>
+                    <View style={styles.statItem}>
+                      <Text style={styles.statLabel}>Avg HR</Text>
+                      <Text style={styles.statValue}>{ex.heartRateAvg} bpm</Text>
+                    </View>
+                  </View>
+                </View>
+              </Pressable>
             ))}
             <View style={{ height: 40 }} />
         </ScrollView>
@@ -329,7 +393,7 @@ export default function AllExercisesScreen() {
         </Pressable>
       </Modal>
 
-    </View>
+    </SafeAreaView>
   );
 }
 

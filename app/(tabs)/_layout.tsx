@@ -1,8 +1,20 @@
 import React, { useState, useEffect } from 'react';
 import FontAwesome from '@expo/vector-icons/FontAwesome';
 import FontAwesome6 from '@expo/vector-icons/FontAwesome6';
-import { Tabs } from 'expo-router';
-import { Pressable, StyleSheet, Image, View, Modal, Alert, ActivityIndicator } from 'react-native';
+import { Tabs, usePathname } from 'expo-router';
+import {
+  Pressable,
+  StyleSheet,
+  Image,
+  View,
+  Modal,
+  Alert,
+  ActivityIndicator,
+  Platform,
+  Animated,
+  Easing,
+} from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Text } from '@/components/Themed';
 import Colors from '@/constants/Colors';
 import { useColorScheme } from '@/components/useColorScheme';
@@ -39,6 +51,26 @@ export default function TabLayout() {
   const [hasPolarToken, setHasPolarToken] = useState(false);
   const [showConsentModal, setShowConsentModal] = useState(false);
   const [consentLoading, setConsentLoading] = useState(false);
+  const [overlayMenuOpen, setOverlayMenuOpen] = useState(false);
+  const pathname = usePathname();
+  const insets = useSafeAreaInsets();
+
+  const defaultTabBarPaddingBottom = Platform.OS === 'ios' ? 28 : 10;
+  const tabBarPaddingBottom = Math.max(insets.bottom, defaultTabBarPaddingBottom);
+  const TAB_BAR_HEIGHT_SCALE = 0.85;
+  const tabBarBaseHeight = Platform.OS === 'ios' ? 85 : 65;
+  const tabBarHeight = tabBarBaseHeight * TAB_BAR_HEIGHT_SCALE + (tabBarPaddingBottom - defaultTabBarPaddingBottom);
+  const tabBarPaddingTop = Math.round(10 * TAB_BAR_HEIGHT_SCALE);
+
+  const overlayAnim = React.useRef(new Animated.Value(0)).current;
+
+  const isHomeTab = pathname === '/home' || pathname.endsWith('/home');
+
+  useEffect(() => {
+    // Close the overlay menu on navigation.
+    setOverlayMenuOpen(false);
+    overlayAnim.setValue(0);
+  }, [pathname, overlayAnim]);
 
   useEffect(() => {
     checkPolarToken();
@@ -59,13 +91,23 @@ export default function TabLayout() {
     }
   };
 
+  const setOverlayMenuVisible = (visible: boolean) => {
+    setOverlayMenuOpen(visible);
+    Animated.timing(overlayAnim, {
+      toValue: visible ? 1 : 0,
+      duration: 180,
+      easing: Easing.out(Easing.cubic),
+      useNativeDriver: true,
+    }).start();
+  };
+
   const handleLinkPolar = async () => {
     if (!user) return;
-    
+
     try {
       console.log('🔗 Starting Polar OAuth flow...');
       const result = await polarOAuthService.startOAuthFlow(user.uid);
-      
+
       if (result) {
         console.log('✅ Polar account linked successfully!');
         setHasPolarToken(true);
@@ -102,7 +144,10 @@ export default function TabLayout() {
       await polarOAuthService.disconnectPolarAccount(user.uid);
       setHasPolarToken(false);
       setShowConsentModal(false);
-      Alert.alert('Declined', 'Your Polar account has been disconnected. You can link it again anytime.');
+      Alert.alert(
+        'Declined',
+        'Your Polar account has been disconnected. You can link it again anytime.'
+      );
     } catch (error) {
       console.error('Error declining consent:', error);
       Alert.alert('Error', 'Failed to process your request. Please try again.');
@@ -134,54 +179,82 @@ export default function TabLayout() {
 
   return (
     <>
-    <Tabs
-      screenOptions={{
-        tabBarActiveTintColor: Colors[colorScheme ?? 'light'].tint,
-        // disable the static render of the header on web
-        // prevent a hydration error in React Navigation v6 i think idk it breaks if i dont put it there
-        headerShown: useClientOnlyValue(false, true),
+    <View style={styles.root}>
+      <Tabs
+        screenOptions={{
+        tabBarActiveTintColor: '#FF6B35',
+        tabBarInactiveTintColor: '#636E72',
+        tabBarStyle: {
+          backgroundColor: '#FFFFFF',
+          borderTopWidth: 0,
+          height: tabBarHeight,
+          paddingBottom: tabBarPaddingBottom,
+          paddingTop: tabBarPaddingTop,
+          shadowColor: "#000",
+          shadowOffset: {
+            width: 0,
+            height: -2,
+          },
+          shadowOpacity: 0.1,
+          shadowRadius: 8,
+          elevation: 10,
+        },
+        tabBarLabelStyle: {
+          fontSize: 11,
+          fontWeight: '600',
+        },
+        // Hide the QuestFit header globally; we only show it on the Home tab.
+        headerShown: false,
         headerTitleAlign: 'center',
+        headerStyle: {
+          backgroundColor: '#FFFFFF',
+          shadowColor: "#000",
+          shadowOffset: {
+            width: 0,
+            height: 2,
+          },
+          shadowOpacity: 0.1,
+          shadowRadius: 4,
+          elevation: 5,
+          borderBottomWidth: 0,
+        },
         headerTitleStyle: {
           textAlign: 'center',
+          color: '#000000',
+          fontWeight: 'bold',
+          fontSize: 20,
         },
-        headerLeft: () => (
-          <View style={{ flexDirection: 'row', alignItems: 'center', marginLeft: 16 }}>
-            <Image 
-              source={require('@/assets/images/icon.png')} 
-              style={{ width: 32, height: 32, borderRadius: 16 }}
-              resizeMode="contain"
-            />
-          </View>
-        ),
-        headerRight: () => (
-          <View style={styles.headerRightContainer}>
-            <Pressable style={styles.signOutButton} onPress={handleSignOut}>
-              <Text style={styles.signOutText}>Sign Out</Text>
-            </Pressable>
-          </View>
-        ),
       }}>
       <Tabs.Screen
         name="home"
         options={{
           title: 'Home',
           headerTitle: 'QuestFit',
+          // On web, avoid header hydration issues by only showing on client.
+          headerShown: useClientOnlyValue(false, true),
+          headerLeft: () => (
+            <View style={{ flexDirection: 'row', alignItems: 'center', marginLeft: 16, marginTop: 0 }}>
+              <Image
+                source={require('@/assets/images/icon.png')}
+                style={{ width: 32, height: 32, borderRadius: 16 }}
+                resizeMode="contain"
+              />
+            </View>
+          ),
+          headerRight: () => (
+            <View style={styles.headerRightContainer}>
+              <Pressable style={styles.signOutButton} onPress={handleSignOut}>
+                <Text style={styles.signOutText}>Sign Out</Text>
+              </Pressable>
+            </View>
+          ),
           tabBarIcon: ({ color }) => <TabBarIcon name="fire" color={color} />,
-        }}
-      />
-      <Tabs.Screen
-        name="creatures"
-        options={{
-          href: null,
-          title: 'Creatures',
-          headerTitle: 'QuestFit',
-          tabBarIcon: ({ color }) => <TabBarIcon name="gitlab" color={color} />,
         }}
       />
       <Tabs.Screen
         name="workout"
         options={{
-          href: null,
+          // Workout is the real route (used to be multi-device).
           title: 'Workout',
           headerTitle: 'QuestFit',
           tabBarIcon: ({ color }) => <TabBarIcon name="heartbeat" color={color} />,
@@ -199,7 +272,9 @@ export default function TabLayout() {
       <Tabs.Screen
         name="multi-device"
         options={{
-          title: 'Workout',
+          // Keep this screen mounted in tabs but real URL is /workout.
+          href: null,
+          title: 'Multi-Device (Legacy)',
           headerTitle: 'QuestFit',
           tabBarIcon: ({ color }) => <TabBarIcon6 name="people-robbery" color={color} size={24} />,
         }}
@@ -214,12 +289,12 @@ export default function TabLayout() {
         }}
       />
       <Tabs.Screen
-        name="test"
+        name="creatures"
         options={{
-          title: 'Test',
-          href: null,
+          // href: null,
+          title: 'Creatures',
           headerTitle: 'QuestFit',
-          tabBarIcon: ({ color }) => <TabBarIcon name="flask" color={color} />,
+          tabBarIcon: ({ color }) => <TabBarIcon name="gitlab" color={color} />,
         }}
       />
       <Tabs.Screen
@@ -231,7 +306,72 @@ export default function TabLayout() {
           tabBarIcon: ({ color }) => <TabBarIcon6 name="chalkboard-user" color={color} size={24} />,
         }}
       />
-    </Tabs>
+      <Tabs.Screen
+        name="instr-dashboard.old"
+        options={{
+          href: null,
+        }}
+      />
+      </Tabs>
+
+      {!isHomeTab && (
+        <>
+          {overlayMenuOpen && (
+            <Pressable style={styles.overlayDismissLayer} onPress={() => setOverlayMenuVisible(false)} />
+          )}
+
+          <View style={[styles.logoOverlay, { top: insets.top + 16 }]}>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="QuestFit menu"
+              onPress={() => setOverlayMenuVisible(!overlayMenuOpen)}
+              style={styles.logoOverlayButton}
+              hitSlop={8}
+            >
+              <Image
+                source={require('@/assets/images/icon.png')}
+                style={styles.logoOverlayImage}
+                resizeMode="contain"
+              />
+            </Pressable>
+
+            <Animated.View
+              pointerEvents={overlayMenuOpen ? 'auto' : 'none'}
+              style={[
+                styles.logoOverlayMenu,
+                {
+                  opacity: overlayAnim,
+                  transform: [
+                    {
+                      translateY: overlayAnim.interpolate({
+                        inputRange: [0, 1],
+                        outputRange: [-6, 8],
+                      }),
+                    },
+                    {
+                      scaleY: overlayAnim.interpolate({
+                        inputRange: [0, 1],
+                        outputRange: [0.92, 1],
+                      }),
+                    },
+                  ],
+                },
+              ]}
+            >
+              <Pressable
+                style={[styles.signOutButton, styles.logoOverlaySignOutButton]}
+                onPress={async () => {
+                  setOverlayMenuVisible(false);
+                  await handleSignOut();
+                }}
+              >
+                <Text style={styles.signOutText}>Sign Out</Text>
+              </Pressable>
+            </Animated.View>
+          </View>
+        </>
+      )}
+    </View>
 
     {/* Polar Link Modal */}
     <Modal
@@ -261,6 +401,34 @@ export default function TabLayout() {
 }
 
 const styles = StyleSheet.create({
+  root: {
+    flex: 1,
+  },
+  overlayDismissLayer: {
+    ...StyleSheet.absoluteFillObject,
+    zIndex: 900,
+  },
+  logoOverlay: {
+    position: 'absolute',
+    left: 16,
+    zIndex: 1000,
+    alignItems: 'flex-start',
+  },
+  logoOverlayButton: {
+    alignSelf: 'flex-start',
+  },
+  logoOverlayImage: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+  },
+  logoOverlayMenu: {
+    marginTop: 4,
+    alignItems: 'flex-start',
+  },
+  logoOverlaySignOutButton: {
+    borderRadius: 10,
+  },
   headerRightContainer: {
     flexDirection: 'row',
     alignItems: 'center',

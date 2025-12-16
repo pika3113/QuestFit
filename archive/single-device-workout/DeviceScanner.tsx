@@ -28,10 +28,7 @@ export const DeviceScanner: React.FC<DeviceScannerProps> = ({
   const colorScheme = useColorScheme();
 
   const renderDevice = ({ item }: { item: Device }) => (
-    <Pressable
-      style={styles.deviceItem}
-      onPress={() => onConnect(item)}
-    >
+    <Pressable style={styles.deviceItem} onPress={() => onConnect(item)}>
       <View style={styles.deviceInfo}>
         <Text style={styles.deviceName}>{item.name || 'Unknown Device'}</Text>
         <Text style={styles.deviceId}>{item.id}</Text>
@@ -59,7 +56,7 @@ export const DeviceScanner: React.FC<DeviceScannerProps> = ({
   return (
     <View style={styles.section}>
       <Text style={styles.sectionTitle}>Connect Device</Text>
-      
+
       {!bluetoothEnabled && (
         <View style={styles.warningBox}>
           <Text style={styles.warningText}>
@@ -89,7 +86,8 @@ export const DeviceScanner: React.FC<DeviceScannerProps> = ({
       {availableDevices.length > 0 && (
         <>
           <Text style={styles.devicesFoundText}>
-            Found {availableDevices.length} device{availableDevices.length !== 1 ? 's' : ''}
+            Found {availableDevices.length} device
+            {availableDevices.length !== 1 ? 's' : ''}
           </Text>
           <FlatList
             data={availableDevices}

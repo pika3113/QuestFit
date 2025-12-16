@@ -56,16 +56,11 @@ export const WorkoutControls: React.FC<WorkoutControlsProps> = ({
             <Text style={styles.workoutButtonText}>⏸️ Pause</Text>
           </Pressable>
         )}
-        <Pressable
-          style={[styles.workoutButton, styles.endButton]}
-          onPress={onEnd}
-        >
+        <Pressable style={[styles.workoutButton, styles.endButton]} onPress={onEnd}>
           <Text style={styles.workoutButtonText}>⏹️ End</Text>
         </Pressable>
       </View>
-      {pauseReason && (
-        <Text style={styles.pauseReasonText}>{pauseReason}</Text>
-      )}
+      {pauseReason && <Text style={styles.pauseReasonText}>{pauseReason}</Text>}
     </View>
   );
 };

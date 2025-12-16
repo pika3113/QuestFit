@@ -1,4 +1,4 @@
-import type { VercelRequest, VercelResponse } from '@vercel/node';
+import type { VercelRequest, VercelResponse } from '../vercel-types';
 import axios from 'axios';
 
 const POLAR_BASE_URL = 'https://www.polaraccesslink.com/v3';

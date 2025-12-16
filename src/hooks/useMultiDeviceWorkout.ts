@@ -1,11 +1,12 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { Device } from 'react-native-ble-plx';
 import { Alert } from 'react-native';
-import bluetoothService, { HeartRateReading, WorkoutMetrics, ConnectedDeviceInfo } from '../services/bluetoothService';
+import bluetoothService from '../services/bluetoothService';
+import { HeartRateReading, WorkoutMetrics, ConnectedDeviceInfo, BluetoothDevice } from '../services/bluetoothTypes';
+import { IS_DEV_MODE } from '@/constants/DevConfig';
 
 export const useMultiDeviceWorkout = () => {
   const [isScanning, setIsScanning] = useState(false);
-  const [availableDevices, setAvailableDevices] = useState<Device[]>([]);
+  const [availableDevices, setAvailableDevices] = useState<BluetoothDevice[]>([]);
   const [connectedDevices, setConnectedDevices] = useState<ConnectedDeviceInfo[]>([]);
   const [deviceHeartRates, setDeviceHeartRates] = useState<Map<string, number | null>>(new Map());
   const [workoutActive, setWorkoutActive] = useState(false);
@@ -22,12 +23,13 @@ export const useMultiDeviceWorkout = () => {
   const heartRateTimeoutRef = useRef<any>(null);
   const countdownTimerRef = useRef<any>(null);
 
-  // Check Bluetooth status on mount
-  useEffect(() => {
-    checkBluetoothStatus();
-  }, []);
+  const checkBluetoothStatus = useCallback(async () => {
+    // In dev mode we often run without real BLE permissions/hardware; avoid noisy checks.
+    if (IS_DEV_MODE) {
+      setBluetoothEnabled(true);
+      return;
+    }
 
-  const checkBluetoothStatus = async () => {
     try {
       const enabled = await bluetoothService.isBluetoothEnabled();
       setBluetoothEnabled(enabled);
@@ -35,7 +37,12 @@ export const useMultiDeviceWorkout = () => {
       console.error('Failed to check Bluetooth status:', err);
       setBluetoothEnabled(false);
     }
-  };
+  }, []);
+
+  // Check Bluetooth status on mount
+  useEffect(() => {
+    checkBluetoothStatus();
+  }, [checkBluetoothStatus]);
 
   // Update connected devices list periodically
   useEffect(() => {
@@ -85,7 +92,6 @@ export const useMultiDeviceWorkout = () => {
       console.log('📡 Subscribing to heart rate updates from', connectedDevices.length, 'devices');
       
       const unsubscribe = bluetoothService.subscribeToHeartRate(
-        'multi-device-workout-hook',
         (data: HeartRateReading) => {
           console.log('💓 Heart rate update received:', data.heartRate, 'bpm from', data.deviceName || data.deviceId);
           
@@ -180,8 +186,7 @@ export const useMultiDeviceWorkout = () => {
             }
             return [...prev, device];
           });
-        },
-        10000 // 10 second scan
+        }
       );
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to scan for devices');
@@ -191,7 +196,7 @@ export const useMultiDeviceWorkout = () => {
     }
   }, []);
 
-  const connectToDevice = useCallback(async (device: Device) => {
+  const connectToDevice = useCallback(async (device: BluetoothDevice) => {
     try {
       // Ensure scanning UI is updated since we force stop scan in service
       setIsScanning(false);
@@ -247,7 +252,7 @@ export const useMultiDeviceWorkout = () => {
   const disconnectAll = useCallback(async () => {
     try {
       setError(null);
-      await bluetoothService.disconnect();
+      await bluetoothService.disconnectAll();
       setConnectedDevices([]);
       setDeviceHeartRates(new Map());
       

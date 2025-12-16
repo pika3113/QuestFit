@@ -1,6 +1,6 @@
 import OpenAI from 'openai';
 import dotenv from 'dotenv';
-import type { VercelRequest, VercelResponse } from '@vercel/node';
+import type { VercelRequest, VercelResponse } from '../vercel-types';
 
 dotenv.config();
 
@@ -47,6 +47,10 @@ function parseFirestoreMap(fields: any): any {
   return result;
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null;
+}
+
 // Helper to convert JS object to Firestore JSON for writing
 function toFirestoreValue(value: any): any {
   if (value === null) return { nullValue: null };
@@ -73,8 +77,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   try {
-    const body = req.body;
-    const { userId, date, forceRefresh } = body;
+    if (!isRecord(req.body)) {
+      return res.status(400).json({ error: 'Invalid body' });
+    }
+
+    const userId = typeof req.body.userId === 'string' ? req.body.userId : undefined;
+    const date = typeof req.body.date === 'string' ? req.body.date : undefined;
+    const forceRefreshRaw = req.body.forceRefresh;
+    const forceRefresh =
+      forceRefreshRaw === true || forceRefreshRaw === 'true' || forceRefreshRaw === 1 || forceRefreshRaw === '1';
 
     if (!userId || !date) {
       return res.status(400).json({ error: 'Missing userId or date' });

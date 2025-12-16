@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { View, StyleSheet, Switch, Pressable, ActivityIndicator } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { Text } from '@/components/Themed';
 import { Stack } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -129,7 +130,7 @@ export default function InstructorSettingsScreen() {
   }
 
   return (
-    <View style={styles.container}>
+    <SafeAreaView style={styles.container} edges={['top', 'left', 'right', 'bottom']}>
       <Stack.Screen options={{ title: 'Instructor Settings' }} />
       
       <View style={styles.section}>
@@ -167,7 +168,7 @@ export default function InstructorSettingsScreen() {
         </View>
 
       </View>
-    </View>
+    </SafeAreaView>
   );
 }
 

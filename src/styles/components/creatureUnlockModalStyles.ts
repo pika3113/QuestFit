@@ -11,10 +11,10 @@ export const creatureUnlockModalStyles = StyleSheet.create({
   container: {
     backgroundColor: '#FFFFFF',
     borderRadius: 20,
-    padding: 24,
     width: '100%',
     maxWidth: 400,
-    alignItems: 'center',
+    maxHeight: '85%',
+    overflow: 'hidden',
     shadowColor: '#000',
     shadowOffset: {
       width: 0,
@@ -23,6 +23,11 @@ export const creatureUnlockModalStyles = StyleSheet.create({
     shadowOpacity: 0.3,
     shadowRadius: 8,
     elevation: 10,
+  },
+  header: {
+    padding: 24,
+    paddingBottom: 12,
+    alignItems: 'center',
   },
   congratsText: {
     fontSize: 28,
@@ -34,12 +39,18 @@ export const creatureUnlockModalStyles = StyleSheet.create({
   subtitle: {
     fontSize: 16,
     color: '#6B7280',
-    marginBottom: 24,
     textAlign: 'center',
+  },
+  scroll: {
+    flexGrow: 0,
+    width: '100%',
+  },
+  scrollContent: {
+    paddingHorizontal: 24,
+    paddingBottom: 16,
   },
   creaturesContainer: {
     width: '100%',
-    marginBottom: 24,
   },
   creatureCard: {
     backgroundColor: '#F9FAFB',
@@ -47,6 +58,11 @@ export const creatureUnlockModalStyles = StyleSheet.create({
     padding: 16,
     marginBottom: 12,
     borderWidth: 2,
+  },
+  creatureImage: {
+    width: '100%',
+    height: 90,
+    marginBottom: 12,
   },
   creatureHeader: {
     flexDirection: 'row',
@@ -88,12 +104,20 @@ export const creatureUnlockModalStyles = StyleSheet.create({
     fontWeight: 'bold',
     color: '#1F2937',
   },
+  footer: {
+    padding: 24,
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: '#E5E7EB',
+    backgroundColor: '#FFFFFF',
+  },
   closeButton: {
     backgroundColor: '#3B82F6',
     paddingHorizontal: 32,
     paddingVertical: 12,
     borderRadius: 24,
     minWidth: 150,
+    alignSelf: 'center',
   },
   closeButtonText: {
     color: '#FFFFFF',

@@ -1,6 +1,7 @@
 import { BleManager, Device, State } from 'react-native-ble-plx';
 import { PermissionsAndroid, Platform } from 'react-native';
 import { Buffer } from 'buffer';
+import { BluetoothDevice, HeartRateReading, WorkoutMetrics, ConnectedDeviceInfo, IBluetoothService } from './bluetoothTypes';
 
 // Polar H10 Heart Rate Service UUID (Standard BLE Heart Rate Service)
 const HEART_RATE_SERVICE_UUID = '0000180d-0000-1000-8000-00805f9b34fb';
@@ -9,32 +10,7 @@ const HEART_RATE_CHARACTERISTIC_UUID = '00002a37-0000-1000-8000-00805f9b34fb';
 // Polar Device Name patterns
 const POLAR_DEVICE_PREFIXES = ['Polar', 'H10', 'H9', 'OH1', 'Verity Sense'];
 
-export interface HeartRateReading {
-  heartRate: number;
-  timestamp: Date;
-  energyExpended?: number;
-  rrIntervals?: number[];
-  deviceId: string;
-  deviceName?: string;
-}
-
-export interface WorkoutMetrics {
-  duration: number; // seconds
-  averageHeartRate: number;
-  maxHeartRate: number;
-  minHeartRate: number;
-  caloriesBurned: number;
-  currentZone: 1 | 2 | 3 | 4 | 5;
-}
-
-export interface ConnectedDeviceInfo {
-  device: Device;
-  currentHeartRate: number | null;
-  lastHeartRateTime: Date | null;
-  heartRateReadings: HeartRateReading[];
-}
-
-class BluetoothService {
+class BluetoothService implements IBluetoothService {
   private manager: BleManager | null = null;
   private connectedDevices: Map<string, ConnectedDeviceInfo> = new Map();
   private listeners: Map<string, (data: HeartRateReading) => void> = new Map();
@@ -49,6 +25,10 @@ class BluetoothService {
   /**
    * Initialize BLE Manager
    */
+  initialize(): void {
+    this.initializeManager();
+  }
+
   private initializeManager(): void {
     if (!this.manager) {
       try {
@@ -120,9 +100,9 @@ class BluetoothService {
    * Scan for nearby Polar devices
    */
   async scanForDevices(
-    onDeviceFound: (device: Device) => void,
-    durationMs: number = 10000
+    onDeviceFound: (device: BluetoothDevice) => void
   ): Promise<void> {
+    const durationMs = 10000;
     const hasPermission = await this.requestPermissions();
     if (!hasPermission) {
       throw new Error('Bluetooth permissions not granted');
@@ -155,7 +135,11 @@ class BluetoothService {
 
           if (isPolarDevice) {
             foundDevices.add(device.id);
-            onDeviceFound(device);
+            onDeviceFound({
+              id: device.id,
+              name: device.name,
+              _nativeDevice: device
+            });
           }
         }
       }
@@ -163,14 +147,23 @@ class BluetoothService {
 
     // Stop scanning after duration
     setTimeout(() => {
-      manager.stopDeviceScan();
+      this.stopScan();
     }, durationMs);
+  }
+
+  /**
+   * Stop scanning for devices
+   */
+  stopScan(): void {
+    if (this.manager) {
+      this.manager.stopDeviceScan();
+    }
   }
 
   /**
    * Connect to a Polar device (supports multiple devices)
    */
-  async connectToDevice(device: Device): Promise<void> {
+  async connectToDevice(device: BluetoothDevice): Promise<void> {
     try {
       // Stop scanning before connecting to avoid issues on Android
       const manager = this.getManager();
@@ -187,7 +180,12 @@ class BluetoothService {
 
       console.log('Connecting to device:', device.name);
       
-      const connected = await device.connect({ autoConnect: false });
+      const nativeDevice = device._nativeDevice as Device;
+      if (!nativeDevice) {
+        throw new Error('Native device object missing');
+      }
+
+      const connected = await nativeDevice.connect({ autoConnect: false });
       console.log('Connected! Discovering services...');
       
       await connected.discoverAllServicesAndCharacteristics();
@@ -195,7 +193,7 @@ class BluetoothService {
       
       // Add to connected devices map
       this.connectedDevices.set(device.id, {
-        device: connected,
+        device: { ...device, _nativeDevice: connected },
         currentHeartRate: null,
         lastHeartRateTime: null,
         heartRateReadings: [],
@@ -222,7 +220,13 @@ class BluetoothService {
     console.log('Service UUID:', HEART_RATE_SERVICE_UUID);
     console.log('Characteristic UUID:', HEART_RATE_CHARACTERISTIC_UUID);
 
-    deviceInfo.device.monitorCharacteristicForService(
+    const nativeDevice = deviceInfo.device._nativeDevice as Device;
+    if (!nativeDevice) {
+      console.error('Native device not found for monitoring');
+      return;
+    }
+
+    nativeDevice.monitorCharacteristicForService(
       HEART_RATE_SERVICE_UUID,
       HEART_RATE_CHARACTERISTIC_UUID,
       (error: any, characteristic: any) => {
@@ -321,9 +325,9 @@ class BluetoothService {
    * Subscribe to heart rate updates
    */
   subscribeToHeartRate(
-    id: string,
     callback: (data: HeartRateReading) => void
   ): () => void {
+    const id = Math.random().toString(36).substring(7);
     this.listeners.set(id, callback);
     
     // Return unsubscribe function
@@ -514,7 +518,7 @@ class BluetoothService {
   /**
    * Disconnect from all devices
    */
-  async disconnect(): Promise<void> {
+  async disconnectAll(): Promise<void> {
     const deviceIds = Array.from(this.connectedDevices.keys());
     for (const deviceId of deviceIds) {
       await this.disconnectDevice(deviceId);

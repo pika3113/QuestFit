@@ -14,6 +14,7 @@ interface ConsentModalProps {
   onConsent?: () => void;
   onDecline?: () => void;
   loading?: boolean;
+  readOnly?: boolean;
 }
 
 export const ConsentModal: React.FC<ConsentModalProps> = ({
@@ -21,6 +22,7 @@ export const ConsentModal: React.FC<ConsentModalProps> = ({
   onConsent,
   onDecline,
   loading = false,
+  readOnly = false,
 }) => {
   const [scrolledToBottom, setScrolledToBottom] = useState(false);
   const [scrollViewHeight, setScrollViewHeight] = useState(0);
@@ -161,27 +163,29 @@ export const ConsentModal: React.FC<ConsentModalProps> = ({
 
         {/* Action Buttons */}
         <View style={styles.footer}>
-          <Pressable
-            style={[styles.button, styles.declineButton, loading && styles.buttonDisabled]}
-            onPress={onDecline}
-            disabled={loading}
-          >
-            <Text style={styles.declineButtonText}>Decline</Text>
-          </Pressable>
+          {!readOnly && (
+            <Pressable
+              style={[styles.button, styles.declineButton, loading && styles.buttonDisabled]}
+              onPress={onDecline}
+              disabled={loading}
+            >
+              <Text style={styles.declineButtonText}>Decline</Text>
+            </Pressable>
+          )}
 
           <Pressable
             style={[
               styles.button,
               styles.acceptButton,
-              (!scrolledToBottom || loading) && styles.buttonDisabled,
+              (!readOnly && (!scrolledToBottom || loading)) && styles.buttonDisabled,
             ]}
             onPress={onConsent}
-            disabled={!scrolledToBottom || loading}
+            disabled={!readOnly && (!scrolledToBottom || loading)}
           >
             {loading ? (
               <ActivityIndicator color="#FFFFFF" />
             ) : (
-              <Text style={styles.acceptButtonText}>I Agree & Accept</Text>
+              <Text style={styles.acceptButtonText}>{readOnly ? "Close" : "I Agree & Accept"}</Text>
             )}
           </Pressable>
         </View>

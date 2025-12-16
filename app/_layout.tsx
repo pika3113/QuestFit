@@ -10,8 +10,9 @@ import 'react-native-reanimated';
 import { useColorScheme } from '@/components/useColorScheme';
 import { useAuth } from '@/src/hooks/useAuth';
 import { SignInScreen } from '@/components/auth/SignInScreen';
-import { View, ActivityIndicator } from 'react-native';
+import { View, ActivityIndicator, Text as RNText, TextInput as RNTextInput } from 'react-native';
 import DebugConsole from '@/components/DebugConsole';
+import { IS_DEV_MODE } from '@/constants/DevConfig';
 
 export {
   // Catch any errors thrown by the Layout component.
@@ -30,6 +31,31 @@ export default function TRootLayout() {
     SpaceMono: require('../assets/fonts/SpaceMono-Regular.ttf'),
     ...FontAwesome.font,
   });
+
+  // Apply a single global font across the app (web + native)
+  useEffect(() => {
+    if (!loaded) return;
+
+    const fontFamily = 'SpaceMono';
+
+    const mergeDefaultStyle = (existing: any) => {
+      const base = { fontFamily };
+      if (!existing) return [base];
+      return Array.isArray(existing) ? [base, ...existing] : [base, existing];
+    };
+
+    // Text
+    // @ts-expect-error defaultProps exists at runtime
+    RNText.defaultProps = RNText.defaultProps || {};
+    // @ts-expect-error defaultProps exists at runtime
+    RNText.defaultProps.style = mergeDefaultStyle(RNText.defaultProps.style);
+
+    // TextInput
+    // @ts-expect-error defaultProps exists at runtime
+    RNTextInput.defaultProps = RNTextInput.defaultProps || {};
+    // @ts-expect-error defaultProps exists at runtime
+    RNTextInput.defaultProps.style = mergeDefaultStyle(RNTextInput.defaultProps.style);
+  }, [loaded]);
 
   // Expo Router uses Error Boundaries to catch errors in the navigation tree.
   useEffect(() => {
@@ -76,6 +102,9 @@ function RootLayoutNav() {
       <Stack>
         <Stack.Screen name="index" options={{ headerShown: false }} />
         <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+        <Stack.Screen name="history" options={{ headerShown: false }} />
+        <Stack.Screen name="me-exercises" options={{ headerShown: false }} />
+        <Stack.Screen name="instructor" options={{ headerShown: false }} />
       </Stack>
       {Platform.OS === 'web' && (
         <>
@@ -86,7 +115,7 @@ function RootLayoutNav() {
           })()}
         </>
       )}
-      <DebugConsole />
+      {IS_DEV_MODE && <DebugConsole />}
     </ThemeProvider>
   );
 }

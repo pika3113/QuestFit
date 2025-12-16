@@ -21,6 +21,7 @@ interface LiveWorkoutMetrics {
   maxHeartRate: number;
   minHeartRate: number;
   caloriesBurned: number;
+  distanceMeters?: number;
   currentZone: number;
 }
 
@@ -118,7 +119,7 @@ class WorkoutCompletionService {
         {
           calories: metrics.caloriesBurned,
           duration: durationMinutes,
-          distance: 0, // local workouts dont track distance yet unfortunately
+          distance: Math.max(0, Math.round((metrics.distanceMeters ?? 0) / 10) / 100),
           avgHeartRate: metrics.averageHeartRate,
           sport
         },
@@ -141,7 +142,7 @@ class WorkoutCompletionService {
         startTime: new Date(Date.now() - metrics.duration * 1000),
         endTime: new Date(),
         calories: metrics.caloriesBurned || 0,
-        distance: 0,
+        distance: Math.max(0, Math.round((metrics.distanceMeters ?? 0) / 10) / 100),
         duration: durationMinutes || 0,
         avgHeartRate: metrics.averageHeartRate || 0,
         maxHeartRate: metrics.maxHeartRate || 0,

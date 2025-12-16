@@ -2,12 +2,20 @@ import { StyleSheet } from 'react-native';
 
 export const deviceHeartRateCardStyles = StyleSheet.create({
   card: {
-    backgroundColor: '#1E293B',
+    backgroundColor: '#FFFFFF',
     borderRadius: 12,
     padding: 16,
     marginBottom: 12,
     borderWidth: 1,
-    borderColor: '#334155',
+    borderColor: '#E5E7EB',
+    overflow: 'hidden',
+  },
+  accentStrip: {
+    position: 'absolute',
+    left: 0,
+    top: 0,
+    bottom: 0,
+    width: 6,
   },
   header: {
     flexDirection: 'row',
@@ -27,12 +35,12 @@ export const deviceHeartRateCardStyles = StyleSheet.create({
   deviceName: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#F1F5F9',
+    color: '#0F172A',
     marginBottom: 2,
   },
   deviceId: {
     fontSize: 12,
-    color: '#94A3B8',
+    color: '#64748B',
   },
   disconnectButton: {
     backgroundColor: '#EF4444',
@@ -60,7 +68,7 @@ export const deviceHeartRateCardStyles = StyleSheet.create({
   },
   hrUnit: {
     fontSize: 18,
-    color: '#94A3B8',
+    color: '#475569',
     marginRight: 8,
   },
   heartIcon: {
@@ -72,12 +80,20 @@ export const deviceHeartRateCardStyles = StyleSheet.create({
     marginTop: 8,
   },
   compactCard: {
-    backgroundColor: '#1E293B',
+    backgroundColor: '#FFFFFF',
     borderRadius: 8,
     padding: 12,
     marginBottom: 8,
     borderWidth: 1,
-    borderColor: '#334155',
+    borderColor: '#E5E7EB',
+    overflow: 'hidden',
+  },
+  accentStripCompact: {
+    position: 'absolute',
+    left: 0,
+    top: 0,
+    bottom: 0,
+    width: 5,
   },
   compactHeader: {
     flexDirection: 'row',
@@ -88,7 +104,7 @@ export const deviceHeartRateCardStyles = StyleSheet.create({
   compactDeviceName: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#F1F5F9',
+    color: '#0F172A',
     flex: 1,
   },
   compactDisconnectButton: {
@@ -117,6 +133,6 @@ export const deviceHeartRateCardStyles = StyleSheet.create({
   },
   compactBPM: {
     fontSize: 14,
-    color: '#94A3B8',
+    color: '#475569',
   },
 });

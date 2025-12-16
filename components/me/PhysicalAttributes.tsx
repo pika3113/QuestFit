@@ -2,6 +2,7 @@ import React from 'react';
 import { View } from 'react-native';
 import { Text } from '@/components/Themed';
 import { xpStyles as styles } from '@/src/styles';
+import { formatDateDdMmYyyy } from '@/src/utils/dateFormat';
 
 interface PhysicalAttributesProps {
   weight: number | null;
@@ -38,7 +39,7 @@ export const PhysicalAttributes: React.FC<PhysicalAttributesProps> = ({
         <Text style={styles.sectionTitle}>Physical Attributes</Text>
         {lastPhysicalSync && (
           <Text style={{ color: '#6B7280', fontSize: 12 }}>
-            Synced: {new Date(lastPhysicalSync).toLocaleDateString()}
+            Synced: {formatDateDdMmYyyy(lastPhysicalSync)}
           </Text>
         )}
       </View>

@@ -3,7 +3,22 @@ import { Pressable } from 'react-native';
 import { Text, View } from '@/components/Themed';
 import { liveStyles as styles } from '@/src/styles';
 import { DeviceHeartRateCard } from '@/components/fitness/DeviceHeartRateCard';
-import { ConnectedDeviceInfo } from '@/src/services/bluetoothService';
+import { ConnectedDeviceInfo } from '@/src/services/bluetoothTypes';
+
+const DEVICE_ACCENTS = ['#2563EB', '#06B6D4', '#10B981', '#F59E0B', '#F97316', '#EC4899', '#8B5CF6', '#14B8A6'];
+
+function hashToIndex(input: string, mod: number) {
+  let h = 2166136261;
+  for (let i = 0; i < input.length; i++) {
+    h ^= input.charCodeAt(i);
+    h = Math.imul(h, 16777619);
+  }
+  return (h >>> 0) % mod;
+}
+
+function accentForDeviceId(deviceId: string) {
+  return DEVICE_ACCENTS[hashToIndex(deviceId, DEVICE_ACCENTS.length)];
+}
 
 interface ConnectedDevicesListProps {
   connectedDevices: ConnectedDeviceInfo[];
@@ -21,21 +36,10 @@ export const ConnectedDevicesList: React.FC<ConnectedDevicesListProps> = ({
   deviceOwners,
   onDisconnect,
   onDisconnectAll,
-  aggregateHeartRate,
-  currentZone,
+  aggregateHeartRate: _aggregateHeartRate,
+  currentZone: _currentZone,
 }) => {
   if (connectedDevices.length === 0) return null;
-
-  const getHeartRateZoneColor = (zone: number): string => {
-    switch (zone) {
-      case 1: return '#60A5FA'; // Light blue
-      case 2: return '#34D399'; // Green
-      case 3: return '#FBBF24'; // Yellow
-      case 4: return '#F97316'; // Orange
-      case 5: return '#EF4444'; // Red
-      default: return '#9CA3AF'; // Gray
-    }
-  };
 
   return (
     <View style={styles.section}>
@@ -52,34 +56,30 @@ export const ConnectedDevicesList: React.FC<ConnectedDevicesListProps> = ({
         )}
       </View>
       
-      {connectedDevices.map((deviceInfo) => (
-        <DeviceHeartRateCard
-          key={deviceInfo.device.id}
-          deviceInfo={deviceInfo}
-          heartRate={deviceHeartRates.get(deviceInfo.device.id) || null}
-          onDisconnect={() => onDisconnect(deviceInfo.device.id, deviceInfo.device.name || undefined)}
-          compact={connectedDevices.length > 2}
-        />
-      ))}
+      {connectedDevices.map((deviceInfo) => {
+        // Try to find owner by device ID or by extracted ID from name
+        let ownerName = deviceOwners[deviceInfo.device.id];
+        
+        if (!ownerName && deviceInfo.device.name) {
+          const parts = deviceInfo.device.name.split(' ');
+          const lastPart = parts[parts.length - 1];
+          if (/^[0-9A-F]{8}$/i.test(lastPart)) {
+            ownerName = deviceOwners[lastPart];
+          }
+        }
 
-      {/* Aggregate Heart Rate */}
-      {connectedDevices.length > 1 && (
-        <View style={[styles.heartRateSection, { marginTop: 12, backgroundColor: '#0F172A' }]}>
-          <Text style={styles.heartRateLabel}>Team Average Heart Rate</Text>
-          <View style={styles.heartRateDisplay}>
-            <Text style={styles.heartRateValue}>
-              {aggregateHeartRate || '--'}
-            </Text>
-            <Text style={styles.heartRateUnit}>bpm</Text>
-            <Text style={styles.heartIcon}>👥❤️</Text>
-          </View>
-          {currentZone && (
-            <View style={[styles.zoneIndicator, { backgroundColor: getHeartRateZoneColor(currentZone) }]}>
-              <Text style={styles.zoneText}>Zone {currentZone}</Text>
-            </View>
-          )}
-        </View>
-      )}
+        return (
+          <DeviceHeartRateCard
+            key={deviceInfo.device.id}
+            deviceInfo={deviceInfo}
+            heartRate={deviceHeartRates.get(deviceInfo.device.id) ?? null}
+            onDisconnect={() => onDisconnect(deviceInfo.device.id, deviceInfo.device.name || undefined)}
+            compact={connectedDevices.length > 2}
+            ownerName={ownerName}
+            accentColor={accentForDeviceId(deviceInfo.device.id)}
+          />
+        );
+      })}
     </View>
   );
 };

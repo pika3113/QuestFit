@@ -12,6 +12,7 @@ interface MultiDeviceControlsProps {
   onPause: () => void;
   onResume: () => void;
   onEnd: () => void;
+  startLabel?: string;
 }
 
 export const MultiDeviceControls: React.FC<MultiDeviceControlsProps> = ({
@@ -23,6 +24,7 @@ export const MultiDeviceControls: React.FC<MultiDeviceControlsProps> = ({
   onPause,
   onResume,
   onEnd,
+  startLabel,
 }) => {
   if (!hasConnectedDevices) return null;
 
@@ -33,7 +35,7 @@ export const MultiDeviceControls: React.FC<MultiDeviceControlsProps> = ({
           style={[styles.workoutButton, styles.startButton]}
           onPress={onStart}
         >
-          <Text style={styles.workoutButtonText}>▶️ Start Group Workout</Text>
+          <Text style={styles.workoutButtonText}>{startLabel ?? '▶️ Start Group Workout'}</Text>
         </Pressable>
       ) : (
         <>

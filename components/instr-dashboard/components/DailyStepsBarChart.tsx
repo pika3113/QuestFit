@@ -1,6 +1,8 @@
 import React from 'react';
-import { View } from 'react-native';
+import { Platform, View, useWindowDimensions } from 'react-native';
 import { Text } from '@/components/Themed';
+import { formatDateDdMmYyyy } from '@/src/utils/dateFormat';
+import { formatCompactNumber } from '@/src/utils/numberFormat';
 
 interface DailyStepsBarChartProps {
   chartData: { name: string; steps: number }[];
@@ -8,6 +10,9 @@ interface DailyStepsBarChartProps {
 }
 
 export const DailyStepsBarChart = ({ chartData, date }: DailyStepsBarChartProps) => {
+  const { width: windowWidth } = useWindowDimensions();
+  const compactNumbers = Platform.OS !== 'web' || windowWidth <= 420;
+
   const maxSteps = Math.max(...chartData.map(d => d.steps), 1);
   const axisMax = maxSteps + 400;
   const yAxisSteps = 5;
@@ -23,8 +28,13 @@ export const DailyStepsBarChart = ({ chartData, date }: DailyStepsBarChartProps)
   };
 
   const title = (date && !isToday(date))
-    ? `Steps by User - ${date.toLocaleDateString()}`
+    ? `Steps by User - ${formatDateDdMmYyyy(date)}`
     : "Today's Steps by User";
+
+  const formatValue = (value: number) => {
+    if (compactNumbers && Math.abs(value) >= 1000) return formatCompactNumber(value);
+    return Math.round(value).toLocaleString();
+  };
 
   return (
     <View style={{ padding: 16, backgroundColor: 'white', marginBottom: 20, borderRadius: 8 }}>
@@ -36,7 +46,7 @@ export const DailyStepsBarChart = ({ chartData, date }: DailyStepsBarChartProps)
         <View style={{ width: 50, justifyContent: 'space-between', height: 200, paddingRight: 8 }}>
           {yAxisValues.reverse().map((value, index) => (
             <Text key={index} style={{ fontSize: 10, color: '#666', textAlign: 'right' }}>
-              {value.toLocaleString()}
+              {formatValue(value)}
             </Text>
           ))}
         </View>
@@ -49,7 +59,7 @@ export const DailyStepsBarChart = ({ chartData, date }: DailyStepsBarChartProps)
               return (
                 <View key={index} style={{ alignItems: 'center', flex: 1, marginHorizontal: 4 }}>
                   <Text style={{ fontSize: 10, fontWeight: 'bold', marginBottom: 4, color: '#000' }}>
-                    {item.steps.toLocaleString()}
+                    {formatValue(item.steps)}
                   </Text>
                   <View 
                     style={{ 

@@ -1,38 +1,28 @@
-import React, { useState, useEffect } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   StyleSheet,
   View,
   ScrollView,
   ActivityIndicator,
   RefreshControl,
+  Modal,
   Pressable,
   TouchableOpacity,
   Platform,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import Constants from 'expo-constants';
 import { Text } from '@/components/Themed';
 import { useLocalSearchParams, router } from 'expo-router';
 import { db } from '@/src/services/firebase';
 import { doc, getDoc, collection, query, orderBy, limit, getDocs } from 'firebase/firestore';
-
-// Helper function to convert ISO8601 duration to readable format
-function formatDuration(iso8601Duration: string): string {
-  if (!iso8601Duration) return 'N/A';
-  
-  const match = iso8601Duration.match(/PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+(?:\.\d+)?)S)?/);
-  if (!match) return iso8601Duration;
-  
-  const hours = parseInt(match[1] || '0');
-  const minutes = parseInt(match[2] || '0');
-  const seconds = parseFloat(match[3] || '0');
-  
-  const parts = [];
-  if (hours > 0) parts.push(`${hours}h`);
-  if (minutes > 0) parts.push(`${minutes}m`);
-  if (seconds > 0 && hours === 0) parts.push(`${Math.round(seconds)}s`);
-  
-  return parts.length > 0 ? parts.join(' ') : '0s';
-}
+import DateTimePicker from '@react-native-community/datetimepicker';
+import { Ionicons } from '@expo/vector-icons';
+import { useInstructorStudents } from '@/src/hooks/useInstructorStudents';
+import { useAuth } from '@/src/hooks/useAuth';
+import { ComparisonRadarChart, RadarDataPoint } from '@/components/instr-dashboard/ComparisonRadarChart';
+import { formatIsoDurationHms as formatDuration } from '@/src/utils/formatDuration';
+import { formatDateDdMmYyyy } from '@/src/utils/dateFormat';
 
 interface UserStats {
   today: {
@@ -58,13 +48,156 @@ interface AISummary {
   "[short]recommendations": string;
 }
 
+type ExpandableSectionProps = {
+  title: string;
+  children: React.ReactNode;
+  initiallyExpanded?: boolean;
+  expanded?: boolean;
+  onToggle?: () => void;
+};
+
+function ExpandableSection({
+  title,
+  children,
+  initiallyExpanded = false,
+  expanded,
+  onToggle,
+}: ExpandableSectionProps) {
+  const [uncontrolledExpanded, setUncontrolledExpanded] = useState(initiallyExpanded);
+  const isControlled = typeof expanded === 'boolean';
+  const isExpanded = isControlled ? expanded : uncontrolledExpanded;
+
+  const handleToggle = useCallback(() => {
+    if (isControlled) {
+      onToggle?.();
+      return;
+    }
+    setUncontrolledExpanded((v) => !v);
+  }, [isControlled, onToggle]);
+
+  return (
+    <View style={styles.section}>
+      <TouchableOpacity
+        style={styles.expandableHeader}
+        onPress={handleToggle}
+        activeOpacity={0.8}
+      >
+        <Text style={styles.expandableHeaderTitle}>{title}</Text>
+        <Ionicons name={isExpanded ? 'chevron-up' : 'chevron-down'} size={18} color="#666" />
+      </TouchableOpacity>
+
+      {isExpanded ? <View style={styles.expandableBody}>{children}</View> : null}
+    </View>
+  );
+}
+
+type PresetRange = '7d' | '14d' | '30d';
+type DateRange = {
+  type: PresetRange | 'custom';
+  start: Date;
+  end: Date;
+};
+
+type RangeDailyItem = {
+  date: string; // YYYY-MM-DD
+  activity?: any;
+  exercises?: any;
+  sleep?: any;
+  steps?: number;
+  activityCalories?: number;
+  activityDistance?: number;
+  exerciseCount?: number;
+  exerciseCalories?: number;
+  exerciseDistance?: number;
+  sleepScore?: number;
+  sleepStart?: string;
+  sleepEnd?: string;
+  sleepDurationMinutes?: number;
+};
+
 export default function UserDetailScreen() {
   const { userId, date } = useLocalSearchParams<{ userId: string, date?: string }>();
+  const { user } = useAuth();
+  const { selectedUserIds } = useInstructorStudents(user?.uid);
+  
   const [stats, setStats] = useState<UserStats | null>(null);
+  const [displayName, setDisplayName] = useState<string>('');
+  const [lastSync, setLastSync] = useState<string | undefined>(undefined);
+  const [lastChecked, setLastChecked] = useState<string | undefined>(undefined);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [hoveredPoint, setHoveredPoint] = useState<{time: string, hr: number} | null>(null);
-  const [selectedDate, setSelectedDate] = useState(date ? new Date(date) : new Date());
+
+  // Radar chart state
+  const [individualRadarData, setIndividualRadarData] = useState<RadarDataPoint | null>(null);
+  const [averageRadarData, setAverageRadarData] = useState<RadarDataPoint | null>(null);
+  const [loadingRadar, setLoadingRadar] = useState(false);
+  const [selectedCadetsCount, setSelectedCadetsCount] = useState(0);
+
+  const SECTION_KEYS = useMemo(
+    () => ['overallPerformance', 'dailyActivity', 'exercises', 'cardioLoad', 'sleepRecovery'] as const,
+    []
+  );
+  type SectionKey = (typeof SECTION_KEYS)[number];
+
+  const [expandedSections, setExpandedSections] = useState<Record<SectionKey, boolean>>(() => ({
+    overallPerformance: false,
+    dailyActivity: false,
+    exercises: false,
+    cardioLoad: false,
+    sleepRecovery: false,
+  }));
+
+  const toggleSection = useCallback((key: SectionKey) => {
+    setExpandedSections((prev) => ({ ...prev, [key]: !prev[key] }));
+  }, []);
+
+  const setAllSectionsExpanded = useCallback(
+    (value: boolean) => {
+      setExpandedSections(
+        SECTION_KEYS.reduce((acc, key) => {
+          acc[key] = value;
+          return acc;
+        }, {} as Record<SectionKey, boolean>)
+      );
+    },
+    [SECTION_KEYS]
+  );
+
+  const anySectionExpanded = useMemo(() => {
+    return SECTION_KEYS.some((key) => expandedSections[key]);
+  }, [SECTION_KEYS, expandedSections]);
+
+  const anySectionCollapsed = useMemo(() => {
+    return SECTION_KEYS.some((key) => !expandedSections[key]);
+  }, [SECTION_KEYS, expandedSections]);
+
+  const initialEnd = useMemo(() => {
+    const parsed = date ? new Date(date) : new Date();
+    return isNaN(parsed.getTime()) ? new Date() : parsed;
+  }, [date]);
+
+  const [dateRange, setDateRange] = useState<DateRange>(() => {
+    const end = new Date(initialEnd);
+    const start = new Date(end);
+    start.setDate(start.getDate() - 6);
+    return { type: '7d', start, end };
+  });
+  const [showDatePicker, setShowDatePicker] = useState(false);
+  const [datePickerMode, setDatePickerMode] = useState<'start' | 'end'>('start');
+
+  const [rangeItems, setRangeItems] = useState<RangeDailyItem[]>([]);
+  const [loadingRange, setLoadingRange] = useState(false);
+
+  const selectedDate = useMemo(() => {
+    // Use the end of the range as the "selected day" for single-day sections (AI, cardio, etc.)
+    const start = new Date(dateRange.start);
+    const end = new Date(dateRange.end);
+    start.setHours(0, 0, 0, 0);
+    end.setHours(0, 0, 0, 0);
+    const endMs = Math.max(start.getTime(), end.getTime());
+    return new Date(endMs);
+  }, [dateRange]);
   
   // AI State
   const [aiSummary, setAiSummary] = useState<AISummary | null>(null);
@@ -77,12 +210,423 @@ export default function UserDetailScreen() {
     }
   }, [userId, selectedDate]);
 
+  useEffect(() => {
+    const loadProfile = async () => {
+      if (!userId) return;
+      try {
+        const userDoc = await getDoc(doc(db, 'users', userId));
+        if (userDoc.exists()) {
+          const data = userDoc.data();
+          const name = typeof data.displayName === 'string' ? data.displayName.trim() : '';
+          setDisplayName(name || userId);
+
+          const ls = typeof data.lastSync === 'string' ? data.lastSync : undefined;
+          const lc = typeof data.lastChecked === 'string' ? data.lastChecked : undefined;
+          setLastSync(ls);
+          setLastChecked(lc);
+
+          if (!ls) {
+            try {
+              const summaryQuery = query(
+                collection(db, `users/${userId}/polarData/syncSummary/all`),
+                orderBy('syncedAt', 'desc'),
+                limit(1)
+              );
+              const summarySnapshot = await getDocs(summaryQuery);
+              if (!summarySnapshot.empty) {
+                const fallback = summarySnapshot.docs[0].data()?.syncedAt;
+                if (typeof fallback === 'string') setLastSync(fallback);
+              }
+            } catch {
+              // ignore
+            }
+          }
+        } else {
+          setDisplayName(userId);
+        }
+      } catch (e) {
+        console.warn('Failed to load user profile', e);
+        setDisplayName(userId);
+      }
+    };
+    loadProfile();
+  }, [userId]);
+
+  const formatTimestamp = (value: string | undefined) => {
+    if (!value) return 'N/A';
+    const d = new Date(value);
+    if (Number.isNaN(d.getTime())) return value;
+
+    const dd = String(d.getDate()).padStart(2, '0');
+    const mm = String(d.getMonth() + 1).padStart(2, '0');
+    const yyyy = String(d.getFullYear());
+
+    let hours = d.getHours();
+    const minutes = String(d.getMinutes()).padStart(2, '0');
+    const ampm = hours >= 12 ? 'PM' : 'AM';
+    hours = hours % 12;
+    if (hours === 0) hours = 12;
+
+    return `${dd}/${mm}/${yyyy} ${hours}:${minutes} ${ampm}`;
+  };
+
   const formatDate = (date: Date) => {
     const year = date.getFullYear();
     const month = String(date.getMonth() + 1).padStart(2, '0');
     const day = String(date.getDate()).padStart(2, '0');
     return `${year}-${month}-${day}`;
   };
+
+  const toUtcDateKey = (d: Date) => d.toISOString().split('T')[0];
+
+  const rangeStartEndIso = useMemo(() => {
+    const start = new Date(dateRange.start);
+    const end = new Date(dateRange.end);
+    start.setHours(0, 0, 0, 0);
+    end.setHours(0, 0, 0, 0);
+    const startMs = Math.min(start.getTime(), end.getTime());
+    const endMs = Math.max(start.getTime(), end.getTime());
+    return {
+      // Use local calendar date strings for UI/routing.
+      startIso: formatDate(new Date(startMs)),
+      endIso: formatDate(new Date(endMs)),
+    };
+  }, [dateRange.end, dateRange.start]);
+
+  const goToAllExercises = useCallback(() => {
+    if (!userId) return;
+    router.push({
+      pathname: '/instructor/all-exercises',
+      params: {
+        userIds: userId,
+        startDate: rangeStartEndIso.startIso,
+        endDate: rangeStartEndIso.endIso,
+        initialDate: rangeStartEndIso.endIso,
+      },
+    });
+  }, [rangeStartEndIso.endIso, rangeStartEndIso.startIso, userId]);
+
+  const goToAllSleep = useCallback(() => {
+    if (!userId) return;
+    router.push({
+      pathname: '/instructor/all-sleep',
+      params: {
+        userIds: userId,
+        startDate: rangeStartEndIso.startIso,
+        endDate: rangeStartEndIso.endIso,
+        initialDate: rangeStartEndIso.endIso,
+      },
+    });
+  }, [rangeStartEndIso.endIso, rangeStartEndIso.startIso, userId]);
+
+  const dateStrings = useMemo(() => {
+    const dates: string[] = [];
+
+    const maxDays = 90;
+    const msPerDay = 24 * 60 * 60 * 1000;
+
+    const start = new Date(dateRange.start);
+    const end = new Date(dateRange.end);
+    start.setHours(0, 0, 0, 0);
+    end.setHours(0, 0, 0, 0);
+
+    if (dateRange.type !== 'custom') {
+      const days = dateRange.type === '7d' ? 7 : dateRange.type === '14d' ? 14 : 30;
+      const endDate = new Date(end);
+      for (let i = 0; i < days; i++) {
+        const d = new Date(endDate);
+        d.setDate(d.getDate() - i);
+        dates.push(toUtcDateKey(d));
+      }
+      return dates;
+    }
+
+    const startMs = Math.min(start.getTime(), end.getTime());
+    const endMs = Math.max(start.getTime(), end.getTime());
+    const startDate = new Date(startMs);
+    const endDate = new Date(endMs);
+    const dayCount = Math.floor((endDate.getTime() - startDate.getTime()) / msPerDay) + 1;
+    const boundedCount = Math.min(dayCount, maxDays);
+
+    for (let i = 0; i < boundedCount; i++) {
+      const d = new Date(endDate);
+      d.setDate(d.getDate() - i);
+      dates.push(toUtcDateKey(d));
+    }
+
+    return dates;
+  }, [dateRange]);
+
+  const onDateChange = (event: any, picked?: Date) => {
+    if (event?.type === 'dismissed') {
+      setShowDatePicker(false);
+      return;
+    }
+
+    const currentDate = picked || (datePickerMode === 'start' ? dateRange.start : dateRange.end);
+    if (!currentDate || isNaN(currentDate.getTime())) return;
+
+    if (Platform.OS === 'android') {
+      setShowDatePicker(false);
+      if (datePickerMode === 'start') {
+        setDateRange((prev) => ({ ...prev, start: currentDate, type: 'custom' }));
+        setTimeout(() => {
+          setDatePickerMode('end');
+          setShowDatePicker(true);
+        }, 100);
+      } else {
+        setDateRange((prev) => ({ ...prev, end: currentDate, type: 'custom' }));
+      }
+    } else {
+      // iOS: close on selection, then optionally open end picker
+      setShowDatePicker(false);
+      if (datePickerMode === 'start') {
+        setDateRange((prev) => ({ ...prev, start: currentDate, type: 'custom' }));
+        setTimeout(() => {
+          setDatePickerMode('end');
+          setShowDatePicker(true);
+        }, 500);
+      } else {
+        setDateRange((prev) => ({ ...prev, end: currentDate, type: 'custom' }));
+      }
+    }
+  };
+
+  // Fetch radar data for a single user
+  const fetchUserRadarData = async (uid: string, datesToCheck: string[]): Promise<RadarDataPoint> => {
+    const [activityDocs, exercisesDocs, sleepDocs, cardioLoadDocs] = await Promise.all([
+      Promise.all(datesToCheck.map(date =>
+        getDoc(doc(db, `users/${uid}/polarData/activities/all/${date}`))
+      )),
+      Promise.all(datesToCheck.map(date =>
+        getDoc(doc(db, `users/${uid}/polarData/exercises/all/${date}`))
+      )),
+      Promise.all(datesToCheck.map(date =>
+        getDoc(doc(db, `users/${uid}/polarData/sleep/all/${date}`))
+      )),
+      Promise.all(datesToCheck.map(date =>
+        getDoc(doc(db, `users/${uid}/polarData/cardioLoad/all/${date}`))
+      )),
+    ]);
+
+    let totalSteps = 0, stepsCount = 0;
+    let totalCalories = 0, caloriesCount = 0;
+    let totalDistance = 0, distanceCount = 0;
+    let totalSleepScore = 0, sleepCount = 0;
+    let totalCardioLoad = 0, cardioCount = 0;
+    let totalExerciseCount = 0, exerciseDays = 0;
+
+    datesToCheck.forEach((_, index) => {
+      // Activity data
+      const activityDoc = activityDocs[index];
+      if (activityDoc?.exists()) {
+        const data = activityDoc.data();
+        if (typeof data?.steps === 'number' && data.steps > 0) {
+          totalSteps += data.steps;
+          stepsCount++;
+        }
+        const cals = data?.calories ?? data?.active_calories;
+        if (typeof cals === 'number' && cals > 0) {
+          totalCalories += cals;
+          caloriesCount++;
+        }
+        const dist = data?.distance_from_steps ?? data?.distance;
+        if (typeof dist === 'number' && dist > 0) {
+          totalDistance += dist;
+          distanceCount++;
+        }
+      }
+
+      // Exercise data
+      const exerciseDoc = exercisesDocs[index];
+      if (exerciseDoc?.exists()) {
+        const data = exerciseDoc.data();
+        if (data?.exercises && Array.isArray(data.exercises) && data.exercises.length > 0) {
+          totalExerciseCount += data.exercises.length;
+          exerciseDays++;
+        } else if (typeof data?.count === 'number' && data.count > 0) {
+          totalExerciseCount += data.count;
+          exerciseDays++;
+        }
+      }
+
+      // Sleep data
+      const sleepDoc = sleepDocs[index];
+      if (sleepDoc?.exists()) {
+        const sleepScore = sleepDoc.data()?.sleep_score;
+        if (typeof sleepScore === 'number' && sleepScore > 0) {
+          totalSleepScore += sleepScore;
+          sleepCount++;
+        }
+      }
+
+      // Cardio load data
+      const cardioDoc = cardioLoadDocs[index];
+      if (cardioDoc?.exists()) {
+        const cardioLoadRatio = cardioDoc.data()?.data?.cardio_load_ratio;
+        if (typeof cardioLoadRatio === 'number' && cardioLoadRatio > 0) {
+          totalCardioLoad += cardioLoadRatio;
+          cardioCount++;
+        }
+      }
+    });
+
+    return {
+      steps: stepsCount > 0 ? Math.round(totalSteps / stepsCount) : 0,
+      calories: caloriesCount > 0 ? Math.round(totalCalories / caloriesCount) : 0,
+      distance: distanceCount > 0 ? Math.round(totalDistance / distanceCount) : 0,
+      sleepScore: sleepCount > 0 ? Math.round(totalSleepScore / sleepCount) : 0,
+      cardioLoad: cardioCount > 0 ? totalCardioLoad / cardioCount : 0,
+      exerciseCount: exerciseDays > 0 ? totalExerciseCount / exerciseDays : 0,
+    };
+  };
+
+  // Load radar chart data
+  const loadRadarData = useCallback(async () => {
+    if (!userId) return;
+    
+    setLoadingRadar(true);
+    try {
+      // Fetch individual user's radar data
+      const individualData = await fetchUserRadarData(userId, dateStrings);
+      setIndividualRadarData(individualData);
+
+      // Determine which users to include in average calculation
+      const usersForAverage = selectedUserIds.length > 0 ? selectedUserIds : [userId];
+      
+      // Fetch all users' data and calculate average
+      const allUsersData = await Promise.all(
+        usersForAverage.map(uid => fetchUserRadarData(uid, dateStrings))
+      );
+
+      setSelectedCadetsCount(usersForAverage.length);
+
+      // Calculate average across all users
+      const avgData: RadarDataPoint = {
+        steps: 0,
+        calories: 0,
+        distance: 0,
+        sleepScore: 0,
+        cardioLoad: 0,
+        exerciseCount: 0,
+      };
+
+      if (allUsersData.length > 0) {
+        allUsersData.forEach(userData => {
+          avgData.steps += userData.steps;
+          avgData.calories += userData.calories;
+          avgData.distance += userData.distance;
+          avgData.sleepScore += userData.sleepScore;
+          avgData.cardioLoad += userData.cardioLoad;
+          avgData.exerciseCount += userData.exerciseCount;
+        });
+
+        const count = allUsersData.length;
+        avgData.steps = Math.round(avgData.steps / count);
+        avgData.calories = Math.round(avgData.calories / count);
+        avgData.distance = Math.round(avgData.distance / count);
+        avgData.sleepScore = Math.round(avgData.sleepScore / count);
+        avgData.cardioLoad = avgData.cardioLoad / count;
+        avgData.exerciseCount = avgData.exerciseCount / count;
+      }
+
+      setAverageRadarData(avgData);
+    } catch (error) {
+      console.error('Error loading radar data:', error);
+    } finally {
+      setLoadingRadar(false);
+    }
+  }, [userId, selectedUserIds, dateStrings]);
+
+  // Load radar data when date range or user changes
+  useEffect(() => {
+    loadRadarData();
+  }, [loadRadarData]);
+
+  const loadRange = useCallback(async () => {
+    if (!userId) return;
+    setLoadingRange(true);
+    try {
+      const results = await Promise.all(
+        dateStrings.map(async (ds) => {
+          const [activitySnap, exercisesSnap, sleepSnap] = await Promise.all([
+            getDoc(doc(db, `users/${userId}/polarData/activities/all/${ds}`)),
+            getDoc(doc(db, `users/${userId}/polarData/exercises/all/${ds}`)),
+            getDoc(doc(db, `users/${userId}/polarData/sleep/all/${ds}`)),
+          ]);
+
+          const activity = activitySnap.exists() ? activitySnap.data() : undefined;
+          const exercises = exercisesSnap.exists() ? exercisesSnap.data() : undefined;
+          const sleep = sleepSnap.exists() ? sleepSnap.data() : undefined;
+
+          const steps = typeof activity?.steps === 'number' ? activity.steps : undefined;
+          const activityCalories =
+            typeof activity?.calories === 'number'
+              ? activity.calories
+              : typeof activity?.active_calories === 'number'
+                ? activity.active_calories
+                : undefined;
+          const activityDistance =
+            typeof activity?.distance_from_steps === 'number'
+              ? activity.distance_from_steps
+              : typeof activity?.distance === 'number'
+                ? activity.distance
+                : undefined;
+
+          let exerciseCount: number | undefined;
+          let exerciseCalories: number | undefined;
+          let exerciseDistance: number | undefined;
+          if (exercises?.exercises && Array.isArray(exercises.exercises)) {
+            exerciseCount = exercises.exercises.length;
+            let totalCals = 0;
+            let totalDist = 0;
+            exercises.exercises.forEach((ex: any) => {
+              if (typeof ex?.calories === 'number') totalCals += ex.calories;
+              if (typeof ex?.distance === 'number') totalDist += ex.distance;
+            });
+            exerciseCalories = Math.round(totalCals);
+            exerciseDistance = Math.round(totalDist);
+          } else if (typeof exercises?.count === 'number') {
+            exerciseCount = exercises.count;
+          }
+
+          const sleepScore = typeof sleep?.sleep_score === 'number' ? sleep.sleep_score : undefined;
+          const sleepStart = typeof sleep?.sleep_start_time === 'string' ? sleep.sleep_start_time : undefined;
+          const sleepEnd = typeof sleep?.sleep_end_time === 'string' ? sleep.sleep_end_time : undefined;
+          let sleepDurationMinutes: number | undefined;
+          if (sleepStart && sleepEnd) {
+            const start = new Date(sleepStart);
+            const end = new Date(sleepEnd);
+            const ms = end.getTime() - start.getTime();
+            if (Number.isFinite(ms) && ms > 0) sleepDurationMinutes = Math.round(ms / 60000);
+          }
+
+          return {
+            date: ds,
+            activity,
+            exercises,
+            sleep,
+            steps,
+            activityCalories,
+            activityDistance,
+            exerciseCount,
+            exerciseCalories,
+            exerciseDistance,
+            sleepScore,
+            sleepStart,
+            sleepEnd,
+            sleepDurationMinutes,
+          } satisfies RangeDailyItem;
+        })
+      );
+      setRangeItems(results);
+    } catch (e) {
+      console.warn('Failed to load range data', e);
+      setRangeItems([]);
+    } finally {
+      setLoadingRange(false);
+    }
+  }, [dateStrings, userId]);
 
   const checkExistingAISummary = async () => {
     if (!userId) return;
@@ -135,11 +679,10 @@ export default function UserDetailScreen() {
     }
   };
 
-  const changeDate = (days: number) => {
-    const newDate = new Date(selectedDate);
-    newDate.setDate(newDate.getDate() + days);
-    setSelectedDate(newDate);
-  };
+  useEffect(() => {
+    if (!userId) return;
+    loadRange();
+  }, [userId, loadRange]);
 
   const isSameDay = (d1: Date, d2: Date) => {
     return d1.getFullYear() === d2.getFullYear() &&
@@ -258,9 +801,66 @@ export default function UserDetailScreen() {
 
   const handleRefresh = async () => {
     setRefreshing(true);
-    await loadUserStats();
+    await Promise.all([loadUserStats(), checkExistingAISummary(), loadRange(), loadRadarData()]);
     setRefreshing(false);
   };
+
+  const rangeLabel = useMemo(() => {
+    if (dateRange.type !== 'custom') {
+      return dateRange.type === '7d' ? 'Last 7 days' : dateRange.type === '14d' ? 'Last 14 days' : 'Last 30 days';
+    }
+    const start = new Date(dateRange.start);
+    const end = new Date(dateRange.end);
+    const startMs = Math.min(start.getTime(), end.getTime());
+    const endMs = Math.max(start.getTime(), end.getTime());
+      return `${formatDateDdMmYyyy(new Date(startMs))} – ${formatDateDdMmYyyy(new Date(endMs))}`;
+  }, [dateRange]);
+
+  const activityAgg = useMemo(() => {
+    let days = 0;
+    let stepsTotal = 0;
+    let caloriesTotal = 0;
+    let distanceTotal = 0;
+    rangeItems.forEach((it) => {
+      const hasAny = typeof it.steps === 'number' || typeof it.activityCalories === 'number' || typeof it.activityDistance === 'number';
+      if (!hasAny) return;
+      days += 1;
+      if (typeof it.steps === 'number') stepsTotal += it.steps;
+      if (typeof it.activityCalories === 'number') caloriesTotal += it.activityCalories;
+      if (typeof it.activityDistance === 'number') distanceTotal += it.activityDistance;
+    });
+    return { days, stepsTotal, caloriesTotal, distanceTotal };
+  }, [rangeItems]);
+
+  const exerciseAgg = useMemo(() => {
+    let days = 0;
+    let workoutTotal = 0;
+    let caloriesTotal = 0;
+    let distanceTotal = 0;
+    rangeItems.forEach((it) => {
+      const hasAny = typeof it.exerciseCount === 'number' || typeof it.exerciseCalories === 'number' || typeof it.exerciseDistance === 'number';
+      if (!hasAny) return;
+      days += 1;
+      if (typeof it.exerciseCount === 'number') workoutTotal += it.exerciseCount;
+      if (typeof it.exerciseCalories === 'number') caloriesTotal += it.exerciseCalories;
+      if (typeof it.exerciseDistance === 'number') distanceTotal += it.exerciseDistance;
+    });
+    return { days, workoutTotal, caloriesTotal, distanceTotal };
+  }, [rangeItems]);
+
+  const sleepAgg = useMemo(() => {
+    let days = 0;
+    let scoreTotal = 0;
+    let durationTotal = 0;
+    rangeItems.forEach((it) => {
+      const hasAny = typeof it.sleepScore === 'number' || typeof it.sleepDurationMinutes === 'number';
+      if (!hasAny) return;
+      days += 1;
+      if (typeof it.sleepScore === 'number') scoreTotal += it.sleepScore;
+      if (typeof it.sleepDurationMinutes === 'number') durationTotal += it.sleepDurationMinutes;
+    });
+    return { days, scoreTotal, durationTotal };
+  }, [rangeItems]);
 
   if (loading) {
     return (
@@ -269,7 +869,8 @@ export default function UserDetailScreen() {
           <Pressable onPress={() => router.back()} style={styles.backButton}>
             <Text style={styles.backButtonText}>← Back</Text>
           </Pressable>
-          <Text style={styles.headerTitle}>{userId}</Text>
+          <Text style={styles.headerTitle}>{displayName || userId}</Text>
+          <View style={{ width: 80 }} />
         </View>
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color="#FF6B35" />
@@ -280,33 +881,56 @@ export default function UserDetailScreen() {
   }
 
   return (
-    <View style={styles.container}>
+    <SafeAreaView style={styles.container}>
       <View style={styles.header}>
         <Pressable onPress={() => router.back()} style={styles.backButton}>
           <Text style={styles.backButtonText}>← Back</Text>
         </Pressable>
-        <Text style={styles.headerTitle}>{userId}</Text>
+        <Text style={styles.headerTitle}>{displayName || userId}</Text>
+        <View style={{ width: 80 }} />
       </View>
 
-      <View style={styles.dateSelector}>
-        <TouchableOpacity onPress={() => changeDate(-1)} style={styles.dateButton}>
-          <Text style={styles.dateButtonText}>←</Text>
-        </TouchableOpacity>
-        <Text style={styles.dateText}>
-          {selectedDate.toLocaleDateString(undefined, { 
-            weekday: 'short', 
-            year: 'numeric', 
-            month: 'short', 
-            day: 'numeric' 
-          })}
-        </Text>
-        <TouchableOpacity 
-          onPress={() => changeDate(1)} 
-          style={[styles.dateButton, isSameDay(selectedDate, new Date()) && styles.dateButtonDisabled]}
-          disabled={isSameDay(selectedDate, new Date())}
-        >
-          <Text style={[styles.dateButtonText, isSameDay(selectedDate, new Date()) && styles.dateButtonDisabledText]}>→</Text>
-        </TouchableOpacity>
+      <View style={styles.controlsCard}>
+        <View style={styles.syncMetaRow}>
+          <Text style={styles.syncMetaText}>Last Sync: {formatTimestamp(lastSync)}</Text>
+          <Text style={styles.syncMetaText}>Last Checked: {formatTimestamp(lastChecked)}</Text>
+        </View>
+        <View style={styles.rangeRow}>
+          <Text style={styles.rangeLabel}>Range:</Text>
+          <View style={styles.rangeButtons}>
+            {[7, 14, 30].map((days) => {
+              const key = `${days}d` as PresetRange;
+              return (
+                <TouchableOpacity
+                  key={key}
+                  style={[styles.rangeButton, dateRange.type === key && styles.rangeButtonActive]}
+                  onPress={() => {
+                    const end = new Date();
+                    const start = new Date(end);
+                    start.setDate(start.getDate() - (days - 1));
+                    setDateRange({ type: key, start, end });
+                  }}
+                >
+                  <Text style={[styles.rangeButtonText, dateRange.type === key && styles.rangeButtonTextActive]}>
+                    {days}d
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
+
+            <TouchableOpacity
+              style={[styles.rangeButton, dateRange.type === 'custom' && styles.rangeButtonActive]}
+              onPress={() => {
+                setDatePickerMode('start');
+                setShowDatePicker(true);
+              }}
+            >
+              <Ionicons name="calendar" size={16} color={dateRange.type === 'custom' ? '#FFF' : '#666'} />
+            </TouchableOpacity>
+          </View>
+        </View>
+
+        <Text style={styles.rangeSummaryText}>{rangeLabel}</Text>
       </View>
 
       <ScrollView
@@ -315,9 +939,14 @@ export default function UserDetailScreen() {
           <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />
         }
       >
+
         {/* AI Insights Section */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Daily Insights & Recommendations</Text>
+
+          <Text style={styles.rangeHintText}>
+            Insights use the range end date: {formatDateDdMmYyyy(selectedDate)}
+          </Text>
           
           {aiSummary ? (
             <View style={styles.card}>
@@ -343,27 +972,70 @@ export default function UserDetailScreen() {
               )}
             </TouchableOpacity>
           )}
+
+          {(anySectionCollapsed || anySectionExpanded) && (
+            <View style={styles.bulkSectionControls}>
+              {anySectionCollapsed && (
+                <TouchableOpacity style={styles.bulkSectionButton} onPress={() => setAllSectionsExpanded(true)}>
+                  <Text style={styles.bulkSectionButtonText}>Open All</Text>
+                </TouchableOpacity>
+              )}
+              {anySectionExpanded && (
+                <TouchableOpacity style={styles.bulkSectionButton} onPress={() => setAllSectionsExpanded(false)}>
+                  <Text style={styles.bulkSectionButtonText}>Collapse All</Text>
+                </TouchableOpacity>
+              )}
+            </View>
+          )}
         </View>
 
+        {/* Radar Chart Comparison Section */}
+        <ExpandableSection
+          title="Overall Performance"
+          expanded={expandedSections.overallPerformance}
+          onToggle={() => toggleSection('overallPerformance')}
+        >
+          {loadingRadar ? (
+            <View style={styles.card}>
+              <ActivityIndicator size="small" color="#FF6B35" />
+              <Text style={[styles.loadingText, { marginTop: 8, textAlign: 'center' }]}>Loading comparison data...</Text>
+            </View>
+          ) : individualRadarData && averageRadarData ? (
+            <ComparisonRadarChart
+              individualData={individualRadarData}
+              averageData={averageRadarData}
+              studentName={displayName || userId}
+              selectedCount={selectedCadetsCount}
+            />
+          ) : (
+            <View style={styles.card}>
+              <Text style={styles.noData}>No comparison data available</Text>
+            </View>
+          )}
+        </ExpandableSection>
+
         {/* Activity Section */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Daily Activity</Text>
+        <ExpandableSection
+          title="Daily Activity"
+          expanded={expandedSections.dailyActivity}
+          onToggle={() => toggleSection('dailyActivity')}
+        >
           <View style={styles.comparisonCard}>
             <View style={styles.comparisonColumn}>
-              <Text style={styles.columnLabel}>
-                {isSameDay(selectedDate, new Date()) ? 'Today' : 'Selected'}
-              </Text>
-              {stats?.today.activity ? (
+              <Text style={styles.columnLabel}>Range</Text>
+              {loadingRange ? (
+                <ActivityIndicator color="#FF6B35" />
+              ) : activityAgg.days > 0 ? (
                 <>
                   <Text style={styles.statValue}>
-                    {stats.today.activity.steps?.toLocaleString() || 0}
+                    {Math.round(activityAgg.stepsTotal / activityAgg.days).toLocaleString()}
                   </Text>
-                  <Text style={styles.statLabel}>steps</Text>
+                  <Text style={styles.statLabel}>avg steps/day</Text>
                   <Text style={styles.statSubValue}>
-                    {stats.today.activity.calories || 0} cal
+                    {Math.round(activityAgg.caloriesTotal / activityAgg.days)} cal/day
                   </Text>
                   <Text style={styles.statSubValue}>
-                    {(stats.today.activity.distance_from_steps || 0).toFixed(2)} km
+                    {(activityAgg.distanceTotal / activityAgg.days).toFixed(2)} km/day
                   </Text>
                 </>
               ) : (
@@ -388,11 +1060,65 @@ export default function UserDetailScreen() {
               )}
             </View>
           </View>
-        </View>
+        </ExpandableSection>
+
+        {/* Exercises */}
+        <ExpandableSection
+          title="Exercises"
+          expanded={expandedSections.exercises}
+          onToggle={() => toggleSection('exercises')}
+        >
+          <View style={styles.drilldownRow}>
+            <Pressable onPress={goToAllExercises} style={styles.drilldownLink}>
+              <Text style={styles.drilldownLinkText}>View all exercises</Text>
+              <Ionicons name="chevron-forward" size={16} color="#FF6B35" />
+            </Pressable>
+          </View>
+          <Text style={styles.rangeSummaryText}>{rangeLabel}</Text>
+          {stats?.historical.recentExercises && stats.historical.recentExercises.length > 0 ? (
+            stats.historical.recentExercises.map((dayExercises: any, idx: number) => (
+              <View key={idx} style={styles.card}>
+                <Text style={styles.cardSubtitle}>{dayExercises.date}</Text>
+                <Text style={styles.exerciseCount}>
+                  {dayExercises.count || 0} exercise(s)
+                </Text>
+                {dayExercises.exercises?.map((ex: any, exIdx: number) => (
+                  <Pressable
+                    key={exIdx}
+                    style={styles.exerciseItem}
+                    disabled={!ex?.id}
+                    onPress={() => {
+                      if (!ex?.id) return;
+                      router.push({
+                        pathname: '/exercise/[date]/[exerciseId]',
+                        params: { date: dayExercises.date, exerciseId: String(ex.id), userId },
+                      });
+                    }}
+                  >
+                    <Text style={styles.exerciseSport}>{ex.sport || 'Unknown'}</Text>
+                    <Text style={styles.exerciseDetail}>
+                      Duration: {formatDuration(ex.duration)}
+                    </Text>
+                    {ex.calories && (
+                      <Text style={styles.exerciseDetail}>
+                        Calories: {ex.calories}
+                      </Text>
+                    )}
+                  </Pressable>
+                ))}
+              </View>
+            ))
+          ) : (
+            <Text style={styles.noData}>No recent exercises</Text>
+          )}
+        </ExpandableSection>
 
         {/* Cardio Load Section */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Cardio Load</Text>
+        <ExpandableSection
+          title="Cardio Load"
+          expanded={expandedSections.cardioLoad}
+          onToggle={() => toggleSection('cardioLoad')}
+        >
           <View style={styles.comparisonCard}>
             <View style={styles.comparisonColumn}>
               <Text style={styles.columnLabel}>
@@ -424,197 +1150,41 @@ export default function UserDetailScreen() {
               )}
             </View>
           </View>
-        </View>
+        </ExpandableSection>
 
         {/* Sleep Section */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Sleep & Recovery</Text>
+        <ExpandableSection
+          title="Sleep & Recovery"
+          expanded={expandedSections.sleepRecovery}
+          onToggle={() => toggleSection('sleepRecovery')}
+        >
+          <View style={styles.drilldownRow}>
+            <Pressable onPress={goToAllSleep} style={styles.drilldownLink}>
+              <Text style={styles.drilldownLinkText}>View all sleep</Text>
+              <Ionicons name="chevron-forward" size={16} color="#FF6B35" />
+            </Pressable>
+          </View>
           <View style={styles.card}>
-            {stats?.today.sleep ? (
+            {loadingRange ? (
+              <ActivityIndicator color="#FF6B35" />
+            ) : sleepAgg.days > 0 ? (
               <>
-                <Text style={styles.cardSubtitle}>
-                  {isSameDay(selectedDate, new Date()) ? 'Last Night' : 'Sleep Session'}
+                <Text style={styles.cardSubtitle}>Range summary</Text>
+                <Text style={styles.infoText}>
+                  Avg sleep score: {Math.round(sleepAgg.scoreTotal / sleepAgg.days)}
                 </Text>
-                <View style={styles.statsGrid}>
-                  <View style={styles.statItem}>
-                    <Text style={styles.statLabel}>Duration</Text>
-                    {stats.today.sleep.sleep_start_time && stats.today.sleep.sleep_end_time ? (
-                      <Text style={styles.statValue}>
-                        {(() => {
-                          const start = new Date(stats.today.sleep.sleep_start_time);
-                          const end = new Date(stats.today.sleep.sleep_end_time);
-                          const durationMs = end.getTime() - start.getTime();
-                          const hours = Math.floor(durationMs / (1000 * 60 * 60));
-                          const minutes = Math.floor((durationMs % (1000 * 60 * 60)) / (1000 * 60));
-                          return `${hours}h ${minutes}m`;
-                        })()}
-                      </Text>
-                    ) : (
-                      <Text style={styles.noData}>No data</Text>
-                    )}
-                  </View>
-                  <View style={styles.statItem}>
-                    <Text style={styles.statLabel}>Deep Sleep</Text>
-                    {(() => {
-                      const deepSleep = stats.today.sleep.deep_sleep ?? stats.today.sleep.data?.deep_sleep;
-                      if (deepSleep) {
-                        const hours = Math.floor(deepSleep / 3600);
-                        const minutes = Math.floor((deepSleep % 3600) / 60);
-                        return (
-                          <Text style={styles.statValue}>
-                            {hours > 0 ? `${hours}h ${minutes}m` : `${minutes}m`}
-                          </Text>
-                        );
-                      }
-                      return <Text style={styles.noData}>No data</Text>;
-                    })()}
-                  </View>
-                  <View style={styles.statItem}>
-                    <Text style={styles.statLabel}>Sleep Score</Text>
-                    {stats.today.sleep.sleep_score ? (
-                      <Text style={styles.statValue}>
-                        {stats.today.sleep.sleep_score}
-                      </Text>
-                    ) : (
-                      <Text style={styles.noData}>No data</Text>
-                    )}
-                  </View>
-                </View>
-                
-                {/* Heart Rate Chart */}
-                {stats.today.sleep.heart_rate_samples && (
-                  <View style={styles.chartContainer}>
-                    <Text style={styles.chartTitle}>Heart Rate During Sleep</Text>
-                    {(() => {
-                      const hrSamples = stats.today.sleep.heart_rate_samples;
-                      
-                      // Sort data by time
-                      const sortedEntries = Object.entries(hrSamples).sort((a, b) => {
-                        const [hoursA, minutesA] = a[0].split(':').map(Number);
-                        const [hoursB, minutesB] = b[0].split(':').map(Number);
-                        
-                        // Convert to minutes, handling overnight
-                        let timeA = hoursA * 60 + minutesA;
-                        let timeB = hoursB * 60 + minutesB;
-                        
-                        // If hour is small (0-11), it's likely after midnight
-                        if (hoursA < 12 && hoursA < 20) timeA += 24 * 60;
-                        if (hoursB < 12 && hoursB < 20) timeB += 24 * 60;
-                        
-                        return timeA - timeB;
-                      });
-                      
-                      const times = sortedEntries.map(e => e[0]);
-                      const values = sortedEntries.map(e => e[1]) as number[];
-                      
-                      if (times.length === 0) {
-                        return <Text style={styles.noData}>No heart rate data</Text>;
-                      }
-
-                      const minHR = Math.min(...values);
-                      const maxHR = Math.max(...values);
-                      const range = maxHR - minHR;
-                      const chartHeight = 150;
-                      
-                      // Convert time strings to minutes, handling overnight sleep
-                      const parseTime = (timeStr: string) => {
-                        const [hours, minutes] = timeStr.split(':').map(Number);
-                        let totalMinutes = hours * 60 + minutes;
-                        
-                        // If hour is small (0-11), assume it's after midnight
-                        if (hours < 12 && hours < 20) {
-                          totalMinutes += 24 * 60;
-                        }
-                        
-                        return totalMinutes;
-                      };
-                      
-                      const timeValues = times.map(time => parseTime(time));
-                      const minTime = timeValues[0];
-                      const maxTime = timeValues[timeValues.length - 1];
-                      const timeRange = maxTime - minTime;
-                      
-                      return (
-                        <View style={{ position: 'relative' }}>
-                          {hoveredPoint && (
-                            <View style={styles.tooltip}>
-                              <Text style={styles.tooltipText}>
-                                {hoveredPoint.time} - {hoveredPoint.hr} bpm
-                              </Text>
-                            </View>
-                          )}
-                          <View style={styles.chartRow}>
-                            <View style={styles.yAxisLabels}>
-                              <Text style={styles.yAxisLabel}>{maxHR}</Text>
-                              <Text style={styles.yAxisLabel}>{Math.round((maxHR + minHR) / 2)}</Text>
-                              <Text style={styles.yAxisLabel}>{minHR}</Text>
-                            </View>
-                            <View style={styles.chart}>
-                              {values.map((hr, index) => {
-                                // Scale x based on actual time difference
-                                const timeInMinutes = timeValues[index];
-                                const xPercent = ((timeInMinutes - minTime) / timeRange) * 100;
-                                const y = chartHeight - ((hr - minHR) / range) * chartHeight;
-                                
-                                return (
-                                  <View
-                                    key={index}
-                                    onPointerEnter={() => setHoveredPoint({ time: times[index], hr })}
-                                    onPointerLeave={() => setHoveredPoint(null)}
-                                    style={{
-                                      position: 'absolute',
-                                      left: `${xPercent}%`,
-                                      top: y - 12,
-                                      width: 24,
-                                      height: 24,
-                                      alignItems: 'center',
-                                      justifyContent: 'center',
-                                      marginLeft: -12,
-                                      cursor: 'pointer',
-                                    }}
-                                  >
-                                    <View
-                                      style={{
-                                        width: 6,
-                                        height: 6,
-                                        backgroundColor: '#FF6B35',
-                                        borderRadius: 3,
-                                      }}
-                                    />
-                                  </View>
-                                );
-                              })}
-                            </View>
-                          </View>
-                          <View style={styles.chartLabels}>
-                            <Text style={styles.chartLabel}>{times[0]}</Text>
-                            <Text style={styles.chartLabel}>{times[Math.floor(times.length / 2)]}</Text>
-                            <Text style={styles.chartLabel}>{times[times.length - 1]}</Text>
-                          </View>
-                          <View style={styles.chartStats}>
-                            <View>
-                              <Text style={styles.chartStatLabel}>Min</Text>
-                              <Text style={styles.chartStatValue}>{minHR} bpm</Text>
-                            </View>
-                            <View>
-                              <Text style={styles.chartStatLabel}>Max</Text>
-                              <Text style={styles.chartStatValue}>{maxHR} bpm</Text>
-                            </View>
-                            <View>
-                              <Text style={styles.chartStatLabel}>Avg</Text>
-                              <Text style={styles.chartStatValue}>
-                                {stats.today.nightlyRecharge?.heart_rate_avg || Math.round(values.reduce((a, b) => a + b, 0) / values.length)} bpm
-                              </Text>
-                            </View>
-                          </View>
-                        </View>
-                      );
-                    })()}
-                  </View>
-                )}
+                <Text style={styles.infoText}>
+                  Avg duration:{' '}
+                  {(() => {
+                    const avgMinutes = Math.round(sleepAgg.durationTotal / sleepAgg.days);
+                    const h = Math.floor(avgMinutes / 60);
+                    const m = avgMinutes % 60;
+                    return `${h}h ${m}m`;
+                  })()}
+                </Text>
               </>
             ) : (
-              <Text style={styles.noData}>No sleep data</Text>
+              <Text style={styles.noData}>No data</Text>
             )}
           </View>
 
@@ -665,37 +1235,7 @@ export default function UserDetailScreen() {
               </View>
             </View>
           )}
-        </View>
-
-        {/* Recent Exercises */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Recent Exercises (Last 7 Days)</Text>
-          {stats?.historical.recentExercises && stats.historical.recentExercises.length > 0 ? (
-            stats.historical.recentExercises.map((dayExercises: any, idx: number) => (
-              <View key={idx} style={styles.card}>
-                <Text style={styles.cardSubtitle}>{dayExercises.date}</Text>
-                <Text style={styles.exerciseCount}>
-                  {dayExercises.count || 0} exercise(s)
-                </Text>
-                {dayExercises.exercises?.map((ex: any, exIdx: number) => (
-                  <View key={exIdx} style={styles.exerciseItem}>
-                    <Text style={styles.exerciseSport}>{ex.sport || 'Unknown'}</Text>
-                    <Text style={styles.exerciseDetail}>
-                      Duration: {formatDuration(ex.duration)}
-                    </Text>
-                    {ex.calories && (
-                      <Text style={styles.exerciseDetail}>
-                        Calories: {ex.calories}
-                      </Text>
-                    )}
-                  </View>
-                ))}
-              </View>
-            ))
-          ) : (
-            <Text style={styles.noData}>No recent exercises</Text>
-          )}
-        </View>
+        </ExpandableSection>
 
         {/* Heart Rate Section */}
         {stats?.today.continuousHR && (
@@ -710,7 +1250,75 @@ export default function UserDetailScreen() {
           </View>
         )}
       </ScrollView>
-    </View>
+
+      {/* Web Date Picker Modal (matches instructor tab UX) */}
+      {Platform.OS === 'web' && showDatePicker && (
+        <Modal
+          transparent={true}
+          animationType="fade"
+          visible={showDatePicker}
+          onRequestClose={() => setShowDatePicker(false)}
+        >
+          <View style={styles.webModalOverlay}>
+            <View style={styles.webModalContent}>
+              <Text style={styles.webModalTitle}>Select Date Range</Text>
+
+              <View style={styles.webDateRow}>
+                <Text style={styles.webDateLabel}>Start:</Text>
+                {React.createElement('input', {
+                  type: 'date',
+                    value: formatDate(dateRange.start instanceof Date ? dateRange.start : new Date()),
+                  onChange: (e: any) => {
+                    const d = new Date(e.target.value);
+                    if (!isNaN(d.getTime())) setDateRange((prev) => ({ ...prev, start: d, type: 'custom' }));
+                  },
+                  style: {
+                    padding: 8,
+                    borderRadius: 8,
+                    borderWidth: 1,
+                    borderColor: '#D1D5DB',
+                    fontSize: 16,
+                  },
+                })}
+              </View>
+
+              <View style={styles.webDateRow}>
+                <Text style={styles.webDateLabel}>End:</Text>
+                {React.createElement('input', {
+                  type: 'date',
+                    value: formatDate(dateRange.end instanceof Date ? dateRange.end : new Date()),
+                  onChange: (e: any) => {
+                    const d = new Date(e.target.value);
+                    if (!isNaN(d.getTime())) setDateRange((prev) => ({ ...prev, end: d, type: 'custom' }));
+                  },
+                  style: {
+                    padding: 8,
+                    borderRadius: 8,
+                    borderWidth: 1,
+                    borderColor: '#D1D5DB',
+                    fontSize: 16,
+                  },
+                })}
+              </View>
+
+              <TouchableOpacity style={styles.webApplyButton} onPress={() => setShowDatePicker(false)}>
+                <Text style={styles.webApplyButtonText}>Apply</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </Modal>
+      )}
+
+      {/* Native Date Picker */}
+      {Platform.OS !== 'web' && showDatePicker && dateRange.type === 'custom' && (
+        <DateTimePicker
+          value={datePickerMode === 'start' ? dateRange.start : dateRange.end}
+          mode="date"
+          display="default"
+          onChange={onDateChange}
+        />
+      )}
+    </SafeAreaView>
   );
 }
 
@@ -723,12 +1331,13 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     padding: 20,
-    paddingTop: 60,
+    paddingTop: 20,
     backgroundColor: '#F9F9F9',
     borderBottomWidth: 1,
     borderBottomColor: '#E0E0E0',
   },
   backButton: {
+    width: 80,
     paddingRight: 16,
   },
   backButtonText: {
@@ -739,8 +1348,31 @@ const styles = StyleSheet.create({
   headerTitle: {
     color: '#000000',
     fontSize: 20,
-    fontWeight: 'bold',
+    fontWeight: '600',
     flex: 1,
+    textAlign: 'center',
+  },
+  bulkSectionControls: {
+    flexDirection: 'row',
+    gap: 10,
+    marginTop: 12,
+    alignItems: 'center',
+    justifyContent: 'flex-start',
+    flexWrap: 'wrap',
+  },
+  bulkSectionButton: {
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#FF6B35',
+    alignSelf: 'flex-start',
+  },
+  bulkSectionButtonText: {
+    color: '#FF6B35',
+    fontSize: 14,
+    fontWeight: '700',
+    textAlign: 'center',
   },
   loadingContainer: {
     flex: 1,
@@ -754,6 +1386,110 @@ const styles = StyleSheet.create({
   scrollView: {
     flex: 1,
   },
+  controlsCard: {
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    backgroundColor: '#FFFFFF',
+    borderBottomWidth: 1,
+    borderBottomColor: '#E0E0E0',
+  },
+  syncMetaRow: {
+    marginBottom: 10,
+  },
+  syncMetaText: {
+    color: '#666',
+    fontSize: 13,
+    marginBottom: 2,
+  },
+  rangeRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  rangeLabel: {
+    color: '#666',
+    fontSize: 14,
+    marginRight: 10,
+  },
+  rangeButtons: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  rangeButton: {
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#E0E0E0',
+    backgroundColor: '#F9F9F9',
+  },
+  rangeButtonActive: {
+    borderColor: '#FF6B35',
+    backgroundColor: '#FFF3EE',
+  },
+  rangeButtonText: {
+    color: '#000000',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  rangeButtonTextActive: {
+    color: '#FF6B35',
+  },
+  webDateRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    flex: 1,
+    minWidth: 240,
+  },
+  webDateLabel: {
+    color: '#666',
+    fontSize: 14,
+    width: 44,
+  },
+  webModalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  webModalContent: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
+    padding: 20,
+    width: '100%',
+    maxWidth: 400,
+  },
+  webModalTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#000000',
+    textAlign: 'center',
+    marginBottom: 16,
+  },
+  webApplyButton: {
+    backgroundColor: '#FF6B35',
+    paddingVertical: 12,
+    borderRadius: 8,
+    marginTop: 20,
+    alignItems: 'center',
+  },
+  webApplyButtonText: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  rangeSummaryText: {
+    marginTop: 10,
+    color: '#666',
+    fontSize: 13,
+  },
+  rangeHintText: {
+    color: '#666',
+    fontSize: 13,
+    marginBottom: 10,
+  },
   section: {
     padding: 20,
   },
@@ -763,13 +1499,57 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     marginBottom: 12,
   },
-  comparisonCard: {
-    backgroundColor: '#F9F9F9',
-    borderRadius: 12,
-    padding: 20,
+  expandableHeader: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    padding: 16,
     flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    elevation: 2,
+  },
+  expandableHeaderTitle: {
+    color: '#000000',
+    fontSize: 18,
+    fontWeight: 'bold',
+  },
+  expandableBody: {
+    marginTop: 12,
+  },
+  drilldownRow: {
+    marginBottom: 12,
+  },
+  drilldownLink: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    alignSelf: 'flex-start',
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+    borderRadius: 10,
     borderWidth: 1,
     borderColor: '#E0E0E0',
+    backgroundColor: '#FFF3EE',
+    gap: 6,
+  },
+  drilldownLinkText: {
+    color: '#FF6B35',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  comparisonCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    padding: 20,
+    flexDirection: 'row',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    elevation: 2,
   },
   comparisonColumn: {
     flex: 1,
@@ -787,12 +1567,15 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase',
   },
   card: {
-    backgroundColor: '#F9F9F9',
-    borderRadius: 12,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
     padding: 16,
-    marginBottom: 12,
-    borderWidth: 1,
-    borderColor: '#E0E0E0',
+    marginBottom: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    elevation: 2,
   },
   cardSubtitle: {
     color: '#666',
@@ -993,4 +1776,3 @@ const styles = StyleSheet.create({
     color: '#000000',
   },
 });
-

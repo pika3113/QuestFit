@@ -1,4 +1,4 @@
-import type { VercelRequest, VercelResponse } from '@vercel/node';
+import type { VercelRequest, VercelResponse } from '../vercel-types';
 import axios from 'axios';
 const admin = require('firebase-admin');
 
@@ -19,14 +19,39 @@ const db = admin.firestore();
 
 /**
  * Daily cron job to sync Polar API data for all users
- * Runs at 23:00 UTC daily (11 PM)
+ * Schedule is configured in vercel.json.
  */
 export default async function handler(req: VercelRequest, res: VercelResponse) {
-  // Verify this is a cron job request from Vercel
-  const authHeader = req.headers.authorization;
-  
-  if (process.env.CRON_SECRET && authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
-    return res.status(401).json({ error: 'Unauthorized' });
+  const getHeader = (name: string) => {
+    const value =
+      (req.headers?.[name] ??
+        req.headers?.[name.toLowerCase()] ??
+        req.headers?.[name.toUpperCase()]) as string | string[] | undefined;
+    return Array.isArray(value) ? value[0] : value;
+  };
+
+  const isVercelCron = (() => {
+    const v = getHeader('x-vercel-cron');
+    return v === '1' || v === 'true' || v === 'yes';
+  })();
+
+  const secretFromQuery = (() => {
+    const q = (req.query ?? {}) as Record<string, string | string[] | undefined>;
+    const raw = q.cron_secret ?? q.secret ?? q.token;
+    return Array.isArray(raw) ? raw[0] : raw;
+  })();
+
+  const authHeader = getHeader('authorization');
+  const expectedBearer = process.env.CRON_SECRET ? `Bearer ${process.env.CRON_SECRET}` : null;
+
+  // Auth policy:
+  // - Allow Vercel Cron requests (they include x-vercel-cron)
+  // - Otherwise, if CRON_SECRET is set, require it via Authorization header or querystring
+  if (!isVercelCron && process.env.CRON_SECRET) {
+    const ok = authHeader === expectedBearer || secretFromQuery === process.env.CRON_SECRET;
+    if (!ok) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
   }
 
   console.log('🕐 Daily Polar sync started at', new Date().toISOString());
@@ -237,10 +262,42 @@ async function insertDataToFirebase(userId: string, date: string, data: any) {
   const syncedAt = new Date().toISOString();
   let itemsQueued = 0;
 
+  const userRef = db.collection('users').doc(userId);
+  // Track when we checked Polar, regardless of whether any new docs were written.
+  batch.set(userRef, { lastChecked: syncedAt }, { merge: true });
+
+  const normalizeActivityDistance = (activitiesPayload: any) => {
+    const activity = activitiesPayload?.activity ?? activitiesPayload;
+    if (!activity || typeof activity !== 'object') return null;
+
+    const rawDistance =
+      activity.distance ??
+      activity.total_distance ??
+      activity.totalDistance ??
+      activity.distance_meters ??
+      activity.distanceMeters;
+
+    const distanceMeters =
+      typeof rawDistance === 'number' && Number.isFinite(rawDistance) ? rawDistance : null;
+
+    return {
+      activity: {
+        ...activity,
+        distanceMeters,
+        distanceKm: distanceMeters != null ? distanceMeters / 1000 : null,
+      },
+    };
+  };
+
   // Insert activities
   if (data.activities) {
     const ref = userPolarRef.doc('activities').collection('all').doc(date);
-    batch.set(ref, { ...data.activities, syncedAt });
+    const normalized = normalizeActivityDistance(data.activities);
+    if (normalized) {
+      batch.set(ref, { ...data.activities, ...normalized, syncedAt });
+    } else {
+      batch.set(ref, { ...data.activities, syncedAt });
+    }
     itemsQueued++;
   }
 
@@ -292,9 +349,13 @@ async function insertDataToFirebase(userId: string, date: string, data: any) {
     // We use the last exercise in the list as it's likely the most recent one processed
     const exerciseWithDevice = exercisesForDate.find((ex: any) => ex.device_id);
     if (exerciseWithDevice) {
-      const userRef = db.collection('users').doc(userId);
       batch.set(userRef, { deviceId: exerciseWithDevice.device_id }, { merge: true });
     }
+  }
+
+  // Only bump lastSync if we actually stored any daily data documents.
+  if (itemsQueued > 0) {
+    batch.set(userRef, { lastSync: syncedAt }, { merge: true });
   }
 
   // Create summary document

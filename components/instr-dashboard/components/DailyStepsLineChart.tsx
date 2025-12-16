@@ -1,7 +1,9 @@
 import React from 'react';
-import { View } from 'react-native';
+import { Platform, View, useWindowDimensions } from 'react-native';
 import { Text } from '@/components/Themed';
 import Svg, { Path, Circle, Line } from 'react-native-svg';
+import { formatDateDdMmYyyy } from '@/src/utils/dateFormat';
+import { formatCompactNumber } from '@/src/utils/numberFormat';
 
 interface DailyStepsLineChartProps {
   chartData: { name: string; steps: number }[];
@@ -9,6 +11,9 @@ interface DailyStepsLineChartProps {
 }
 
 export const DailyStepsLineChart = ({ chartData, date }: DailyStepsLineChartProps) => {
+  const { width: windowWidth } = useWindowDimensions();
+  const compactNumbers = Platform.OS !== 'web' || windowWidth <= 420;
+
   const maxSteps = Math.max(...chartData.map(d => d.steps), 1);
   const axisMax = maxSteps + 400;
   const yAxisSteps = 5;
@@ -24,8 +29,13 @@ export const DailyStepsLineChart = ({ chartData, date }: DailyStepsLineChartProp
   };
 
   const title = (date && !isToday(date))
-    ? `Steps by User - ${date.toLocaleDateString()}`
+    ? `Steps by User - ${formatDateDdMmYyyy(date)}`
     : "Today's Steps by User";
+
+  const formatValue = (value: number) => {
+    if (compactNumbers && Math.abs(value) >= 1000) return formatCompactNumber(value);
+    return Math.round(value).toLocaleString();
+  };
 
   const chartHeight = 200;
   const padding = { top: 20, right: 10, bottom: 60, left: 35 };
@@ -62,7 +72,7 @@ export const DailyStepsLineChart = ({ chartData, date }: DailyStepsLineChartProp
         <View style={{ width: padding.left, height: chartHeight, justifyContent: 'space-between', paddingRight: 8, paddingVertical: padding.top }}>
           {yAxisValues.reverse().map((val, i) => (
             <Text key={i} style={{ fontSize: 10, color: '#888', textAlign: 'right', position: 'absolute', top: padding.top + (plotHeight / yAxisSteps) * i - 6, right: 8, width: 40 }}>
-              {val.toLocaleString()}
+              {formatValue(val)}
             </Text>
           ))}
         </View>

@@ -1,20 +1,19 @@
 import React from 'react';
 import { Pressable, ActivityIndicator, FlatList } from 'react-native';
 import { Text, View } from '@/components/Themed';
-import { Device } from 'react-native-ble-plx';
 import Colors from '@/constants/Colors';
 import { useColorScheme } from '@/components/useColorScheme';
 import { liveStyles as styles } from '@/src/styles';
-import { ConnectedDeviceInfo } from '@/src/services/bluetoothService';
+import { ConnectedDeviceInfo, BluetoothDevice } from '@/src/services/bluetoothTypes';
 
 interface MultiDeviceScannerProps {
   isScanning: boolean;
   bluetoothEnabled: boolean;
-  availableDevices: Device[];
+  availableDevices: BluetoothDevice[];
   connectedDevices: ConnectedDeviceInfo[];
   deviceOwners: Record<string, string>;
   onScan: () => void;
-  onConnect: (device: Device) => void;
+  onConnect: (device: BluetoothDevice) => void;
 }
 
 export const MultiDeviceScanner: React.FC<MultiDeviceScannerProps> = ({
@@ -28,7 +27,7 @@ export const MultiDeviceScanner: React.FC<MultiDeviceScannerProps> = ({
 }) => {
   const colorScheme = useColorScheme();
 
-  const renderDevice = ({ item }: { item: Device }) => {
+  const renderDevice = ({ item }: { item: BluetoothDevice }) => {
     const isConnected = connectedDevices.some(d => d.device.id === item.id);
     const ownerName = deviceOwners[item.id];
 

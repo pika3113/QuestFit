@@ -1,4 +1,4 @@
-import type { VercelRequest, VercelResponse } from '@vercel/node';
+import type { VercelRequest, VercelResponse } from '../vercel-types';
 import axios from 'axios';
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
@@ -7,7 +7,52 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
-  const { accessToken, polarUserId } = req.body;
+  let accessToken: string | undefined;
+  let polarUserId: string | undefined;
+
+  // `req.body` is typed as unknown in our Vercel types; validate at runtime.
+  // On Vercel this may arrive as an object (already parsed) OR as raw bytes.
+  const coerceBodyObject = (body: unknown): Record<string, unknown> | null => {
+    if (!body) return null;
+
+    if (typeof body === 'string') {
+      try {
+        return JSON.parse(body) as Record<string, unknown>;
+      } catch {
+        return null;
+      }
+    }
+
+    // Raw bytes
+    if (typeof Buffer !== 'undefined' && Buffer.isBuffer(body)) {
+      try {
+        return JSON.parse(body.toString('utf8')) as Record<string, unknown>;
+      } catch {
+        return null;
+      }
+    }
+
+    if (body instanceof Uint8Array) {
+      try {
+        const asString = typeof Buffer !== 'undefined'
+          ? Buffer.from(body).toString('utf8')
+          : new TextDecoder('utf-8').decode(body);
+        return JSON.parse(asString) as Record<string, unknown>;
+      } catch {
+        return null;
+      }
+    }
+
+    if (typeof body === 'object') {
+      return body as Record<string, unknown>;
+    }
+
+    return null;
+  };
+
+  const parsed = coerceBodyObject(req.body);
+  accessToken = parsed && typeof parsed.accessToken === 'string' ? parsed.accessToken : undefined;
+  polarUserId = parsed && typeof parsed.polarUserId === 'string' ? parsed.polarUserId : undefined;
 
   if (!accessToken || !polarUserId) {
     return res.status(400).json({ error: 'Missing accessToken or polarUserId' });

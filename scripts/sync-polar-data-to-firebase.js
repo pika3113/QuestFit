@@ -19,13 +19,26 @@ const admin = require('firebase-admin');
 const path = require('path');
 const dotenv = require('dotenv');
 
-// Load environment variables from .env.local
+// Load environment variables from .env.local (preferred) or fallback to .env
 dotenv.config({ path: path.join(__dirname, '..', '.env.local') });
+dotenv.config({ path: path.join(__dirname, '..', '.env') });
 
 const POLAR_BASE_URL = 'https://www.polaraccesslink.com/v3';
 
 // Initialize Firebase Admin
 if (admin.apps.length === 0) {
+  const requiredEnvVars = [
+    'FIREBASE_PROJECT_ID',
+    'FIREBASE_CLIENT_EMAIL',
+    'FIREBASE_PRIVATE_KEY',
+  ];
+  const missing = requiredEnvVars.filter((key) => !process.env[key]);
+  if (missing.length > 0) {
+    console.error('Missing required Firebase env vars:', missing.join(', '));
+    console.error('Create `.env.local` (or `.env`) with FIREBASE_* values for Admin SDK.');
+    process.exit(1);
+  }
+
   admin.initializeApp({
     credential: admin.credential.cert({
       projectId: process.env.FIREBASE_PROJECT_ID,
@@ -207,12 +220,40 @@ async function insertDataToFirebase(userId, date, data) {
   const syncedAt = new Date().toISOString();
   let itemsQueued = 0;
 
+  const normalizeActivityDistance = (activitiesPayload) => {
+    const activity = activitiesPayload?.activity ?? activitiesPayload;
+    if (!activity || typeof activity !== 'object') return null;
+
+    const rawDistance =
+      activity.distance ??
+      activity.total_distance ??
+      activity.totalDistance ??
+      activity.distance_meters ??
+      activity.distanceMeters;
+
+    const distanceMeters =
+      typeof rawDistance === 'number' && Number.isFinite(rawDistance) ? rawDistance : null;
+
+    return {
+      activity: {
+        ...activity,
+        distanceMeters,
+        distanceKm: distanceMeters != null ? distanceMeters / 1000 : null,
+      },
+    };
+  };
+
   console.log('  💾 Preparing data for Firebase...');
 
   // Insert activities
   if (data.activities) {
     const ref = userPolarRef.doc('activities').collection('all').doc(date);
-    batch.set(ref, { ...data.activities, syncedAt });
+    const normalized = normalizeActivityDistance(data.activities);
+    if (normalized) {
+      batch.set(ref, { ...data.activities, ...normalized, syncedAt });
+    } else {
+      batch.set(ref, { ...data.activities, syncedAt });
+    }
     itemsQueued++;
     console.log('    ✓ Activities queued');
   }

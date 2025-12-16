@@ -91,6 +91,7 @@ export const creatureCardStyles = StyleSheet.create({
     width: '100%',
   },
   desc: {
+    flex: 1,
     fontSize: 12,
     color: '#6B7280',
     fontStyle: 'italic',
@@ -112,6 +113,7 @@ export const creatureCardStyles = StyleSheet.create({
     flexWrap: "wrap",
     justifyContent: "flex-start",
     alignItems: "stretch",
+    width: '100%',
   },
   card: {
     flex: 1,

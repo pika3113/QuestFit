@@ -1,10 +1,13 @@
 import React from 'react';
 import { StyleSheet, ScrollView, TouchableOpacity, Platform } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { Text, View } from '@/components/Themed';
 import { useGameProfile } from '@/src/hooks/useGameProfile';
 import { useAuth } from '@/src/hooks/useAuth';
 import { Ionicons } from '@expo/vector-icons';
 import { router, Stack } from 'expo-router';
+import { formatDateDdMmYyyy } from '@/src/utils/dateFormat';
+import { REWARDS } from '@/src/utils/rewardsSystem';
 
 const ModernColors = {
   primary: '#FF6B35',
@@ -26,8 +29,24 @@ export default function MyRewardsScreen() {
 
   const redeemedRewards = profile?.redeemedRewards || [];
 
+  const formatRewardName = (reward: any) => {
+    const rawName = typeof reward?.name === 'string' ? reward.name.trim() : '';
+    const rewardId = typeof reward?.rewardId === 'string' ? reward.rewardId : '';
+
+    // Prefer the name that was stored at redemption time.
+    if (rawName && rawName.toLowerCase() !== 'voucher') return rawName;
+
+    // Backward compatibility: if older data only stored "voucher", use the current catalog name.
+    if (rewardId) {
+      const catalog = REWARDS.find((r) => r.id === rewardId);
+      if (catalog?.name) return catalog.name;
+    }
+
+    return rawName || 'Voucher';
+  };
+
   return (
-    <View style={styles.container}>
+    <SafeAreaView style={styles.container} edges={['top', 'left', 'right', 'bottom']}>
       <Stack.Screen options={{ title: 'My Rewards', headerBackTitle: 'Back' }} />
       
       <ScrollView contentContainerStyle={styles.contentContainer}>
@@ -47,9 +66,9 @@ export default function MyRewardsScreen() {
               </View>
               
               <View style={styles.ticketRight}>
-                <Text style={styles.rewardName}>{reward.name}</Text>
+                <Text style={styles.rewardName}>{formatRewardName(reward)}</Text>
                 <Text style={styles.redeemedDate}>
-                  Redeemed on {new Date(reward.redeemedAt).toLocaleDateString()}
+                  Redeemed on {formatDateDdMmYyyy(reward.redeemedAt)}
                 </Text>
                 {reward.code && (
                   <View style={styles.codeContainer}>
@@ -66,7 +85,7 @@ export default function MyRewardsScreen() {
           ))
         )}
       </ScrollView>
-    </View>
+    </SafeAreaView>
   );
 }
 

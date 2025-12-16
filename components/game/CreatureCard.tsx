@@ -1,9 +1,12 @@
-import React, { useState, useEffect } from 'react';
-import { View, Text, Pressable, Dimensions, Modal } from 'react-native';
+import React from 'react';
+import { View, Text, Pressable, Modal, useWindowDimensions } from 'react-native';
 import { Image } from 'expo-image';
 import { Creature } from '../../src/types/polar';
-import { creatureCardStyles as styles} from '@/src/styles/components/creatureCardStyles';
+import { creatureCardStyles as styles } from '@/src/styles/components/creatureCardStyles';
 import { getRarityColor, getSportColor } from '@/src/styles';
+
+const SKELETON_BG = '#F3F4F6';
+const SKELETON_FG = '#E5E7EB';
 
 const creatureImages = require.context(
   '../../assets/images/creatures',
@@ -20,29 +23,63 @@ interface CreatureCardProps {
   captured?: boolean;
 }
 
+export const CreatureCardSkeleton: React.FC = () => {
+  return (
+    <View style={{ width: '100%' }}>
+      <View style={styles.header}>
+        <View style={{ flex: 1, paddingRight: 8 }}>
+          <View style={{ height: 14, width: '75%', backgroundColor: SKELETON_FG, borderRadius: 6 }} />
+          <View style={{ height: 10, width: 44, backgroundColor: SKELETON_FG, borderRadius: 6, marginTop: 6 }} />
+        </View>
+        <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+          <View style={{ height: 14, width: 64, backgroundColor: SKELETON_FG, borderRadius: 6, marginLeft: 8 }} />
+          <View style={{ height: 22, width: 86, backgroundColor: SKELETON_FG, borderRadius: 12, marginLeft: 8 }} />
+        </View>
+      </View>
+
+      <View style={{ height: 75, width: '100%', backgroundColor: SKELETON_FG, borderRadius: 10, marginTop: 10, marginBottom: 10 }} />
+
+      <View style={styles.stats}>
+        {[0, 1, 2].map((idx) => (
+          <View key={idx} style={styles.stat}>
+            <View style={{ height: 10, width: 66, backgroundColor: SKELETON_FG, borderRadius: 6, marginBottom: 6 }} />
+            <View style={{ height: 14, width: 28, backgroundColor: SKELETON_FG, borderRadius: 6 }} />
+          </View>
+        ))}
+      </View>
+    </View>
+  );
+};
+
 export const CreatureCard: React.FC<CreatureCardProps> = ({ creature, captured = false }) => {
 
   return (
     <View style={{ width: '100%' }}>
       <View style={styles.header}>
           <Text style={styles.name}>
-            {creature.name}{" "}
+            {creature.name}
+            {'\n'}
             <Text style={styles.id}>#{creature.id}</Text>
           </Text>
           <View style={styles.header}>
-          <Text style={[
-            styles.rarity,
-            { color: getRarityColor(creature.rarity) }
-          ]}>
-            {creature.rarity.toUpperCase()}
-            </Text>
-            <Text style={[
-              styles.sportBadge,
-              { backgroundColor: getSportColor(creature.sport)[0],
-                color: getSportColor(creature.sport)[1] 
-              }
-            ]}>
+            <Text
+              style={[
+                styles.rarity,
+                { color: getSportColor(creature.sport)[0] },
+              ]}
+            >
               {creature.sport}
+            </Text>
+            <Text
+              style={[
+                styles.sportBadge,
+                {
+                  backgroundColor: getRarityColor(creature.rarity),
+                  color: '#FFFFFF',
+                },
+              ]}
+            >
+              {creature.rarity.toUpperCase()}
             </Text>
           </View>
         </View>
@@ -86,32 +123,30 @@ interface CardGridProps {
 
 export const CreatureCardGrid: React.FC<CardGridProps> = ({
   cards,
-  minCardWidth = 325, // minimum size a card can shrink to
+  minCardWidth = 300, // minimum size a card can shrink to
   onPress
 }: CardGridProps) => {
-  const [cardWidth, setCardWidth] = useState(2);
-
-  useEffect(() => {
-    const calculateCardDims = () => {
-      const screenWidth = Dimensions.get("window").width;
-      const columns = Math.max(Math.floor(screenWidth/minCardWidth), 1); // at least 1 column
-      const width = Dimensions.get("window").width/columns;
-      setCardWidth(width);
-    };
-
-    calculateCardDims();
-
-    const subscription = Dimensions.addEventListener("change", calculateCardDims);
-    return () => subscription.remove();
-  }, [minCardWidth]);
+  const { width: windowWidth } = useWindowDimensions();
+  const [containerWidth, setContainerWidth] = React.useState(0);
+  const effectiveWidth = containerWidth > 0 ? containerWidth : windowWidth;
+  const columns = Math.max(Math.floor(effectiveWidth / minCardWidth), 1); // at least 1 column
+  const cardWidthPercent = `${100 / columns}%` as `${number}%`;
 
   return (
-    <View style={styles.grid}>
+    <View
+      style={styles.grid}
+      onLayout={(e) => {
+        const next = Math.round(e.nativeEvent.layout.width);
+        if (next > 0 && next !== containerWidth) setContainerWidth(next);
+      }}
+    >
       {cards.map(card => (
-        <View style={{ width: cardWidth, minWidth: minCardWidth }} key={card.creature.id}>
+        <View style={{ width: cardWidthPercent, padding: 8 }} key={card.creature.id}>
         <Pressable 
         style={[styles.card, { 
-          borderColor: getRarityColor(card.creature.rarity)
+          borderColor: getRarityColor(card.creature.rarity),
+          margin: 0,
+          width: '100%'
         }]}
         onPress={() => onPress?.(parseInt(card.creature.id))}
         >
@@ -140,6 +175,51 @@ export const CreatureCardGrid: React.FC<CardGridProps> = ({
     </View>
   );
 }
+
+export const CreatureCardGridSkeleton: React.FC<{ count?: number; minCardWidth?: number }> = ({
+  count = 12,
+  minCardWidth = 300,
+}) => {
+  const { width: windowWidth } = useWindowDimensions();
+  const [containerWidth, setContainerWidth] = React.useState(0);
+  const effectiveWidth = containerWidth > 0 ? containerWidth : windowWidth;
+  const columns = Math.max(Math.floor(effectiveWidth / minCardWidth), 1);
+  const cardWidthPercent = `${100 / columns}%` as `${number}%`;
+
+  return (
+    <View
+      style={styles.grid}
+      onLayout={(e) => {
+        const next = Math.round(e.nativeEvent.layout.width);
+        if (next > 0 && next !== containerWidth) setContainerWidth(next);
+      }}
+    >
+      {Array.from({ length: count }).map((_, idx) => (
+        <View style={{ width: cardWidthPercent, padding: 8 }} key={`creature-skeleton-${idx}`}>
+          <View
+            style={[
+              styles.card,
+              {
+                borderColor: SKELETON_FG,
+                margin: 0,
+                width: '100%',
+                backgroundColor: SKELETON_BG,
+              },
+            ]}
+          >
+            <CreatureCardSkeleton />
+            <View style={styles.border}>
+              <View style={styles.header}>
+                <View style={{ flex: 1, height: 12, backgroundColor: SKELETON_FG, borderRadius: 6, marginBottom: 4 }} />
+                <View style={{ width: 78, height: 18, backgroundColor: SKELETON_FG, borderRadius: 6, marginLeft: 8 }} />
+              </View>
+            </View>
+          </View>
+        </View>
+      ))}
+    </View>
+  );
+};
 
 interface CreatureDetailsModalProps {
   visible: boolean;

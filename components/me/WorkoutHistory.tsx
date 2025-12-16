@@ -2,6 +2,7 @@ import React from 'react';
 import { View } from 'react-native';
 import { Text } from '@/components/Themed';
 import { xpStyles as styles } from '@/src/styles';
+import { formatDateDdMmYyyy } from '@/src/utils/dateFormat';
 
 export interface WorkoutHistoryItem {
   sessionId: string;
@@ -26,7 +27,7 @@ export const WorkoutHistory: React.FC<WorkoutHistoryProps> = ({ history }) => {
         <View key={`${item.sessionId}-${index}`} style={styles.historyItem}>
           <View style={styles.historyLeft}>
             <Text style={styles.historyDate}>
-              {item.date.toLocaleDateString()} {item.date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+              {formatDateDdMmYyyy(item.date)} {item.date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
             </Text>
             <Text style={styles.historySport}>{item.sport}</Text>
           </View>
