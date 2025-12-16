@@ -4,6 +4,10 @@ import { Creature } from './types/polar';
 
 type ColorPair = readonly [background: string, foreground: string];
 
+
+//Creature styles
+
+// Rarity
 export const RARITY_COLORS: Record<Creature['rarity'], string> = {
   common: '#3BA8F6',
   rare: '#43C073',
@@ -12,6 +16,7 @@ export const RARITY_COLORS: Record<Creature['rarity'], string> = {
   legendary: '#A855F7', // esentially a fallbackplaceholder
 } as const;
 
+// Type of exercise 
 export const SPORT_PRIMARY_COLORS: Record<string, string> = {
   NEUTRAL: '#676767',
   GENERAL: '#676767',
