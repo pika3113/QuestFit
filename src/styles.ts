@@ -17,7 +17,7 @@ export const getSportColor = (type: Creature['sport']) => {
     case 'SWIMMING': return ['#53E8f6', '#1F2937'];
     case 'HIKING': return ['#13780E', '#FFFFFF'];
     case 'FITNESS': return ['#FB008A', '#FFFFFF'];
-    case 'CYCLING': return ['#FFF42A', '#1F2937'];
+    case 'CYCLING': return ['rgba(232, 65, 13, 1)', '#FFFFFF'];
     case 'CIRCUIT': return ['#BB00FF', '#FFFFFF'];
     default: return ['#676767', '#FFFFFF'];
   }

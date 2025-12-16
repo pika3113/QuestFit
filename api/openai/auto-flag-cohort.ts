@@ -13,6 +13,7 @@ type ActivityMetric = 'steps' | 'distance';
 type CadetInput = {
   cadetId: string;
   displayName: string;
+  isLightDuty?: boolean;
   avgSteps: number;
   avgDistance: number;
   avgCalories: number;
@@ -67,9 +68,11 @@ function coerceBodyObject(body: unknown): Record<string, unknown> | null {
 function isCadetInput(value: unknown): value is CadetInput {
   if (!value || typeof value !== 'object') return false;
   const v = value as Record<string, unknown>;
+  const isLightDutyOk = v.isLightDuty === undefined || typeof v.isLightDuty === 'boolean';
   return (
     typeof v.cadetId === 'string' &&
     typeof v.displayName === 'string' &&
+    isLightDutyOk &&
     typeof v.avgSteps === 'number' &&
     typeof v.avgDistance === 'number' &&
     typeof v.avgCalories === 'number' &&
@@ -112,6 +115,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       'You are an instructor performance analyst for a fitness cadet cohort.',
       'You must flag cadets as good, bad, or none based on the provided averages.',
       'Prefer conservative flagging: only flag clear good/bad cases.',
+      'Some cadets are marked isLightDuty=true (LD). They may do less PT than others.',
+      'For LD cadets, be more lenient: do NOT flag bad for low activity alone. Only flag bad if there is clear, extreme concern (e.g., very poor trend or consistently zero data), otherwise prefer none.',
       'Keep reasons short (<= 12 words), concrete, and data-backed.',
       'If data is missing (e.g., sleep=0), mention it in the reason and be conservative.',
       'Return ONLY JSON. No markdown. No surrounding text.',

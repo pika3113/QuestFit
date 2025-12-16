@@ -44,12 +44,91 @@ function startOfLocalDay(d: Date) {
 type DashboardMode = 'overview' | 'cadets';
 type CadetFlag = 'good' | 'bad' | 'none';
 type CadetFlagSource = 'manual' | 'ai' | 'none';
+type CadetLightDutyMap = Record<string, boolean>;
 
 function formatLocalIsoDate(d: Date) {
   const y = d.getFullYear();
   const m = String(d.getMonth() + 1).padStart(2, '0');
   const day = String(d.getDate()).padStart(2, '0');
   return `${y}-${m}-${day}`;
+}
+
+const SG_TZ_OFFSET_MINUTES = 8 * 60;
+
+function formatIsoDateWithOffsetMinutes(d: Date, offsetMinutes: number) {
+  const shifted = new Date(d.getTime() + offsetMinutes * 60_000);
+  const y = shifted.getUTCFullYear();
+  const m = String(shifted.getUTCMonth() + 1).padStart(2, '0');
+  const day = String(shifted.getUTCDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
+type Trend = 'up' | 'down' | 'stable';
+
+type TrendRegressionResult = {
+  trend: Trend;
+  slope: number;
+};
+
+function computeTrendFromStepsAndCalories(
+  stepsHistory: number[],
+  caloriesHistory: number[],
+  slopeThreshold: number = 0.15
+): TrendRegressionResult {
+  try {
+    const idx: number[] = [];
+    for (let i = 0; i < stepsHistory.length; i++) {
+      const steps = stepsHistory[i] || 0;
+      const calories = caloriesHistory[i] || 0;
+      if (steps > 0 || calories > 0) idx.push(i);
+    }
+
+    if (idx.length < 2) return { trend: 'stable', slope: 0 };
+
+    const stepsForTrend = idx.map((i) => stepsHistory[i] || 0);
+    const calsForTrend = idx.map((i) => caloriesHistory[i] || 0);
+
+    const meanStd = (arr: number[]) => {
+      const n = arr.length;
+      if (n === 0) return { mean: 0, std: 0 };
+      const mean = arr.reduce((a, b) => a + b, 0) / n;
+      const variance = arr.reduce((acc, v) => acc + (v - mean) * (v - mean), 0) / n;
+      const std = Math.sqrt(variance);
+      return { mean, std };
+    };
+
+    const sStats = meanStd(stepsForTrend);
+    const cStats = meanStd(calsForTrend);
+
+    const combined = idx.map((_, j) => {
+      const zS = sStats.std > 0 ? (stepsForTrend[j] - sStats.mean) / sStats.std : 0;
+      const zC = cStats.std > 0 ? (calsForTrend[j] - cStats.mean) / cStats.std : 0;
+      return zS + zC;
+    });
+
+    const n = combined.length;
+    if (n < 2) return { trend: 'stable', slope: 0 };
+
+    // x is 0..n-1
+    const meanX = (n - 1) / 2;
+    const meanY = combined.reduce((a, b) => a + b, 0) / n;
+    let num = 0;
+    let den = 0;
+    for (let i = 0; i < n; i++) {
+      const dx = i - meanX;
+      const dy = combined[i] - meanY;
+      num += dx * dy;
+      den += dx * dx;
+    }
+    const slope = den > 0 ? num / den : 0;
+
+    // Slope is in (z-score units) per day.
+    if (slope > slopeThreshold) return { trend: 'up', slope };
+    if (slope < -slopeThreshold) return { trend: 'down', slope };
+    return { trend: 'stable', slope };
+  } catch {
+    return { trend: 'stable', slope: 0 };
+  }
 }
 
 export default function InstructorDashboard() {
@@ -72,6 +151,9 @@ export default function InstructorDashboard() {
   const [refreshing, setRefreshing] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
 
+  // Keep last-seen regression slope per user to avoid log spam.
+  const lastTrendRegressionRef = React.useRef<Record<string, { slopeRounded: number; trend: Trend }>>({});
+
   const normalizedSearchQuery = typeof searchQuery === 'string' ? searchQuery : '';
   
   // Filtering & Selection State
@@ -89,6 +171,8 @@ export default function InstructorDashboard() {
   const [cadetFlags, setCadetFlags] = useState<Record<string, CadetFlag>>({});
   const [cadetFlagSources, setCadetFlagSources] = useState<Record<string, CadetFlagSource>>({});
   const [cadetFlagReasons, setCadetFlagReasons] = useState<Record<string, string>>({});
+
+  const [cadetLightDuty, setCadetLightDuty] = useState<CadetLightDutyMap>({});
 
   const [autoFlagState, setAutoFlagState] = useState<'idle' | 'loading' | 'success_ai' | 'success_fallback' | 'error'>('idle');
   const [autoFlagTooltipText, setAutoFlagTooltipText] = useState<string | null>(null);
@@ -136,6 +220,8 @@ export default function InstructorDashboard() {
     return `${minutes}m ${seconds}s`;
   }, []);
 
+  const TREND_SLOPE_THRESHOLD = 0.15;
+
   // Activity display toggle (affects the "distance" metric card/chart)
   const [activityMetric, setActivityMetric] = useState<'steps' | 'distance'>('steps');
 
@@ -176,6 +262,7 @@ export default function InstructorDashboard() {
         const raw = data?.cadetFlags;
         const rawSources = data?.cadetFlagSources;
         const rawReasons = data?.cadetFlagReasons;
+        const rawLightDuty = (data as any)?.cadetLightDuty;
         if (raw && typeof raw === 'object') {
           setCadetFlags(raw as Record<string, CadetFlag>);
         } else {
@@ -192,6 +279,12 @@ export default function InstructorDashboard() {
           setCadetFlagReasons(rawReasons as Record<string, string>);
         } else {
           setCadetFlagReasons({});
+        }
+
+        if (rawLightDuty && typeof rawLightDuty === 'object') {
+          setCadetLightDuty(rawLightDuty as CadetLightDutyMap);
+        } else {
+          setCadetLightDuty({});
         }
 
         const rawNextAllowed = (data as any)?.autoFlagNextAllowedAtMs;
@@ -225,6 +318,27 @@ export default function InstructorDashboard() {
   const getCadetFlag = (cadetId: string): CadetFlag => cadetFlags[cadetId] ?? 'none';
   const getCadetFlagSource = (cadetId: string): CadetFlagSource => cadetFlagSources[cadetId] ?? 'none';
   const getCadetFlagReason = (cadetId: string): string => cadetFlagReasons[cadetId] ?? '';
+  const isCadetLightDuty = useCallback((cadetId: string) => cadetLightDuty[cadetId] === true, [cadetLightDuty]);
+
+  const setCadetLightDutyStatus = useCallback(
+    async (cadetId: string, isLd: boolean) => {
+      if (!user?.uid) return;
+      setCadetLightDuty((prev) => ({ ...prev, [cadetId]: isLd }));
+      try {
+        await setDoc(
+          doc(db, 'instructors', user.uid),
+          {
+            cadetLightDuty: { [cadetId]: isLd },
+            updatedAt: new Date().toISOString(),
+          },
+          { merge: true }
+        );
+      } catch (e) {
+        console.error('Failed to save cadet light-duty status', e);
+      }
+    },
+    [user?.uid]
+  );
 
   const setCadetFlag = useCallback(
     async (cadetId: string, flag: CadetFlag, source: CadetFlagSource = 'manual', reason?: string) => {
@@ -294,7 +408,9 @@ export default function InstructorDashboard() {
       // 1. Fetch all users (In a real app, you might filter by class/instructor)
       const usersSnapshot = await getDocs(collection(db, 'users'));
       
-      const studentsData = await Promise.all(usersSnapshot.docs.map(async (userDoc) => {
+      const trendRegressionChanges: Array<{ name: string; slopeRounded: number; trend: Trend }> = [];
+
+      const studentsData = await Promise.all(usersSnapshot.docs.map(async (userDoc: any) => {
         try {
           const userData = userDoc.data();
           const userId = userDoc.id;
@@ -310,32 +426,56 @@ export default function InstructorDashboard() {
           const lastChecked: string | undefined = userData.lastChecked;
           
           const dateKeysToFetch: string[] = [];
+          const utcFallbackKeys: string[] = [];
           const displayDates: string[] = [];
           const current = new Date(range.start);
           const end = new Date(range.end);
           
           // Normalize to start of day
-          current.setHours(0,0,0,0);
-          end.setHours(23,59,59,999);
+          current.setHours(0, 0, 0, 0);
+          end.setHours(0, 0, 0, 0);
 
           while (current <= end) {
             // Firestore docs are keyed by an ISO date string (historically stored using toISOString()).
             // BUT labels should reflect the user's selected calendar days (local dates).
-            displayDates.push(formatLocalIsoDate(current));
-            dateKeysToFetch.push(current.toISOString().split('T')[0]);
+            const localKey = formatLocalIsoDate(current);
+            // If we need a fallback, use a fixed UTC+8 key (Singapore) rather than raw UTC,
+            // otherwise we can silently shift the day and show misleading values.
+            const utcKey = formatIsoDateWithOffsetMinutes(current, SG_TZ_OFFSET_MINUTES);
+            displayDates.push(localKey);
+            dateKeysToFetch.push(localKey);
+            utcFallbackKeys.push(utcKey);
             current.setDate(current.getDate() + 1);
           }
 
+          const getDocsWithUtcFallback = async (basePath: string) => {
+            const localSnaps = await Promise.all(
+              dateKeysToFetch.map((date) => getDoc(doc(db, `${basePath}/${date}`)))
+            );
+
+            const missingIdx: number[] = [];
+            for (let i = 0; i < localSnaps.length; i++) {
+              if (!localSnaps[i]?.exists() && utcFallbackKeys[i] && utcFallbackKeys[i] !== dateKeysToFetch[i]) {
+                missingIdx.push(i);
+              }
+            }
+
+            if (missingIdx.length === 0) return localSnaps;
+
+            const fallbackSnaps = await Promise.all(
+              missingIdx.map((i) => getDoc(doc(db, `${basePath}/${utcFallbackKeys[i]}`)))
+            );
+
+            const fallbackByIndex = new Map<number, any>();
+            missingIdx.forEach((idx, j) => fallbackByIndex.set(idx, fallbackSnaps[j]));
+
+            return localSnaps.map((snap, i) => (snap?.exists() ? snap : (fallbackByIndex.get(i) || snap)));
+          };
+
           const [exercisesDocs, sleepDocs, activityDocs] = await Promise.all([
-            Promise.all(dateKeysToFetch.map(date =>
-              getDoc(doc(db, `users/${userId}/polarData/exercises/all/${date}`))
-            )),
-            Promise.all(dateKeysToFetch.map(date =>
-              getDoc(doc(db, `users/${userId}/polarData/sleep/all/${date}`))
-            )),
-            Promise.all(dateKeysToFetch.map(date =>
-              getDoc(doc(db, `users/${userId}/polarData/activities/all/${date}`))
-            )),
+            getDocsWithUtcFallback(`users/${userId}/polarData/exercises/all`),
+            getDocsWithUtcFallback(`users/${userId}/polarData/sleep/all`),
+            getDocsWithUtcFallback(`users/${userId}/polarData/activities/all`),
           ]);
 
           dateKeysToFetch.forEach((_, index) => {
@@ -461,18 +601,26 @@ export default function InstructorDashboard() {
           const validSleep = sleepHistory.filter(v => v > 0);
           const avgSleep = validSleep.length > 0 ? Math.round(validSleep.reduce((a, b) => a + b, 0) / validSleep.length) : 0;
 
-          // Determine trend based on Calories (or HR?) - Let's use Calories as "Effort"
-          let trend: 'up' | 'down' | 'stable' = 'stable';
-          if (validCals.length >= 2) {
-            const recent = validCals[validCals.length - 1];
-            const previous = validCals[validCals.length - 2];
-            if (recent > previous + 50) trend = 'up';
-            else if (recent < previous - 50) trend = 'down';
+          const displayName = userData.displayName || 'Unknown Cadet';
+
+          const trendResult = computeTrendFromStepsAndCalories(
+            stepsHistory,
+            caloriesHistory,
+            TREND_SLOPE_THRESHOLD
+          );
+          const trend: Trend = trendResult.trend;
+
+          // Track slope changes (rounded) per user, but emit a single aggregated log line per refresh.
+          const slopeRounded = Math.round((trendResult.slope || 0) * 1000) / 1000;
+          const prev = lastTrendRegressionRef.current[userId];
+          if (!prev || prev.slopeRounded !== slopeRounded || prev.trend !== trend) {
+            trendRegressionChanges.push({ name: displayName, slopeRounded, trend });
+            lastTrendRegressionRef.current[userId] = { slopeRounded, trend };
           }
 
           return {
             id: userId,
-            displayName: userData.displayName || 'Unknown Cadet',
+            displayName,
             photoURL: userData.photoURL,
             lastSync,
             lastChecked,
@@ -495,7 +643,19 @@ export default function InstructorDashboard() {
         }
       }));
 
-      setStudents(studentsData.filter((s): s is StudentStats => s !== null));
+      if (trendRegressionChanges.length > 0) {
+        const summary = trendRegressionChanges
+          .slice()
+          .sort((a, b) => a.name.localeCompare(b.name))
+          .map((c) => `${c.name}(slope=${c.slopeRounded.toFixed(3)},trend=${c.trend})`)
+          .join(' | ');
+
+        console.log(
+          `[trend-regression] changed=${trendRegressionChanges.length} threshold=${TREND_SLOPE_THRESHOLD}: ${summary}`
+        );
+      }
+
+      setStudents(studentsData.filter((s: StudentStats | null): s is StudentStats => s !== null));
     } catch (error) {
       console.error("Error fetching dashboard data:", error);
     } finally {
@@ -649,13 +809,17 @@ export default function InstructorDashboard() {
     const bottomN = Math.max(1, Math.round(unflaggedRanked.length * 0.2));
 
     const top = unflaggedRanked.slice(0, topN).map((r) => r.s.id);
-    const bottom = unflaggedRanked.slice(-bottomN).map((r) => r.s.id);
+    // Be more lenient for Light-Duty cadets: don't auto-flag them as bad in the fallback heuristic.
+    const bottom = unflaggedRanked
+      .slice(-bottomN)
+      .map((r) => r.s.id)
+      .filter((id) => !isCadetLightDuty(id));
 
     await Promise.all([
       ...top.map((id) => setCadetFlag(id, 'good', 'ai')),
       ...bottom.map((id) => setCadetFlag(id, 'bad', 'ai')),
     ]);
-  }, [overviewRanked, setCadetFlag, isCadetUnflagged]);
+  }, [overviewRanked, setCadetFlag, isCadetUnflagged, isCadetLightDuty]);
 
   const runAutoFlagAI = useCallback(async () => {
     if (cohort.length === 0) return;
@@ -698,6 +862,7 @@ export default function InstructorDashboard() {
           cohort: cohort.map((s) => ({
             cadetId: s.id,
             displayName: s.displayName,
+            isLightDuty: isCadetLightDuty(s.id),
             avgSteps: s.avgSteps,
             avgDistance: s.avgDistance,
             avgCalories: s.avgCalories,
@@ -724,6 +889,8 @@ export default function InstructorDashboard() {
           // Only fill currently-unflagged cadets; never modify manual or existing AI flags.
           if (!isCadetUnflagged(cadetId)) return Promise.resolve();
           if (flag !== 'good' && flag !== 'bad') return Promise.resolve();
+          // Be more lenient for Light-Duty cadets: don't auto-flag them as bad.
+          if (flag === 'bad' && isCadetLightDuty(cadetId)) return Promise.resolve();
           return setCadetFlag(cadetId, flag, 'ai', reason);
         })
       );
@@ -741,7 +908,7 @@ export default function InstructorDashboard() {
         await persistAutoFlagResult('error');
       }
     }
-  }, [cohort, activityMetric, dateRange, runAutoFlagSimple, setCadetFlag, autoFlagState, isCadetUnflagged, isAutoFlagCoolingDown, user?.uid, persistAutoFlagResult]);
+  }, [cohort, activityMetric, dateRange, runAutoFlagSimple, setCadetFlag, autoFlagState, isCadetUnflagged, isAutoFlagCoolingDown, user?.uid, persistAutoFlagResult, isCadetLightDuty]);
 
   const flaggedGoodCadets = React.useMemo(() => {
     return cohort
@@ -1321,6 +1488,7 @@ export default function InstructorDashboard() {
                 flag={getCadetFlag((item as any).id)}
                 flagSource={getCadetFlagSource((item as any).id)}
                 onChangeFlag={(nextFlag) => setCadetFlag((item as any).id, nextFlag, 'manual')}
+                isLightDuty={isCadetLightDuty((item as any).id)}
               />
             )
           }
@@ -1365,15 +1533,26 @@ export default function InstructorDashboard() {
               data={students}
               keyExtractor={item => item.id}
               renderItem={({ item }) => (
-                <TouchableOpacity 
-                  style={styles.modalItem} 
-                  onPress={() => toggleUser(item.id)}
-                >
-                  <View style={[styles.checkbox, selectedIds.includes(item.id) && styles.checkboxSelected]}>
-                    {selectedIds.includes(item.id) && <Ionicons name="checkmark" size={16} color="#FFF" />}
-                  </View>
-                  <Text style={styles.modalItemText}>{item.displayName}</Text>
-                </TouchableOpacity>
+                <View style={styles.modalItemRow}>
+                  <TouchableOpacity
+                    style={[styles.modalItem, styles.modalItemLeft]}
+                    onPress={() => toggleUser(item.id)}
+                  >
+                    <View style={[styles.checkbox, selectedIds.includes(item.id) && styles.checkboxSelected]}>
+                      {selectedIds.includes(item.id) && <Ionicons name="checkmark" size={16} color="#FFF" />}
+                    </View>
+                    <Text style={styles.modalItemText}>{item.displayName}</Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    style={[styles.ldPill, isCadetLightDuty(item.id) && styles.ldPillActive]}
+                    onPress={() => setCadetLightDutyStatus(item.id, !isCadetLightDuty(item.id))}
+                    accessibilityRole="button"
+                    accessibilityLabel={isCadetLightDuty(item.id) ? 'Unset light duty' : 'Set light duty'}
+                  >
+                    <Text style={[styles.ldPillText, isCadetLightDuty(item.id) && styles.ldPillTextActive]}>LD</Text>
+                  </TouchableOpacity>
+                </View>
               )}
             />
           </View>

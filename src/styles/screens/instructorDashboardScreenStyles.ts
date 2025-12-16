@@ -604,6 +604,13 @@ export const instructorDashboardScreenStyles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: '#F3F4F6',
   },
+  modalItemRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  modalItemLeft: {
+    flex: 1,
+  },
   checkbox: {
     width: 24,
     height: 24,
@@ -621,6 +628,24 @@ export const instructorDashboardScreenStyles = StyleSheet.create({
   modalItemText: {
     fontSize: 16,
     color: '#2D3436',
+  },
+  ldPill: {
+    marginLeft: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 14,
+    backgroundColor: '#F3F4F6',
+  },
+  ldPillActive: {
+    backgroundColor: '#2D3436',
+  },
+  ldPillText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#636E72',
+  },
+  ldPillTextActive: {
+    color: '#FFFFFF',
   },
   iconButton: {
     padding: 8,
