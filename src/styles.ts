@@ -18,7 +18,6 @@ export const RARITY_COLORS: Record<Creature['rarity'], string> = {
 
 // Type of exercise 
 export const SPORT_PRIMARY_COLORS: Record<string, string> = {
-  NEUTRAL: '#676767',
   GENERAL: '#676767',
   RUNNING: '#AE0000',
   SWIMMING: '#53E8F6',

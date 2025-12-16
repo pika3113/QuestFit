@@ -104,7 +104,7 @@ class CreatureService {
       // make sure its the right sport type if that matters
       // NOTE: Some creatures are tagged as GENERAL in data; treat that as "any sport".
       const creatureSport = normalizeSport(creature.sport);
-      const sportIsNeutral = creatureSport === 'NEUTRAL' || creatureSport === 'GENERAL' || creatureSport === '';
+      const sportIsNeutral = creatureSport === 'GENERAL' || creatureSport === '';
       if (!sportIsNeutral && workoutSport !== creatureSport) {
         meetsRequirements = false;
         failedRequirements.push(`sport: ${workoutSport || '(none)'} !== ${creatureSport}`);
@@ -200,7 +200,7 @@ class CreatureService {
       });
     }
 
-    if (creature.sport !== 'NEUTRAL') {
+    if (creature.sport !== 'GENERAL') {
       progress.push({
         requirement: 'Sport Type',
         current: workoutData.sport === creature.sport ? 1 : 0,

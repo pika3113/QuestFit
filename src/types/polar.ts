@@ -67,7 +67,7 @@ export interface Creature {
   id: string;
   name: string;
   rarity: 'common' | 'rare' | 'epic' | 'legendary';
-  sport: 'NEUTRAL' | 'GENERAL' | 'RUNNING' | 'SWIMMING' | 'HIKING' | 'FITNESS' | 'CYCLING' | 'CIRCUIT'
+  sport: 'GENERAL' | 'RUNNING' | 'SWIMMING' | 'HIKING' | 'FITNESS' | 'CYCLING' | 'CIRCUIT'
   description: string;
   image: string;
   animation?: string;
