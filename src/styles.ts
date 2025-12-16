@@ -224,6 +224,10 @@ export const battleStyles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     padding: 12,
+  },
+  specialButton: {
+    width: 175,
+    aspectRatio: 1,
   }
 });
 

@@ -91,7 +91,6 @@ function SpecialIcon() {
 
 function SpecialSvg({ max, current, sport }: SpecialProps) {
 
-  const isComplete = current/max >= 1;
   const progress = Math.min(current/max, 1);
 
   return (
@@ -108,17 +107,9 @@ function SpecialSvg({ max, current, sport }: SpecialProps) {
         </ClipPath>
       </Defs>
 
-      {!isComplete && (
-        <G clipPath="url(#progressClip)" fill={getSportColor(sport)[0]} opacity={0.5}>
-          <SpecialIcon />
-        </G>
-      )}
-
-      {isComplete && (
-        <G clipPath="url(#progressClip)" fill={getSportColor(sport)[0]}>
-          <SpecialIcon />
-        </G>
-      )}
+      <G clipPath="url(#progressClip)" fill={getSportColor(sport)[0]}>
+        <SpecialIcon />
+      </G>
     </Svg>
   );
 }
@@ -176,15 +167,10 @@ export default function BattleScreen() {
     if (isLocked.current) return;
 
     isLocked.current = true;
-    console.log('Battle area pressed, delay of', delay, 'ms');
-    console.log(calcDamage(creatures[userSelectedCreature], creatures[opponentSelectedCreature]), 'damage dealt from user to opponent');
-    
+
     setHealths(prev => {
       const next = [...prev];
-      next[opponentSelectedCreature] = Math.max(
-        0,
-        next[opponentSelectedCreature]-calcDamage(creatures[userSelectedCreature], creatures[opponentSelectedCreature])
-      );
+      next[opponentSelectedCreature] = Math.max(next[opponentSelectedCreature]-calcDamage(creatures[userSelectedCreature], creatures[opponentSelectedCreature]), 0);
       return next;
     });
 
@@ -197,6 +183,22 @@ export default function BattleScreen() {
     setTimeout(() => {
       isLocked.current = false;
     }, delay);
+  };
+
+  const specialPress = () => {
+    if (charges[userSelectedCreature] < chargeMaxes[userSelectedCreature]) return;
+
+    setHealths(prev => {
+      const next = [...prev];
+      next[opponentSelectedCreature] = Math.max(next[opponentSelectedCreature]-calcDamage(creatures[userSelectedCreature], creatures[opponentSelectedCreature])*5, 0);
+      return next;
+    });
+
+    setCharges(prev => {
+      const next = [...prev];
+      next[userSelectedCreature] = 0;
+      return next;
+    });
   };
 
   return (
@@ -302,13 +304,24 @@ export default function BattleScreen() {
             /> 
           </View>
         </View>
-        <View style={styles.specialContainer}>
-          <SpecialSvg 
-            max={chargeMaxes[userSelectedCreature]}
-            current={charges[userSelectedCreature]}
-            sport={creatures[userSelectedCreature].sport}
-          />
-        </View>
+          <View style={styles.specialContainer}>
+            <Pressable
+              onPress={specialPress}
+              hitSlop={10}
+              disabled={charges[userSelectedCreature] < chargeMaxes[userSelectedCreature]}
+              style={({ pressed }) => [
+                styles.specialButton,
+                pressed && { opacity: 0.6 },
+                charges[userSelectedCreature] < chargeMaxes[userSelectedCreature] && { opacity: 0.4 },
+              ]}
+            >
+              <SpecialSvg
+                max={chargeMaxes[userSelectedCreature]}
+                current={charges[userSelectedCreature]}
+                sport={creatures[userSelectedCreature].sport}
+              />
+            </Pressable>
+          </View>
       </Pressable>
     </View>
   );
