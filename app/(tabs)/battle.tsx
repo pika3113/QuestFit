@@ -6,7 +6,7 @@ import React, { useEffect, useRef } from 'react';
 import { Animated, Easing } from 'react-native';
 import { Creature } from '@/src/types/polar';
 import { getRarityColor, getSportColor } from '@/src/styles';
-import SpecialIcon from '../../assets/images/special.svg'
+import Svg, { G, Path, Defs, ClipPath, Rect } from 'react-native-svg';
 
 const creatureImages = require.context(
   '../../assets/images/creatures',
@@ -62,6 +62,57 @@ function IdleIcon ({ creature }: IconProps) {
     />
   );
 }
+
+type SpecialProps = {
+  max: number;
+  current: number;
+  sport: "NEUTRAL" | "RUNNING" | "SWIMMING" | "HIKING" | "FITNESS" | "CYCLING" | "CIRCUIT";
+};
+
+function SpecialIcon() {
+  return (
+    <>
+      <Path d="M49.126,150.126c0-42.346,26.212-78.68,63.26-93.643l18.904-37.971C66.847,27.667,17.126,83.194,17.126,150.126c0,60.895,41.157,112.355,97.113,128.035l3.636-32.354C77.952,232.337,49.126,194.535,49.126,150.126z" />
+      <Path d="M283.019,150.126c0-60.883-41.139-112.333-97.076-128.025l-3.718,32.33c39.946,13.457,68.794,51.27,68.794,95.695c0,42.099-25.907,78.255-62.613,93.379l-19.428,38.217C233.361,272.515,283.019,217.015,283.019,150.126z" />
+      <Path d="M226.169,134.015c1.26-2.479,1.141-5.202-0.314-7.572c-1.454-2.371-4.036-3.316-6.818-3.316h-60.821L171.309,9.3c0.446-3.859-1.946-7.857-5.672-8.963C164.868,0.109,164.089,0,163.32,0c-2.954,0-5.746,1.681-7.121,4.442L73.946,169.718c-1.234,2.479-1.098,5.78,0.36,8.136c1.459,2.355,4.031,4.273,6.802,4.273h60.019l-12.304,109.543c-0.43,3.844,1.951,7.077,5.657,8.185c0.761,0.228,1.532,0.29,2.293,0.29c2.948,0,5.74-1.637,7.133-4.378L226.169,134.015z" />
+    </>
+  );
+}
+
+function SpecialSvg({ max, current, sport }: SpecialProps) {
+
+  const isComplete = current/max >= 1;
+  const progress = Math.min(current/max, 1);
+
+  return (
+    <Svg height='100%' viewBox="0 0 300.145 300.145">
+      <Defs>
+        <ClipPath id="progressClip">
+          {/* Bottom → Top reveal */}
+          <Rect
+            x="0"
+            y={300.145 * (1 - progress)}
+            width="300.145"
+            height={300.145 * progress}
+          />
+        </ClipPath>
+      </Defs>
+
+      {!isComplete && (
+        <G clipPath="url(#progressClip)" fill={getSportColor(sport)[0]} opacity={0.5}>
+          <SpecialIcon />
+        </G>
+      )}
+
+      {isComplete && (
+        <G clipPath="url(#progressClip)" fill={getSportColor(sport)[0]}>
+          <SpecialIcon />
+        </G>
+      )}
+    </Svg>
+  );
+}
+
 
 export default function BattleScreen() {
 
@@ -180,9 +231,10 @@ export default function BattleScreen() {
         </View>
       </View>
       <View style={styles.specialContainer}>
-        <SpecialIcon 
-          style={{marginBottom: 12}} 
-          fill={getSportColor(userCreatures[userSelectedCreature].sport)[0]}
+        <SpecialSvg 
+          max={100}
+          current={100}
+          sport={userCreatures[userSelectedCreature].sport}
         />
       </View>
     </View>
