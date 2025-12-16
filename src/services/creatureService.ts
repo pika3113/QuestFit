@@ -4,6 +4,13 @@ import { Creature } from '../types/polar';
 class CreatureService {
   private creatures: Creature[];
 
+  private static readonly UNLOCK_CHANCE_BY_RARITY: Record<string, number> = {
+    common: 0.75,
+    rare: 0.45,
+    epic: 0.22,
+    legendary: 0.08,
+  };
+
   constructor() {
     this.creatures = creaturesData.creatures as Creature[];
   }
@@ -98,8 +105,20 @@ class CreatureService {
       }
 
       if (meetsRequirements) {
-        console.log(`✅ ${creature.name} (${creature.rarity}) - UNLOCKED!`);
-        unlockedCreatures.push(creature);
+        const chance =
+          CreatureService.UNLOCK_CHANCE_BY_RARITY[creature.rarity] ?? 0.35;
+        const roll = Math.random();
+
+        if (roll < chance) {
+          console.log(
+            `✅ ${creature.name} (${creature.rarity}) - UNLOCKED! (roll=${roll.toFixed(3)} < chance=${chance})`
+          );
+          unlockedCreatures.push(creature);
+        } else {
+          console.log(
+            `🎲 ${creature.name} (${creature.rarity}) - Requirements met but not unlocked (roll=${roll.toFixed(3)} ≥ chance=${chance})`
+          );
+        }
       } else {
         console.log(`❌ ${creature.name} - Failed: ${failedRequirements.join(', ')}`);
       }
