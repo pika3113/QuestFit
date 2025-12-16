@@ -1,2146 +1,2271 @@
-{ 
-  "creatures": [  {
-      "id":"001",
-      "name":"Thunder Wolf",
-      "rarity":"rare",
-      "description":"A swift predator that runs with lightning speed through mountain trails.",
-      "sport":"RUNNING",
-      "stats": { 
-            "power":85,
-            "speed":92,
-            "endurance":78
-      },
-      "unlockRequirements": { 
-            
-            "minDuration":30
-      },
-      "xPReward":150,
-      "lore":"Thunder Wolves are known to inhabit high-altitude regions where storms are frequent."
-    },
-    {
-      "id":"002",
-      "name":"Flame Phoenix",
-      "rarity":"epic",
-      "description":"A majestic bird of fire that rises from intense training sessions.",
-      "sport":"GENERAL",
-      "stats": { 
-            "power":120,
-            "speed":88,
-            "endurance":95
-      },
-      "unlockRequirements": { 
-            "minCalories":600,
-            "minDuration":60
-      },
-      "xPReward":250,
-      "lore":"Only the most dedicated athletes can summon this legendary creature."
-    },
-    {
-      "id":"003",
-      "name":"Aqua Serpent",
-      "rarity":"common",
-      "description":"A graceful water creature that emerges during swimming sessions.",
-      "sport":"SWIMMING",
-      "stats": { 
-            "power":45,
-            "speed":65,
-            "endurance":70
-      },
-      "unlockRequirements": { 
-            "minCalories":200
-            
-      },
-      "xPReward":75,
-      "lore":"Found in all major bodies of water, this creature loves to accompany swimmers."
-    },
-    {
-      "id":"004",
-      "name":"Golden Dragon",
-      "rarity":"legendary",
-      "description":"The ultimate prize for elite athletes who push beyond their limits.",
-      "sport":"GENERAL",
-      "stats": { 
-            "power":150,
-            "speed":100,
-            "endurance":120
-      },
-      "unlockRequirements": { 
-            "minCalories":1000,
-            "minDuration":90
-      },
-      "xPReward":500,
-      "lore":"Legends speak of this dragon appearing only to those who achieve greatness."
-    },
-    {
-      "id":"005",
-      "name":"Forest Spirit",
-      "rarity":"common",
-      "description":"A gentle creature that appears during peaceful nature walks.",
-      "sport":"HIKING",
-      "stats": { 
-            "power":55,
-            "speed":60,
-            "endurance":85
-      },
-      "unlockRequirements": { 
-            "minCalories":250,
-            "minDuration":45
-      },
-      "xPReward":100,
-      "lore":"These spirits guide hikers through ancient forests and mountain paths."
-    },
-    {
-      "id":"006",
-      "name":"Iron Titan",
-      "rarity":"rare",
-      "description":"A powerful being forged in the fires of intense strength training.",
-      "sport":"FITNESS",
-      "stats": { 
-            "power":110,
-            "speed":45,
-            "endurance":130
-      },
-      "unlockRequirements": { 
-            "minCalories":500,
-            "minDuration":50
-      },
-      "xPReward":180,
-      "lore":"Born from determination and perseverance in the weight room."
-    },
-    {
-      "id":"007",
-      "name":"Wind Falcon",
-      "rarity":"common",
-      "description":"A swift bird that soars alongside cyclists on their journeys.",
-      "sport":"CYCLING",
-      "stats": { 
-            "power":60,
-            "speed":95,
-            "endurance":55
-      },
-      "unlockRequirements": { 
-            "minCalories":300,
-            "minDuration":25
-      },
-      "xPReward":90,
-      "lore":"Known to race with cyclists, testing their speed and endurance."
-    },
-    {
-      "id":"008",
-      "name":"Crystal Guardian",
-      "rarity":"epic",
-      "description":"A mystical protector that appears after sustained cardiovascular excellence.",
-      "sport":"GENERAL",
-      "stats": { 
-            "power":105,
-            "speed":70,
-            "endurance":170
-      },
-      "unlockRequirements": { 
-            "minCalories":800,
-            "minDuration":75
-      },
-      "xPReward":300,
-      "lore":"Guards the realm between mortal endurance and superhuman achievement."
-    },
-    {
-      "id":"009",
-      "name":"Shadow Panther",
-      "rarity":"rare",
-      "description":"A stealthy predator that appears during night runs.",
-      "sport":"RUNNING",
-      "stats": { 
-            "power":90,
-            "speed":98,
-            "endurance":75
-      },
-      "unlockRequirements": { 
-            "minCalories":450,
-            "minDuration":35
-      },
-      "xPReward":160,
-      "lore":"Moves silently through the darkness, only visible to those who dare run at night."
-    },
-    {
-      "id":"010",
-      "name":"Boulder Bear",
-      "rarity":"common",
-      "description":"A sturdy companion for those who enjoy mountain hiking.",
-      "sport":"HIKING",
-      "stats": { 
-            "power":70,
-            "speed":40,
-            "endurance":95
-      },
-      "unlockRequirements": { 
-            "minCalories":300,
-            "minDuration":60
-      },
-      "xPReward":110,
-      "lore":"These gentle giants roam mountain trails and protect hikers from harm."
-    },
-    {
-      "id":"011",
-      "name":"Solar Lion ",
-      "rarity":"epic",
-      "description":"A radiant beast whose mane burns with the energy of sunrise.",
-      "sport":"GENERAL",
-      "stats": { 
-            "power":130,
-            "speed":90,
-            "endurance":110
-      },
-      "unlockRequirements": { 
-            "minCalories":800,
-            "minDuration":70
-      },
-      "xPReward":280,
-      "lore":"Said to draw strength from the rising sun, this radiant beast rewards those who train with daily discipline."
-    },
-    {
-      "id":"012",
-      "name":"Frost Wyrm",
-      "rarity":"rare",
-      "description":"A serpentine dragon born of icy breath.",
-      "sport":"RUNNING",
-      "stats": { 
-            "power":100,
-            "speed":75,
-            "endurance":95
-      },
-      "unlockRequirements": { 
-            "minCalories":500,
-            "minDuration":45
-      },
-      "xPReward":180,
-      "lore":"This ice-born serpent appears to those who brave the cold and chase the frost."
-    },
-    {
-      "id":"013",
-      "name":"Ember Fox",
-      "rarity":"common",
-      "description":"A fiery creature that sparks motivation during short, intense bursts of activity.",
-      "sport":"GENERAL",
-      "stats": { 
-            "power":60,
-            "speed":100,
-            "endurance":55
-      },
-      "unlockRequirements": { 
-            "minCalories":250,
-            "minDuration":25
-      },
-      "xPReward":85,
-      "lore":"A quick and fiery creature that appears when passion burns bright during short workouts."
-    },
-    {
-      "id":"014",
-      "name":"Storm Rhino",
-      "rarity":"epic",
-      "description":"A thunderous powerhouse that charges forward with unstoppable momentum.",
-      "sport":"CYCLING",
-      "stats": { 
-            "power":145,
-            "speed":80,
-            "endurance":125
-      },
-      "unlockRequirements": { 
-            "minCalories":900,
-            "minDuration":80
-      },
-      "xPReward":320,
-      "lore":"A thunderous powerhouse, this beast charges beside riders who push their limits."
-    },
-    {
-      "id":"015",
-      "name":"Fat Snail",
-      "rarity":"common",
-      "description":"A fat snail for fat people. Impressive bulk, but very slow.",
-      "sport":"GENERAL",
-      "stats": { 
-            "power":1,
-            "speed":1,
-            "endurance":200
-      },
-      "unlockRequirements": { 
-            
-            "minDuration":60
-      },
-      "xPReward":50,
-      "lore":"Slow but tanky."
-    },
-    {
-      "id":"016",
-      "name":"Nooel's Krocodile",
-      "rarity":"legendary",
-      "description":"A one of a kind crocodile.",
-      "sport":"GENERAL",
-      "stats": { 
-            "power":210,
-            "speed":88,
-            "endurance":157
-      },
-      "unlockRequirements": { 
-            "minCalories":500
-            
-      },
-      "xPReward":1000,
-      "lore":"Kee-Ith's long lost childhood pet, adopted by Nooel."
-    },
-    {
-      "id":"017",
-      "name":"Gorilla",
-      "rarity":"common",
-      "description":"Your average gorilla.",
-      "sport":"GENERAL",
-      "stats": { 
-            "power":150,
-            "speed":50,
-            "endurance":60
-      },
-      "unlockRequirements": { 
-            "minCalories":400,
-            "minDuration":30
-      },
-      "xPReward":200,
-      "lore":"What a funny monkey."
-    },
-    {
-      "id":"018",
-      "name":"Worm",
-      "rarity":"common",
-      "description":"worm",
-      "sport":"GENERAL",
-      "stats": { 
-            "power":55,
-            "speed":44,
-            "endurance":33
-      },
-      "unlockRequirements": { 
-            "minCalories":111,
-            "minDuration":11
-      },
-      "xPReward":111,
-      "lore":"It's just a worm."
-    },
-    {
-      "id":"019",
-      "name":"Blue Eyes White Gorilla",
-      "rarity":"rare",
-      "description":"A rare variant of the black gorilla.",
-      "sport":"GENERAL",
-      "stats": { 
-            "power":151,
-            "speed":51,
-            "endurance":61
-      },
-      "unlockRequirements": { 
-            "minCalories":401,
-            "minDuration":31
-      },
-      "xPReward":201,
-      "lore":"A black gorilla that turned white, better than the average gorilla."
-    },
-    {
-      "id":"020",
-      "name":"Baggie Bumblebee",
-      "rarity":"rare",
-      "description":"A little bumblebee with a little baggie.",
-      "sport":"GENERAL",
-      "stats": { 
-            "power":40,
-            "speed":100,
-            "endurance":30
-      },
-      "unlockRequirements": { 
-            "minCalories":200,
-            "minDuration":20
-      },
-      "xPReward":100,
-      "lore":"What's in bumblebee's baggie? Just pollen, or..?"
-    },
-    {
-      "id":"021",
-      "name":"Electric Mouse",
-      "rarity":"rare",
-      "description":"A legally distinct, cute, little electric rodent.",
-      "sport":"RUNNING",
-      "stats": { 
-            "power":101,
-            "speed":95,
-            "endurance":52
-      },
-      "unlockRequirements": { 
-            "minCalories":400
-            
-      },
-      "xPReward":140,
-      "lore":"An adorable yellow mouse able to control electricity. It looks kind of familiar..."
-    },
-    {
-      "id":"022",
-      "name":"UWU Bird",
-      "rarity":"epic",
-      "description":"Renowned for its \"UWU\" cry.",
-      "sport":"HIKING",
-      "stats": { 
-            "power":89,
-            "speed":130,
-            "endurance":41
-      },
-      "unlockRequirements": { 
-            "minCalories":600
-            
-      },
-      "xPReward":1000,
-      "lore":"The true koels, Eudynamys, are a genus of cuckoos from Asia, Australia and the Pacific. They are large sexually dimorphic cuckoos that eat fruits and insects and have loud distinctive calls. They are brood parasites, laying their eggs in the nests of other species."
-    },
-    {
-      "id":"023",
-      "name":"Ouroboros",
-      "rarity":"legendary",
-      "description":"A mythical and ancient snake that eats its own tail.",
-      "sport":"CIRCUIT",
-      "stats": { 
-            "power":111,
-            "speed":222,
-            "endurance":333
-      },
-      "unlockRequirements": { 
-            "minCalories":1111,
-            "minDuration":111
-      },
-      "xPReward":1111,
-      "lore":"An ancient myth speaks of a snake eating its own tail, representing the eternal cycle of life, death, and rebirth, as well as infinity and the unity of the beginning and the end."
-    },
-    {
-      "id":"024",
-      "name":"Fish with Legs",
-      "rarity":"common",
-      "description":"A curious fish with legs that likes to run.",
-      "sport":"RUNNING",
-      "stats": { 
-            "power":60,
-            "speed":85,
-            "endurance":40
-      },
-      "unlockRequirements": { 
-            
-            "minDuration":15
-      },
-      "xPReward":75,
-      "lore":"This fish somehow grew legs. It doesn't seem to mind, however, and just keeps running anyways."
-    },
-    {
-      "id":"025",
-      "name":"Frostbite Lynx",
-      "rarity":"rare",
-      "description":"A cold-furred hunter moving silently on frozen lakes.",
-      "sport":"SWIMMING",
-      "stats": { 
-            "power":92,
-            "speed":80,
-            "endurance":110
-      },
-      "unlockRequirements": { 
-            "minCalories":900,
-            "minDuration":25
-      },
-      "xPReward":240,
-      "lore":"Its breath crystallizes the air."
-    },
-    {
-      "id":"026",
-      "name":"Thunderhoof",
-      "rarity":"epic",
-      "description":"A zebra that charges with thunderous force.",
-      "sport":"FITNESS",
-      "stats": { 
-            "power":140,
-            "speed":80,
-            "endurance":90
-      },
-      "unlockRequirements": { 
-            "minCalories":1100,
-            "minDuration":35
-      },
-      "xPReward":300,
-      "lore":"Lightning dances beneath its hooves."
-    },
-    {
-      "id":"027",
-      "name":"Mossback Torto",
-      "rarity":"common",
-      "description":"A slow but relentless wanderer covered in moss.",
-      "sport":"HIKING",
-      "stats": { 
-            "power":60,
-            "speed":20,
-            "endurance":180
-      },
-      "unlockRequirements": { 
-            "minCalories":600,
-            "minDuration":45
-      },
-      "xPReward":150,
-      "lore":"It carries centuries of wisdom."
-    },
-    {
-      "id":"028",
-      "name":"Obsidian Ravager",
-      "rarity":"epic",
-      "description":"A panther forged from volcanic glass.",
-      "sport":"RUNNING",
-      "stats": { 
-            "power":170,
-            "speed":150,
-            "endurance":140
-      },
-      "unlockRequirements": { 
-            "minCalories":1500,
-            "minDuration":50
-      },
-      "xPReward":520,
-      "lore":"Its claws leave molten trails."
-    },
-    {
-      "id":"029",
-      "name":"Radiant Griffin",
-      "rarity":"epic",
-      "description":"A fusion of strength and grace.",
-      "sport":"CYCLING",
-      "stats": { 
-            "power":135,
-            "speed":100,
-            "endurance":120
-      },
-      "unlockRequirements": { 
-            "minCalories":850,
-            "minDuration":75
-      },
-      "xPReward":300,
-      "lore":"A noble creature of balance, soaring alongside those who blend power with grace."
-    },
-    {
-      "id":"030",
-      "name":"Twilight Raven",
-      "rarity":"rare",
-      "description":"A mysterious messenger of renewal.",
-      "sport":"RUNNING",
-      "stats": { 
-            "power":90,
-            "speed":88,
-            "endurance":100
-      },
-      "unlockRequirements": { 
-            "minCalories":450,
-            "minDuration":40
-      },
-      "xPReward":170,
-      "lore":"A mysterious bird that heralds renewal, seen by runners who find peace in the dark."
-    },
-    {
-      "id":"031",
-      "name":"Swole Turtle",
-      "rarity":"rare",
-      "description":"A slow but absurdly strong reptile with the patience of a saint.",
-      "sport":"CIRCUIT",
-      "stats": { 
-            "power":120,
-            "speed":45,
-            "endurance":135
-      },
-      "unlockRequirements": { 
-            "minCalories":600,
-            "minDuration":60
-      },
-      "xPReward":210,
-      "lore":"This calm companion reminds individuals that progress always beats pace."
-    },
-    {
-      "id":"032",
-      "name":"Quadzilla",
-      "rarity":"legendary",
-      "description":"A towering lizard known for legs so mighty they shake the earth.",
-      "sport":"CYCLING",
-      "stats": { 
-            "power":160,
-            "speed":85,
-            "endurance":140
-      },
-      "unlockRequirements": { 
-            "minCalories":1000,
-            "minDuration":90
-      },
-      "xPReward":450,
-      "lore":"Legend has it that it has quads the size of mountains."
-    },
-    {
-      "id":"033",
-      "name":"Captain Cardio",
-      "rarity":"epic",
-      "description":"A relentless motivator who believes the mind is the best weapon.",
-      "sport":"RUNNING",
-      "stats": { 
-            "power":130,
-            "speed":115,
-            "endurance":110
-      },
-      "unlockRequirements": { 
-            "minCalories":800,
-            "minDuration":70
-      },
-      "xPReward":280,
-      "lore":"Legend says this hero once outran a treadmill for insubordination."
-    },
-    {
-      "id":"034",
-      "name":"Battle Badger",
-      "rarity":"rare",
-      "description":"A furious little fighter with unlimited rage and zero chill.",
-      "sport":"FITNESS",
-      "stats": { 
-            "power":120,
-            "speed":105,
-            "endurance":95
-      },
-      "unlockRequirements": { 
-            "minCalories":600,
-            "minDuration":50
-      },
-      "xPReward":200,
-      "lore":"Don't let its size fool you, it's been banned from three boot camps for excessive aggression."
-    },
-    {
-      "id":"035",
-      "name":"Corporal Crunch",
-      "rarity":"epic",
-      "description":"A shredded man that leads core drills with terrifying enthusiasm.",
-      "sport":"FITNESS",
-      "stats": { 
-            "power":135,
-            "speed":100,
-            "endurance":115
-      },
-      "unlockRequirements": { 
-            "minCalories":850,
-            "minDuration":70
-      },
-      "xPReward":300,
-      "lore":"Rumor says it once punched a protein shake into existence mid-sit-up."
-    },
-    {
-      "id":"036",
-      "name":"Storm Lynx",
-      "rarity":"rare",
-      "description":"A lightning-charged feline that moves in flashes.",
-      "sport":"RUNNING",
-      "stats": { 
-            "power":110,
-            "speed":777,
-            "endurance":15
-      },
-      "unlockRequirements": { 
-            "minCalories":450,
-            "minDuration":30
-      },
-      "xPReward":259,
-      "lore":"Legends say it races thunder itself."
-    },
-    {
-      "id":"037",
-      "name":"Lava Moth",
-      "rarity":"epic",
-      "description":"A moth with wings dripping magma.",
-      "sport":"GENERAL",
-      "stats": { 
-            "power":130,
-            "speed":90,
-            "endurance":110
-      },
-      "unlockRequirements": { 
-            "minCalories":459,
-            "minDuration":30
-      },
-      "xPReward":400,
-      "lore":"It survives by drinking magma."
-    },
-    {
-      "id":"038",
-      "name":"Pebble Yak",
-      "rarity":"common",
-      "description":"A small yak with stone-like fur.",
-      "sport":"HIKING",
-      "stats": { 
-            "power":45,
-            "speed":35,
-            "endurance":110
-      },
-      "unlockRequirements": { 
-            "minCalories":120,
-            "minDuration":20
-      },
-      "xPReward":100,
-      "lore":"Fur as hard as rock, just like its mental fortitude."
-    },
-    {
-      "id":"039",
-      "name":"Emberpaw",
-      "rarity":"rare",
-      "description":"A feline of pure flame sprinting across volcanic plains.",
-      "sport":"RUNNING",
-      "stats": { 
-            "power":88,
-            "speed":120,
-            "endurance":70
-      },
-      "unlockRequirements": { 
-            "minCalories":900,
-            "minDuration":25
-      },
-      "xPReward":180,
-      "lore":"Born from smoldering molten golem embers casted by immortal wizards."
-    },
-    {
-      "id":"040",
-      "name":"Sain Ubolt",
-      "rarity":"legendary",
-      "description":"A lightning-forged sprinter whose footsteps split the air. The embodiment of ultimate speed and relentless discipline.",
-      "sport":"RUNNING",
-      "stats": { 
-            "power":888,
-            "speed":888,
-            "endurance":140
-      },
-      "unlockRequirements": { 
-            "minCalories":2500,
-            "minDuration":180
-      },
-      "xPReward":2688,
-      "lore":"Born from the spark of a legend, Sain Ubolt moves so fast he outruns his own shadow."
-    },
-    {
-      "id":"041",
-      "name":"Magical Monkey",
-      "rarity":"rare",
-      "description":"╰( ͡° ͜ʖ ͡° )つ──☆*:・ﾟ✧",
-      "sport":"HIKING",
-      "stats": { 
-            "power":100,
-            "speed":64,
-            "endurance":48
-      },
-      "unlockRequirements": { 
-            
-            "minDuration":20
-      },
-      "xPReward":200,
-      "lore":"This magical monkey is only visible to people who touch grass regularly."
-    },
-    {
-      "id":"042",
-      "name":"Commando Crab",
-      "rarity":"epic",
-      "description":"Better check your bearings.",
-      "sport":"RUNNING",
-      "stats": { 
-            "power":200,
-            "speed":30,
-            "endurance":45
-      },
-      "unlockRequirements": { 
-            
-            "minDuration":10
-      },
-      "xPReward":500,
-      "lore":"Only for the best, this commando crab is only for those with commando gold."
-    },
-    {
-      "id":"043",
-      "name":"Fat Frog",
-      "rarity":"common",
-      "description":"This frog once ate 55 burgers, 55 fries, 55 tater tots and 55 milkshakes.",
-      "sport":"GENERAL",
-      "stats": { 
-            "power":55,
-            "speed":55,
-            "endurance":55
-      },
-      "unlockRequirements": { 
-            "minCalories":55,
-            "minDuration":5
-      },
-      "xPReward":55,
-      "lore":"This fat frog can fit 555 cheeeseburgers inside its belly"
-    },
-    {
-      "id":"044",
-      "name":"C4 Cat",
-      "rarity":"legendary",
-      "description":"Exploding kitten, but it grew up.",
-      "sport":"FITNESS",
-      "stats": { 
-            "power":999,
-            "speed":999,
-            "endurance":1
-      },
-      "unlockRequirements": { 
-            "minCalories":999,
-            "minDuration":99
-      },
-      "xPReward":999,
-      "lore":"Nobody knows when this cat is going to expl-💥"
-    },
-    {
-      "id":"045",
-      "name":"Twin Tapirs",
-      "rarity":"common",
-      "description":"A pair of powerful tapirs.",
-      "sport":"FITNESS",
-      "stats": { 
-            "power":57,
-            "speed":24,
-            "endurance":84
-      },
-      "unlockRequirements": { 
-            "minCalories":90,
-            "minDuration":11
-      },
-      "xPReward":100,
-      "lore":"This pair of tapirs are always seen together, how cute."
-    },
-    {
-      "id":"046",
-      "name":"Clumsy Cheetah",
-      "rarity":"common",
-      "description":"One of the fastest creatures, but is hindered by its uncoordinated movements.",
-      "sport":"RUNNING",
-      "stats": { 
-            "power":27,
-            "speed":137,
-            "endurance":23
-      },
-      "unlockRequirements": { 
-            "minCalories":100,
-            "minDuration":20
-      },
-      "xPReward":120,
-      "lore":"This clumsy cheetah was born with four left feet, constantly running into walls."
-    },
-    {
-      "id":"047",
-      "name":"Special Snake",
-      "rarity":"common",
-      "description":"A special snake with special behaviour.",
-      "sport":"CYCLING",
-      "stats": { 
-            "power":68,
-            "speed":34,
-            "endurance":75
-      },
-      "unlockRequirements": { 
-            "minCalories":200,
-            "minDuration":30
-      },
-      "xPReward":100,
-      "lore":"This snake was born special, he looks down but is always positive about things."
-    },
-    {
-      "id":"048",
-      "name":"Resilient Guardian",
-      "rarity":"rare",
-      "description":"Got thrown in a forest for 3 days, didnt sleep for 4 days.",
-      "sport":"HIKING",
-      "stats": { 
-            "power":70,
-            "speed":83,
-            "endurance":27
-      },
-      "unlockRequirements": { 
-            
-            "minDuration":60
-      },
-      "xPReward":121,
-      "lore":"This guardian has survived in the jungle for a long time."
-    },
-    {
-      "id":"049",
-      "name":"Matador Mole",
-      "rarity":"rare",
-      "description":"A mole with a rocket launcher.",
-      "sport":"GENERAL",
-      "stats": { 
-            "power":100,
-            "speed":29,
-            "endurance":32
-      },
-      "unlockRequirements": { 
-            "minCalories":400,
-            "minDuration":20
-      },
-      "xPReward":200,
-      "lore":"Nobody knows where this mole got his matador from, but nobody dares come close."
-    },
-    {
-      "id":"050",
-      "name":"Polar Bear",
-      "rarity":"legendary",
-      "description":"A normal bear wearing a polar watch.",
-      "sport":"GENERAL",
-      "stats": { 
-            "power":160,
-            "speed":45,
-            "endurance":149
-      },
-      "unlockRequirements": { 
-            "minCalories":1000,
-            "minDuration":90
-      },
-      "xPReward":1000,
-      "lore":"Wait, it's not a polar bear? It's just a normal bear with a Polar watch??"
-    },
-    {
-      "id":"051",
-      "name":"Thundersnail",
-      "rarity":"epic",
-      "description":"The fastest snail you'll ever lay your eyes upon.",
-      "sport":"FITNESS",
-      "stats": { 
-            "power":90,
-            "speed":10,
-            "endurance":250
-      },
-      "unlockRequirements": { 
-            
-            "minDuration":90
-      },
-      "xPReward":270,
-      "lore":"Said to be 10x the speed of the average snail."
-    },
-    {
-      "id":"052",
-      "name":"Lava Lizard",
-      "rarity":"rare",
-      "description":"A lizard with lava skin.",
-      "sport":"FITNESS",
-      "stats": { 
-            "power":130,
-            "speed":75,
-            "endurance":95
-      },
-      "unlockRequirements": { 
-            "minCalories":600,
-            "minDuration":50
-      },
-      "xPReward":200,
-      "lore":"Born in magma, this lizard thrives when the body pushes through burning fatigue."
-    },
-    {
-      "id":"053",
-      "name":"Turbo Toad",
-      "rarity":"common",
-      "description":"A toad so fast it leaves dust clouds behind with every hop.",
-      "sport":"RUNNING",
-      "stats": { 
-            "power":40,
-            "speed":120,
-            "endurance":60
-      },
-      "unlockRequirements": { 
-            "minCalories":110,
-            "minDuration":20
-      },
-      "xPReward":100,
-      "lore":"A toad faster than most humans. Its leaps defy common sense."
-    },
-    {
-      "id":"054",
-      "name":"Mecha Penguin",
-      "rarity":"epic",
-      "description":"A cybernetic swimmer designed for extreme endurance in icy waters.",
-      "sport":"SWIMMING",
-      "stats": { 
-            "power":150,
-            "speed":80,
-            "endurance":120
-      },
-      "unlockRequirements": { 
-            "minCalories":700,
-            "minDuration":45
-      },
-      "xPReward":320,
-      "lore":"Engineered for icy endurance, this robotic penguin outswims submarines."
-    },
-    {
-      "id":"055",
-      "name":"Iron Koala",
-      "rarity":"rare",
-      "description":"A slow-moving powerhouse known for its quiet, unbreakable strength.",
-      "sport":"FITNESS",
-      "stats": { 
-            "power":110,
-            "speed":40,
-            "endurance":130
-      },
-      "unlockRequirements": { 
-            "minDuration":60
-      },
-      "xPReward":180,
-      "lore":"Moves slow, lifts heavy. Never skips eucalyptus day."
-    },
-    {
-      "id":"056",
-      "name":"Starlight Hare ",
-      "rarity":"epic",
-      "description":"A luminous runner that races through moonlit trails at incredible speed.",
-      "sport":"RUNNING",
-      "stats": { 
-            "power":115,
-            "speed":150,
-            "endurance":80
-      },
-      "unlockRequirements": { 
-            "minDuration":45
-      },
-      "xPReward":300,
-      "lore":"Said to leave glowing trails as it runs beneath moonlight."
-    },
-    {
-      "id":"057",
-      "name":"Caffeine Crow",
-      "rarity":"common",
-      "description":"A hyperactive bird that trains before sunrise and never rests.",
-      "sport":"GENERAL",
-      "stats": { 
-            "power":55,
-            "speed":95,
-            "endurance":70
-      },
-      "unlockRequirements": { 
-            
-            "minDuration":25
-      },
-      "xPReward":85,
-      "lore":"Fueled by caffeine and chaos, this crow wakes earlier than you."
-    },
-    {
-      "id":"058",
-      "name":"Boulder Crab",
-      "rarity":"rare",
-      "description":"A heavy-lifting crustacean that treats boulders like dumbbells.",
-      "sport":"CIRCUIT",
-      "stats": { 
-            "power":140,
-            "speed":50,
-            "endurance":110
-      },
-      "unlockRequirements": { 
-            "minCalories":600,
-            "minDuration":45
-      },
-      "xPReward":210,
-      "lore":"Known to lift boulders larger than itself. It never skips leg day."
-    },
-    {
-      "id":"059",
-      "name":"Sonic Seahorse",
-      "rarity":"common",
-      "description":"A tiny sea creature that dashes through waves at lightning speed.",
-      "sport":"SWIMMING",
-      "stats": { 
-            "power":70,
-            "speed":100,
-            "endurance":65
-      },
-      "unlockRequirements": { 
-            "minDuration":20
-      },
-      "xPReward":90,
-      "lore":"Small, but quick as a current. Loves racing dolphins."
-    },
-    {
-      "id":"060",
-      "name":"Sleepy Sloth",
-      "rarity":"common",
-      "description":"A calm reminder that proper rest builds lasting strength.",
-      "sport":"GENERAL",
-      "stats": { 
-            "power":30,
-            "speed":10,
-            "endurance":160
-      },
-      "unlockRequirements": { 
-            
-            "minDuration":60
-      },
-      "xPReward":60,
-      "lore":"A reward for recovery. Even legends need sleep."
-    },
-    {
-      "id":"061",
-      "name":"Volt Viper",
-      "rarity":"epic",
-      "description":"A sleek serpent charged with energy, striking faster than thought.",
-      "sport":"RUNNING",
-      "stats": { 
-            "power":140,
-            "speed":130,
-            "endurance":90
-      },
-      "unlockRequirements": { 
-            "minCalories":800
-      },
-      "xPReward":280,
-      "lore":"A serpent charged with pure energy, striking faster than thought."
-    },
-    {
-      "id":"062",
-      "name":"Sushi Cat",
-      "rarity":"rare",
-      "description":"A cheerful cat that rolls into workouts with endless energy.",
-      "sport":"FITNESS",
-      "stats": { 
-            "power":50,
-            "speed":70,
-            "endurance":90
-      },
-      "unlockRequirements": { 
-            
-            "minDuration":45
-      },
-      "xPReward":150,
-      "lore":"Known to roll into class uninvited. Always meows for protein snacks."
-    },
-    {
-      "id":"063",
-      "name":"Magma Rhino",
-      "rarity":"legendary",
-      "description":"A molten beast whose charge melts roads and limits alike.",
-      "sport":"CYCLING",
-      "stats": { 
-            "power":200,
-            "speed":90,
-            "endurance":130
-      },
-      "unlockRequirements": { 
-            "minCalories":1200,
-            "minDuration":100
-      },
-      "xPReward":500,
-      "lore":"Its hooves ignite the ground with every pedal stroke."
-    },
-    {
-      "id":"064",
-      "name":"Paper Crane",
-      "rarity":"common",
-      "description":"A fragile bird that follows hikers seeking peace and balance.",
-      "sport":"HIKING",
-      "stats": { 
-            "power":70,
-            "speed":80,
-            "endurance":20
-      },
-      "unlockRequirements": { 
-            
-            "minDuration":30
-      },
-      "xPReward":70,
-      "lore":"A fragile symbol of peace that follows quiet hikers."
-    },
-    {
-      "id":"065",
-      "name":"Protein Duck",
-      "rarity":"rare",
-      "description":"A muscular duck obsessed with post-workout gains and meal timing.",
-      "sport":"FITNESS",
-      "stats": { 
-            "power":125,
-            "speed":65,
-            "endurance":100
-      },
-      "unlockRequirements": { 
-            
-            "minDuration":50
-      },
-      "xPReward":200,
-      "lore":"Quacks every time you finish a rep. Always bulking."
-    },
-    {
-      "id":"066",
-      "name":"Phantom Fox",
-      "rarity":"legendary",
-      "description":"A spectral hunter seen only by those who train with perfect consistency.",
-      "sport":"GENERAL",
-      "stats": { 
-            "power":180,
-            "speed":170,
-            "endurance":160
-      },
-      "unlockRequirements": { 
-            
-            "minDuration":120
-      },
-      "xPReward":1000,
-      "lore":"Said to appear only to those with unbroken discipline. Disappears at dawn."
-    },
-    {
-      "id":"067",
-      "name":"67 Ants",
-      "rarity":"rare",
-      "description":"A handful of ants.",
-      "sport":"GENERAL",
-      "stats": { 
-            "power":67,
-            "speed":67,
-            "endurance":67
-      },
-      "unlockRequirements": { 
-            "minCalories":67,
-            "minDuration":16
-      },
-      "xPReward":67,
-      "lore":"These 7 ants always stay together as a group, although one always goes missing... "
-    },
-    {
-      "id":"068",
-      "name":"Flower Kitty",
-      "rarity":"common",
-      "description":"A cute little kitty made of flowers.",
-      "sport":"HIKING",
-      "stats": { 
-            "power":70,
-            "speed":80,
-            "endurance":60
-      },
-      "unlockRequirements": { 
-            
-            "minDuration":15
-      },
-      "xPReward":50,
-      "lore":"When it purrs, it releases a nice floral aroma, calming anyone who smells it."
-    },
-    {
-      "id":"069",
-      "name":"Black Cat",
-      "rarity":"rare",
-      "description":"A mischievious black cat. Brings about misfortune to those near to it.",
-      "sport":"GENERAL",
-      "stats": { 
-            "power":130,
-            "speed":91,
-            "endurance":52
-      },
-      "unlockRequirements": { 
-            "minCalories":520,
-            "minDuration":26
-      },
-      "xPReward":169,
-      "lore":"Those that come near it are said to suffer from bad luck. At least it's cute."
-    },
-    {
-      "id":"070",
-      "name":"Rolla-dillo",
-      "rarity":"epic",
-      "description":"A rock-hard armadillo that rolls wherever it goes.",
-      "sport":"CYCLING",
-      "stats": { 
-            "power":110,
-            "speed":120,
-            "endurance":110
-      },
-      "unlockRequirements": { 
-            "minCalories":600,
-            "minDuration":30
-      },
-      "xPReward":300,
-      "lore":"With its rock-hard scales, it builds up incredible speeds by tucking into a ball and rolling, before smashing into its target."
-    },
-    {
-      "id":"071",
-      "name":"Glass Canary",
-      "rarity":"legendary",
-      "description":"Fragile, but sharp and deadly.",
-      "sport":"RUNNING",
-      "stats": { 
-            "power":300,
-            "speed":200,
-            "endurance":25
-      },
-      "unlockRequirements": { 
-            "minCalories":1000,
-            "minDuration":10
-      },
-      "xPReward":750,
-      "lore":"A fragile, graceful bird that graces its opponents with 10000 cuts."
-    },
-    {
-      "id":"072",
-      "name":"Goldfish",
-      "rarity":"epic",
-      "description":"A fish that'll make you rich.",
-      "sport":"GENERAL",
-      "stats": { 
-            "power":79,
-            "speed":19,
-            "endurance":196
-      },
-      "unlockRequirements": { 
-            "minCalories":966,
-            "minDuration":57
-      },
-      "xPReward":2000,
-      "lore":"A fish made of pure, solid gold. While not the best for battle, it grants its owner riches far beyond imagination."
-    },
-    {
-      "id":"073",
-      "name":"Coastline Glider",
-      "rarity":"common",
-      "description":"A breezy spirit that glides along East Coast's paths, nudging you to keep pace.",
-      "sport":"CYCLING",
-      "stats": { 
-            "power":40,
-            "speed":90,
-            "endurance":60
-      },
-      "unlockRequirements": { 
-            
-            "minDuration":25
-      },
-      "xPReward":120,
-      "lore":"Rumour says it formed from salty sea breezes and old skateboard stickers."
-    },
-    {
-      "id":"074",
-      "name":"Kopi Gorilla",
-      "rarity":"rare",
-      "description":"Powered by kopi-gao, this gorilla fuels morning lifts and never skips chest day.",
-      "sport":"FITNESS",
-      "stats": { 
-            "power":95,
-            "speed":40,
-            "endurance":80
-      },
-      "unlockRequirements": { 
-            "minCalories":300,
-            "minDuration":15
-      },
-      "xPReward":150,
-      "lore":"Locals swear it used to work night shifts at a kopi stall before becoming a gym legend."
-    },
-    {
-      "id":"075",
-      "name":"Hawker Aunty",
-      "rarity":"rare",
-      "description":"Calls you 'shuai ge' or 'mei mei' no matter how sweaty you look, motivates you with loud tough-love.",
-      "sport":"GENERAL",
-      "stats": { 
-            "power":65,
-            "speed":75,
-            "endurance":80
-      },
-      "unlockRequirements": { 
-            "minCalories":400,
-            "minDuration":20
-      },
-      "xPReward":120,
-      "lore":"Appears across estates randomly, teleporting between kopitiams to shout encouragement."
-    },
-    {
-      "id":"076",
-      "name":"Monsoon Lynx",
-      "rarity":"rare",
-      "description":"A sleek rain-cat that appears when thunderclouds roll in, pushing you to run through puddles.",
-      "sport":"RUNNING",
-      "stats": { 
-            "power":60,
-            "speed":95,
-            "endurance":55
-      },
-      "unlockRequirements": { 
-            "minCalories":455
-            
-      },
-      "xPReward":110,
-      "lore":"Joggers tell tales of a cat that guides them home through sudden downpours."
-    },
-    {
-      "id":"077",
-      "name":"Milo Dinosaur",
-      "rarity":"rare",
-      "description":"A cocoa-dusted dinosaur born from overflowed Milo cups, a chugger of comfort and stamina.",
-      "sport":"SWIMMING",
-      "stats": { 
-            "power":70,
-            "speed":50,
-            "endurance":90
-      },
-      "unlockRequirements": { 
-            "minCalories":400,
-            "minDuration":30
-      },
-      "xPReward":200,
-      "lore":"Swim coaches joke Milo energy comes from powdered courage."
-    },
-    {
-      "id":"078",
-      "name":"Tiong Bahru Tiger",
-      "rarity":"epic",
-      "description":"Old-school morning runner: lean, disciplined, and spotted around heritage lanes.",
-      "sport":"RUNNING",
-      "stats": { 
-            "power":85,
-            "speed":90,
-            "endurance":95
-      },
-      "unlockRequirements": { 
-            "minCalories":560
-      },
-      "xPReward":180,
-      "lore":"Bread-shop aunties whisper about the tiger's steady sunrise route."
-    },
-    {
-      "id":"079",
-      "name":"Durian Pangolin",
-      "rarity":"rare",
-      "description":"A spiky pangolin with durian-thorn armour, defensive and surprisingly strong.",
-      "sport":"FITNESS",
-      "stats": { 
-            "power":100,
-            "speed":40,
-            "endurance":75
-      },
-      "unlockRequirements": { 
-            "minCalories":375,
-            "minDuration":45
-      },
-      "xPReward":150,
-      "lore":"Only appears during durian season, smells like controversy and sweetness."
-    },
-    {
-      "id":"080",
-      "name":"Orchard Crane",
-      "rarity":"common",
-      "description":"A graceful city spirit born from neon lights and festival energy.",
-      "sport":"CIRCUIT",
-      "stats": { 
-            "power":45,
-            "speed":95,
-            "endurance":55
-      },
-      "unlockRequirements": { 
-            
-            "minDuration":15
-      },
-      "xPReward":100,
-      "lore":"Festival lights coalesced into a bird that loves vertical movement."
-    },
-    {
-      "id":"081",
-      "name":"Chilli Stingray",
-      "rarity":"rare",
-      "description":"A spicy stingray that breathes steam and pushes you to hit hot training targets.",
-      "sport":"FITNESS",
-      "stats": { 
-            "power":90,
-            "speed":65,
-            "endurance":60
-      },
-      "unlockRequirements": { 
-            
-            "minDuration":30
-      },
-      "xPReward":160,
-      "lore":"Fierce on the outside but fond of friendly sparring."
-    },
-    {
-      "id":"082",
-      "name":"Kallang Rooster",
-      "rarity":"rare",
-      "description":"A stadium-born rooster whose crow pumps adrenaline into local athletes.",
-      "sport":"RUNNING",
-      "stats": { 
-            "power":75,
-            "speed":85,
-            "endurance":60
-      },
-      "unlockRequirements": { 
-            
-            "minDuration":45
-      },
-      "xPReward":140,
-      "lore":"Descended from the Kallang Roar that once shook stadiums."
-    },
-    {
-      "id":"083",
-      "name":"HDB Neko",
-      "rarity":"common",
-      "description":"Void-deck cat spirit known for calm stretches and tiny daily routines.",
-      "sport":"GENERAL",
-      "stats": { 
-            "power":40,
-            "speed":60,
-            "endurance":80
-      },
-      "unlockRequirements": { 
-            "minCalories":100,
-            "minDuration":20
-      },
-      "xPReward":90,
-      "lore":"Residents leave milk and luck in exchange for calm corridors."
-    },
-    {
-      "id":"084",
-      "name":"Rainforest Hornbill",
-      "rarity":"epic",
-      "description":"A lungy hornbill built for long effort â€” thrives on sustained outdoor exertion.",
-      "sport":"HIKING",
-      "stats": { 
-            "power":90,
-            "speed":70,
-            "endurance":95
-      },
-      "unlockRequirements": { 
-            "minCalories":400,
-            "minDuration":30
-      },
-      "xPReward":200,
-      "lore":"Its call is said to guide lost hikers back to the trailhead."
-    },
-    {
-      "id":"085",
-      "name":"Changi Glider",
-      "rarity":"rare",
-      "description":"A coastal glider that rides trade winds, great company for long rides.",
-      "sport":"CYCLING",
-      "stats": { 
-            "power":55,
-            "speed":85,
-            "endurance":75
-      },
-      "unlockRequirements": { 
-            
-            "minDuration":90
-      },
-      "xPReward":150,
-      "lore":"Keeps night riders safe from bad navigation."
-    },
-    {
-      "id":"086",
-      "name":"Marina Sentinel",
-      "rarity":"legendary",
-      "description":"A stone-and-water harbour guardian that tests consistency.",
-      "sport":"CIRCUIT",
-      "stats": { 
-            "power":180,
-            "speed":120,
-            "endurance":180
-      },
-      "unlockRequirements": { 
-            "minCalories":1000,
-            "minDuration":90
-      },
-      "xPReward":1000,
-      "lore":"Awakens only for those who train like tides: constant and relentless."
-    },
-    {
-      "id":"087",
-      "name":"Morayna Barrage",
-      "rarity":"rare",
-      "description":"A wind-riding eel born from kite-flying gusts.",
-      "sport":"RUNNING",
-      "stats": { 
-            "power":60,
-            "speed":85,
-            "endurance":65
-      },
-      "unlockRequirements": { 
-            "minCalories":250,
-            "minDuration":20
-      },
-      "xPReward":130,
-      "lore":"Born from the winds across the Barrage when kites fill the sky."
-    },
-    {
-      "id":"088",
-      "name":"Ice Kachang Beetle",
-      "rarity":"common",
-      "description":"A beetle with syrup-coloured shell patterns that boost small exercises.",
-      "sport":"GENERAL",
-      "stats": { 
-            "power":50,
-            "speed":75,
-            "endurance":60
-      },
-      "unlockRequirements": { 
-            "minCalories":150,
-            "minDuration":15
-      },
-      "xPReward":100,
-      "lore":"Forms where ice melts fastest: under kopitiam umbrellas."
-    },
-    {
-      "id":"089",
-      "name":"Esplanade Echo Bat",
-      "rarity":"epic",
-      "description":"A sound-reactive bat that thrives on rhythm and interval pacing.",
-      "sport":"CIRCUIT",
-      "stats": { 
-            "power":100,
-            "speed":100,
-            "endurance":55
-      },
-      "unlockRequirements": { 
-            
-            "minDuration":45
-      },
-      "xPReward":140,
-      "lore":"Born from rehearsal rooms deep under the Esplanade."
-    },
-    {
-      "id":"090",
-      "name":"Hydroxia",
-      "rarity":"legendary",
-      "description":"An octopus capable of launching high pressured water projectiles.",
-      "sport":"SWIMMING",
-      "stats": { 
-            "power":250,
-            "speed":200,
-            "endurance":150
-      },
-      "unlockRequirements": { 
-            "minCalories":850,
-            "minDuration":80
-      },
-      "xPReward":1250,
-      "lore":"Perplexed by how slow everything is, Hydroxia just wants people to swim fast like it. Unfortunately, it doesn't understand that drowning is a very real and serious issue that people can face."
-    },
-    {
-      "id":"091",
-      "name":"Fenrir Knight",
-      "rarity":"epic",
-      "description":"A glorious defender with valiancy and honour. He loves to defend with all of his might.",
-      "sport":"HIKING",
-      "stats": { 
-            "power":100,
-            "speed":70,
-            "endurance":200
-      },
-      "unlockRequirements": { 
-            "minCalories":700,
-            "minDuration":60
-      },
-      "xPReward":450,
-      "lore":"Though he did not manage to win her heart, he managed to conquered his heartbreak and conquered the mountains."
-    },
-    {
-      "id":"092",
-      "name":"DIStroyer",
-      "rarity":"legendary",
-      "description":"An ultimate destructive weapon of the DIS.",
-      "sport":"GENERAL",
-      "stats": { 
-            "power":600,
-            "speed":600,
-            "endurance":600
-      },
-      "unlockRequirements": { 
-            "minCalories":1500,
-            "minDuration":150
-      },
-      "xPReward":3000,
-      "lore":"D! I! S! LEADS THE WAY AH! Use with CAUTION!"
-    },
-    {
-      "id":"093",
-      "name":"Low Riders",
-      "rarity":"epic",
-      "description":"A bunch of gnomes who have strong willpower.",
-      "sport":"CIRCUIT",
-      "stats": { 
-            "power":125,
-            "speed":50,
-            "endurance":100
-      },
-      "unlockRequirements": { 
-            "minCalories":700,
-            "minDuration":45
-      },
-      "xPReward":300,
-      "lore":"Once in a happy living village, these scoundrels decided to leave and live by themselves. Regretful decision? You can say so."
-    },
-    {
-      "id":"094",
-      "name":"Chromatic Alex",
-      "rarity":"legendary",
-      "description":"A quick, decisive, and agile fighter, with his chromatic sword of Excalibur.",
-      "sport":"RUNNING",
-      "stats": { 
-            "power":100,
-            "speed":220,
-            "endurance":125
-      },
-      "unlockRequirements": { 
-            "minCalories":800,
-            "minDuration":50
-      },
-      "xPReward":500,
-      "lore":"Speedoooo. He's fast, he's chromatic, he's charismatic! He just wants to be fast!"
-    },
-    {
-      "id":"095",
-      "name":"Night Prowler",
-      "rarity":"epic",
-      "description":"A stealthy wolf that leaps and lashes on its enemy with deadly force.",
-      "sport":"RUNNING",
-      "stats": { 
-            "power":200,
-            "speed":125,
-            "endurance":50
-      },
-      "unlockRequirements": { 
-            "minCalories":1000,
-            "minDuration":40
-      },
-      "xPReward":650,
-      "lore":"Lurks and moves fast and swift and unleashes a heavy force, though it gets tired after one leap, especially during the day."
-    },
-    {
-      "id":"096",
-      "name":"Luxia",
-      "rarity":"legendary",
-      "description":"A wonderous mythological beauty that outshines the battlefield.",
-      "sport":"GENERAL",
-      "stats": { 
-            "power":300,
-            "speed":300,
-            "endurance":300
-      },
-      "unlockRequirements": { 
-            "minCalories":800,
-            "minDuration":75
-      },
-      "xPReward":2000,
-      "lore":"Her love to levitate around the skies and bask in the sun's horizon tints her complexity, making her outshine her opponents."
-    },
-    {
-      "id":"097",
-      "name":"Electroman",
-      "rarity":"rare",
-      "description":"Obsessed with electricity and boom boom.",
-      "sport":"CYCLING",
-      "stats": { 
-            "power":70,
-            "speed":70,
-            "endurance":80
-      },
-      "unlockRequirements": { 
-            "minCalories":500,
-            "minDuration":40
-      },
-      "xPReward":250,
-      "lore":"Loves striking its foes with electrifying fear. (Though it's not very scary...)"
-    },
-    {
-      "id":"098",
-      "name":"Saitamars",
-      "rarity":"legendary",
-      "description":"Deals devastation with just one punch.",
-      "sport":"FITNESS",
-      "stats": { 
-            "power":999,
-            "speed":1,
-            "endurance":100
-      },
-      "unlockRequirements": { 
-            "minCalories":1000,
-            "minDuration":30
-      },
-      "xPReward":400,
-      "lore":"100 push ups, sit ups, and squats. But at what cost of his humanity?"
-    },
-    {
-      "id":"099",
-      "name":"Miracle Sprout",
-      "rarity":"common",
-      "description":"A little plant that loves to boost the morale of the team.",
-      "sport":"HIKING",
-      "stats": { 
-            "power":40,
-            "speed":15,
-            "endurance":150
-      },
-      "unlockRequirements": { 
-            "minCalories":750,
-            "minDuration":50
-      },
-      "xPReward":200,
-      "lore":"It just loves to heal and boost the team's morale, being the guardian of the backlines."
-    },
-    {
-      "id":"100",
-      "name":"Bastion",
-      "rarity":"epic",
-      "description":"A creature that controls a robot to conquer any adversary imminent.",
-      "sport":"FITNESS",
-      "stats": { 
-            "power":125,
-            "speed":125,
-            "endurance":125
-      },
-      "unlockRequirements": { 
-            "minCalories":800,
-            "minDuration":70
-      },
-      "xPReward":750,
-      "lore":"On the outside he's tough, on the inside he's soft. So bipolar..."
-    },
-    {
-      "id":"101",
-      "name":"Earth Bender",
-      "rarity":"epic",
-      "description":"A monkey that uses his stick to erupt havock and smash rocks.",
-      "sport":"GENERAL",
-      "stats": { 
-            "power":100,
-            "speed":100,
-            "endurance":100
-      },
-      "unlockRequirements": { 
-            "minCalories":500,
-            "minDuration":30
-      },
-      "xPReward":200,
-      "lore":"Thought the monkeys would only swing across trees? This one destroys them instead!"
-    },
-    {
-      "id":"102",
-      "name":"Thornscale Ravager",
-      "rarity":"legendary",
-      "description":"A swift, armored predator with immense strength, blistering speed, and relentless endurance.",
-      "sport":"CIRCUIT",
-      "stats": { 
-            "power":250,
-            "speed":250,
-            "endurance":200
-      },
-      "unlockRequirements": { 
-            "minCalories":750,
-            "minDuration":60
-      },
-      "xPReward":800,
-      "lore":"Born from ancient forest spirits, it hunts intruders to preserve forgotten wilderness."
-    },
-    {
-      "id":"103",
-      "name":"Frostgloom Strider",
-      "rarity":"epic",
-      "description":"A silent, ice-veiled hunter with sharp power, quick movement, and decent stamina.",
-      "sport":"HIKING",
-      "stats": { 
-            "power":140,
-            "speed":170,
-            "endurance":140
-      },
-      "unlockRequirements": { 
-            "minCalories":500,
-            "minDuration":50
-      },
-      "xPReward":500,
-      "lore":"Born in eternal blizzards, it wanders frozen realms seeking forgotten truths."
-    },
-    {
-      "id":"104",
-      "name":"Ironbark Devourer",
-      "rarity":"rare",
-      "description":"A lumbering creature with sturdy strength, slow but steady speed, and great resilience.",
-      "sport":"CYCLING",
-      "stats": { 
-            "power":125,
-            "speed":50,
-            "endurance":150
-      },
-      "unlockRequirements": { 
-            "minCalories":600,
-            "minDuration":40
-      },
-      "xPReward":300,
-      "lore":"Formed from ancient roots, it protects forest borders from careless wanderers."
-    },
-    {
-      "id":"105",
-      "name":"Stormlash Gryphon",
-      "rarity":"epic",
-      "description":"A winged warrior channeling fierce lightning, unmatched aerial speed, and long-lasting vigour.",
-      "sport":"FLYING",
-      "stats": { 
-            "power":150,
-            "speed":200,
-            "endurance":50
-      },
-      "unlockRequirements": { 
-            "minCalories":800,
-            "minDuration":50
-      },
-      "xPReward":650,
-      "lore":"Born from thunderclouds, it serves as guardian to ancient sky temples."
-    },
-    {
-      "id":"106",
-      "name":"Mirefang Creeper",
-      "rarity":"rare",
-      "description":"A swamp-dwelling crawler with modest strength, slow speed, and stubborn endurance.",
-      "sport":"SWIMMING",
-      "stats": { 
-            "power":100,
-            "speed":50,
-            "endurance":100
-      },
-      "unlockRequirements": { 
-            "minCalories":500,
-            "minDuration":30
-      },
-      "xPReward":500,
-      "lore":"Legends say it evolved from cursed marsh spirits seeking solid ground."
-    },
-    {
-      "id":"107",
-      "name":"Celestine Veilwyrm",
-      "rarity":"legendary",
-      "description":"A radiant serpent wielding cosmic power, near-instant speed, and endless endurance.",
-      "sport":"CIRCUIT",
-      "stats": { 
-            "power":400,
-            "speed":400,
-            "endurance":400
-      },
-      "unlockRequirements": { 
-            "minCalories":850,
-            "minDuration":60
-      },
-      "xPReward":1250,
-      "lore":"Formed from stardust, it drifts between realms guiding chosen travelers."
-    },
-    {
-      "id":"108",
-      "name":"Rambletooth Grazer",
-      "rarity":"rare",
-      "description":"A gentle herbivore with mild strength, steady pace, and dependable endurance.",
-      "sport":"FITNESS",
-      "stats": { 
-            "power":50,
-            "speed":100,
-            "endurance":100
-      },
-      "unlockRequirements": { 
-            "minCalories":600,
-            "minDuration":20
-      },
-      "xPReward":300,
-      "lore":"Ancient farmers bred it to maintain overgrown fields and peaceful valleys."
-    },
-    {
-      "id":"109",
-      "name":"Rusthide Burrower",
-      "rarity":"rare",
-      "description":"A small tunneler with surprising toughness, moderate speed, and sturdy persistence.",
-      "sport":"HIKING",
-      "stats": { 
-            "power":100,
-            "speed":80,
-            "endurance":80
-      },
-      "unlockRequirements": { 
-            "minCalories":700,
-            "minDuration":40
-      },
-      "xPReward":400,
-      "lore":"Said to shape underground paths used by travelers avoiding surface dangers."
-    },
-    {
-      "id":"110",
-      "name":"Shadowmane Skulker",
-      "rarity":"legendary",
-      "description":"A swift night-stalking beast with sharp power and impressive stamina reserves.",
-      "sport":"RUNNING",
-      "stats": { 
-            "power":200,
-            "speed":160,
-            "endurance":160
-      },
-      "unlockRequirements": { 
-            "minCalories":750,
-            "minDuration":45
-      },
-      "xPReward":550,
-      "lore":"Rumored to watch over moonlit forests, judging intruders silently from darkness."
-    },
-    {
-      "id":"111",
-      "name":"Stormroot Charger",
-      "rarity":"legendary",
-      "description":"A bulky creature empowered by earth energy, charging quickly with immense durability.",
-      "sport":"FITNESS",
-      "stats": { 
-            "power":175,
-            "speed":150,
-            "endurance":200
-      },
-      "unlockRequirements": { 
-            "minCalories":800,
-            "minDuration":55
-      },
-      "xPReward":570,
-      "lore":"Born where lightning strikes ancient trees, it absorbs natureâ€™s fury effortlessly."
-    },
-    {
-      "id":"112",
-      "name":"Ironwing Stryker",
-      "rarity":"legendary",
-      "description":"A metal-feathered raptor boasting strong power, razor speed, and fierce endurance.",
-      "sport":"FITNESS",
-      "stats": { 
-            "power":175,
-            "speed":200,
-            "endurance":175
-      },
-      "unlockRequirements": { 
-            "minCalories":900,
-            "minDuration":90
-      },
-      "xPReward":850,
-      "lore":"Forged by forgotten smith-gods, it patrols high cliffs for worthy challengers."
-    },
-    {
-      "id":"113",
-      "name":"Twilight Riftcaller",
-      "rarity":"legendary",
-      "description":"A mystical predator bending shadows, moving blindingly fast with tireless resilience.",
-      "sport":"RUNNING",
-      "stats": { 
-            "power":225,
-            "speed":225,
-            "endurance":300
-      },
-      "unlockRequirements": { 
-            "minCalories":1000,
-            "minDuration":100
-      },
-      "xPReward":900,
-      "lore":"Emerges through dimensional tears to hunt anomalies disturbing cosmic balance."
-    },
-    {
-      "id":"114",
-      "name":"Ling Gang Guli",
-      "rarity":"legendary",
-      "description":"A fabulous pig-knight with sparkly armor, power, and dramatic flair.",
-      "sport":"HIKING",
-      "stats": { 
-            "power":300,
-            "speed":150,
-            "endurance":450
-      },
-      "unlockRequirements": { 
-            "minCalories":1200,
-            "minDuration":90
-      },
-      "xPReward":1500,
-      "lore":"Born when a potato sneezed, it wanders chanting incomprehensible wobble noises."
-    },
-    {
-      "id":"115",
-      "name":"Bingbong Skibbidler",
-      "rarity":"common",
-      "description":"Spins violently, screams \"BINGBONG\", and then immediately forgets what it's doing.",
-      "sport":"GENERAL",
-      "stats": { 
-            "power":100,
-            "speed":50,
-            "endurance":50
-      },
-      "unlockRequirements": { 
-            "minCalories":500,
-            "minDuration":30
-      },
-      "xPReward":200,
-      "lore":"Sages say its brain rattles like marbles in a metal bowl."
-    },
-    {
-      "id":"116",
-      "name":"Tung Tung Beast",
-      "rarity":"rare",
-      "description":"Runs in circles yelling \"TUNG TUNG BRRRT\", fueled by cosmic stupidity.",
-      "sport":"RUNNING",
-      "stats": { 
-            "power":50,
-            "speed":100,
-            "endurance":150
-      },
-      "unlockRequirements": { 
-            "minCalories":600,
-            "minDuration":50
-      },
-      "xPReward":400,
-      "lore":"Summoned accidentally during a midnight snack ritual gone horribly silly."
-    },
-    {
-      "id":"117",
-      "name":"Sahur Snoingler",
-      "rarity":"rare",
-      "description":"Makes bizarre \"SAHUR SAHUR\" noises while hopping sideways like malfunctioning furniture.",
-      "sport":"CIRCUIT",
-      "stats": { 
-            "power":150,
-            "speed":100,
-            "endurance":50
-      },
-      "unlockRequirements": { 
-            "minCalories":700,
-            "minDuration":50
-      },
-      "xPReward":500,
-      "lore":"Said to appear at dawn screaming nonsense to wake lazy villagers."
-    },
-    {
-      "id":"118",
-      "name":"Zurzleblorp Giggletoad",
-      "rarity":"legendary",
-      "description":"A vibrating amphibian blurping uncontrollably, spreading chaotic giggles everywhere.",
-      "sport":"SWIMMING",
-      "stats": { 
-            "power":300,
-            "speed":200,
-            "endurance":200
-      },
-      "unlockRequirements": { 
-            "minCalories":800,
-            "minDuration":60
-      },
-      "xPReward":725,
-      "lore":"Spawned when a frog licked a lightning crystal during a dare."
-    },
-    {
-      "id":"119",
-      "name":"Fweebloink the Unhinged",
-      "rarity":"common",
-      "description":"A wobbling goofy blob going \"glooba glooba\" while tripping over itself.",
-      "sport":"GENERAL",
-      "stats": { 
-            "power":150,
-            "speed":50,
-            "endurance":50
-      },
-      "unlockRequirements": { 
-            "minCalories":500,
-            "minDuration":40
-      },
-      "xPReward":100,
-      "lore":"Historians claim it once fought a tree for looking suspicious, whatever that means."
+{
+  "creatures": [
+    {
+      "id": "001",
+      "name": "Thunder Wolf",
+      "rarity": "rare",
+      "description": "A swift predator that runs with lightning speed through mountain trails.",
+      "sport": "RUNNING",
+      "stats": {
+        "power": 85,
+        "speed": 92,
+        "endurance": 78
+      },
+      "unlockRequirements": {
+        "minDuration": 38,
+        "minCalories": 485,
+        "description": "Complete a running workout of at least 38 min and 485 calories."
+      },
+      "xPReward": 150,
+      "lore": "Thunder Wolves are known to inhabit high-altitude regions where storms are frequent."
+    },
+    {
+      "id": "002",
+      "name": "Flame Phoenix",
+      "rarity": "epic",
+      "description": "A majestic bird of fire that rises from intense training sessions.",
+      "sport": "GENERAL",
+      "stats": {
+        "power": 120,
+        "speed": 88,
+        "endurance": 95
+      },
+      "unlockRequirements": {
+        "minCalories": 724,
+        "minDuration": 74,
+        "description": "Complete any workout of at least 74 min and 724 calories."
+      },
+      "xPReward": 250,
+      "lore": "Only the most dedicated athletes can summon this legendary creature."
+    },
+    {
+      "id": "003",
+      "name": "Aqua Serpent",
+      "rarity": "common",
+      "description": "A graceful water creature that emerges during swimming sessions.",
+      "sport": "SWIMMING",
+      "stats": {
+        "power": 45,
+        "speed": 65,
+        "endurance": 70
+      },
+      "unlockRequirements": {
+        "minCalories": 289,
+        "minDuration": 27,
+        "description": "Complete a swimming workout of at least 27 min and 289 calories."
+      },
+      "xPReward": 75,
+      "lore": "Found in all major bodies of water, this creature loves to accompany swimmers."
+    },
+    {
+      "id": "004",
+      "name": "Golden Dragon",
+      "rarity": "legendary",
+      "description": "The ultimate prize for elite athletes who push beyond their limits.",
+      "sport": "GENERAL",
+      "stats": {
+        "power": 150,
+        "speed": 100,
+        "endurance": 120
+      },
+      "unlockRequirements": {
+        "minCalories": 1882,
+        "minDuration": 128,
+        "description": "Complete any workout of at least 128 min and 1882 calories."
+      },
+      "xPReward": 500,
+      "lore": "Legends speak of this dragon appearing only to those who achieve greatness."
+    },
+    {
+      "id": "005",
+      "name": "Forest Spirit",
+      "rarity": "common",
+      "description": "A gentle creature that appears during peaceful nature walks.",
+      "sport": "HIKING",
+      "stats": {
+        "power": 55,
+        "speed": 60,
+        "endurance": 85
+      },
+      "unlockRequirements": {
+        "minCalories": 333,
+        "minDuration": 39,
+        "description": "Complete a hiking workout of at least 39 min and 333 calories."
+      },
+      "xPReward": 100,
+      "lore": "These spirits guide hikers through ancient forests and mountain paths."
+    },
+    {
+      "id": "006",
+      "name": "Iron Titan",
+      "rarity": "rare",
+      "description": "A powerful being forged in the fires of intense strength training.",
+      "sport": "FITNESS",
+      "stats": {
+        "power": 110,
+        "speed": 45,
+        "endurance": 130
+      },
+      "unlockRequirements": {
+        "minCalories": 597,
+        "minDuration": 61,
+        "description": "Complete a fitness workout of at least 61 min and 597 calories."
+      },
+      "xPReward": 180,
+      "lore": "Born from determination and perseverance in the weight room."
+    },
+    {
+      "id": "007",
+      "name": "Wind Falcon",
+      "rarity": "common",
+      "description": "A swift bird that soars alongside cyclists on their journeys.",
+      "sport": "CYCLING",
+      "stats": {
+        "power": 60,
+        "speed": 95,
+        "endurance": 55
+      },
+      "unlockRequirements": {
+        "minCalories": 378,
+        "minDuration": 28,
+        "description": "Complete a cycling workout of at least 28 min and 378 calories."
+      },
+      "xPReward": 90,
+      "lore": "Known to race with cyclists, testing their speed and endurance."
+    },
+    {
+      "id": "008",
+      "name": "Crystal Guardian",
+      "rarity": "epic",
+      "description": "A mystical protector that appears after sustained cardiovascular excellence.",
+      "sport": "GENERAL",
+      "stats": {
+        "power": 105,
+        "speed": 70,
+        "endurance": 170
+      },
+      "unlockRequirements": {
+        "minCalories": 1066,
+        "minDuration": 89,
+        "description": "Complete any workout of at least 89 min and 1066 calories."
+      },
+      "xPReward": 300,
+      "lore": "Guards the realm between mortal endurance and superhuman achievement."
+    },
+    {
+      "id": "009",
+      "name": "Shadow Panther",
+      "rarity": "rare",
+      "description": "A stealthy predator that appears during night runs.",
+      "sport": "RUNNING",
+      "stats": {
+        "power": 90,
+        "speed": 98,
+        "endurance": 75
+      },
+      "unlockRequirements": {
+        "minCalories": 497,
+        "minDuration": 44,
+        "description": "Complete a running workout of at least 44 min and 497 calories."
+      },
+      "xPReward": 160,
+      "lore": "Moves silently through the darkness, only visible to those who dare run at night."
+    },
+    {
+      "id": "010",
+      "name": "Boulder Bear",
+      "rarity": "common",
+      "description": "A sturdy companion for those who enjoy mountain hiking.",
+      "sport": "HIKING",
+      "stats": {
+        "power": 70,
+        "speed": 40,
+        "endurance": 95
+      },
+      "unlockRequirements": {
+        "minCalories": 378,
+        "minDuration": 44,
+        "description": "Complete a hiking workout of at least 44 min and 378 calories."
+      },
+      "xPReward": 110,
+      "lore": "These gentle giants roam mountain trails and protect hikers from harm."
+    },
+    {
+      "id": "011",
+      "name": "Solar Lion ",
+      "rarity": "epic",
+      "description": "A radiant beast whose mane burns with the energy of sunrise.",
+      "sport": "GENERAL",
+      "stats": {
+        "power": 130,
+        "speed": 90,
+        "endurance": 110
+      },
+      "unlockRequirements": {
+        "minCalories": 1066,
+        "minDuration": 81,
+        "description": "Complete any workout of at least 81 min and 1066 calories."
+      },
+      "xPReward": 280,
+      "lore": "Said to draw strength from the rising sun, this radiant beast rewards those who train with daily discipline."
+    },
+    {
+      "id": "012",
+      "name": "Frost Wyrm",
+      "rarity": "rare",
+      "description": "A serpentine dragon born of icy breath.",
+      "sport": "RUNNING",
+      "stats": {
+        "power": 100,
+        "speed": 75,
+        "endurance": 95
+      },
+      "unlockRequirements": {
+        "minCalories": 597,
+        "minDuration": 53,
+        "description": "Complete a running workout of at least 53 min and 597 calories."
+      },
+      "xPReward": 180,
+      "lore": "This ice-born serpent appears to those who brave the cold and chase the frost."
+    },
+    {
+      "id": "013",
+      "name": "Ember Fox",
+      "rarity": "common",
+      "description": "A fiery creature that sparks motivation during short, intense bursts of activity.",
+      "sport": "GENERAL",
+      "stats": {
+        "power": 60,
+        "speed": 100,
+        "endurance": 55
+      },
+      "unlockRequirements": {
+        "minCalories": 333,
+        "minDuration": 28,
+        "description": "Complete any workout of at least 28 min and 333 calories."
+      },
+      "xPReward": 85,
+      "lore": "A quick and fiery creature that appears when passion burns bright during short workouts."
+    },
+    {
+      "id": "014",
+      "name": "Storm Rhino",
+      "rarity": "epic",
+      "description": "A thunderous powerhouse that charges forward with unstoppable momentum.",
+      "sport": "CYCLING",
+      "stats": {
+        "power": 145,
+        "speed": 80,
+        "endurance": 125
+      },
+      "unlockRequirements": {
+        "minCalories": 1317,
+        "minDuration": 92,
+        "description": "Complete a cycling workout of at least 92 min and 1317 calories."
+      },
+      "xPReward": 320,
+      "lore": "A thunderous powerhouse, this beast charges beside riders who push their limits."
+    },
+    {
+      "id": "015",
+      "name": "Fat Snail",
+      "rarity": "common",
+      "description": "A fat snail for fat people. Impressive bulk, but very slow.",
+      "sport": "GENERAL",
+      "stats": {
+        "power": 1,
+        "speed": 1,
+        "endurance": 200
+      },
+      "unlockRequirements": {
+        "minDuration": 44,
+        "minCalories": 485,
+        "description": "Complete any workout of at least 44 min and 485 calories."
+      },
+      "xPReward": 50,
+      "lore": "Slow but tanky."
+    },
+    {
+      "id": "016",
+      "name": "Nooel's Krocodile",
+      "rarity": "legendary",
+      "description": "A one of a kind crocodile.",
+      "sport": "GENERAL",
+      "stats": {
+        "power": 210,
+        "speed": 88,
+        "endurance": 157
+      },
+      "unlockRequirements": {
+        "minCalories": 800,
+        "minDuration": 60,
+        "description": "Complete any workout of at least 60 min and 800 calories."
+      },
+      "xPReward": 1000,
+      "lore": "Kee-Ith's long lost childhood pet, adopted by Nooel."
+    },
+    {
+      "id": "017",
+      "name": "Gorilla",
+      "rarity": "common",
+      "description": "Your average gorilla.",
+      "sport": "GENERAL",
+      "stats": {
+        "power": 150,
+        "speed": 50,
+        "endurance": 60
+      },
+      "unlockRequirements": {
+        "minCalories": 411,
+        "minDuration": 34,
+        "description": "Complete any workout of at least 34 min and 411 calories."
+      },
+      "xPReward": 200,
+      "lore": "What a funny monkey."
+    },
+    {
+      "id": "018",
+      "name": "Worm",
+      "rarity": "common",
+      "description": "worm",
+      "sport": "GENERAL",
+      "stats": {
+        "power": 55,
+        "speed": 44,
+        "endurance": 33
+      },
+      "unlockRequirements": {
+        "minCalories": 211,
+        "minDuration": 12,
+        "description": "Complete any workout of at least 12 min and 211 calories."
+      },
+      "xPReward": 111,
+      "lore": "It's just a worm."
+    },
+    {
+      "id": "019",
+      "name": "Blue Eyes White Gorilla",
+      "rarity": "rare",
+      "description": "A rare variant of the black gorilla.",
+      "sport": "GENERAL",
+      "stats": {
+        "power": 151,
+        "speed": 51,
+        "endurance": 61
+      },
+      "unlockRequirements": {
+        "minCalories": 452,
+        "minDuration": 42,
+        "description": "Complete any workout of at least 42 min and 452 calories."
+      },
+      "xPReward": 201,
+      "lore": "A black gorilla that turned white, better than the average gorilla."
+    },
+    {
+      "id": "020",
+      "name": "Baggie Bumblebee",
+      "rarity": "rare",
+      "description": "A little bumblebee with a little baggie.",
+      "sport": "GENERAL",
+      "stats": {
+        "power": 40,
+        "speed": 100,
+        "endurance": 30
+      },
+      "unlockRequirements": {
+        "minCalories": 272,
+        "minDuration": 26,
+        "description": "Complete any workout of at least 26 min and 272 calories."
+      },
+      "xPReward": 100,
+      "lore": "What's in bumblebee's baggie? Just pollen, or..?"
+    },
+    {
+      "id": "021",
+      "name": "Electric Mouse",
+      "rarity": "rare",
+      "description": "A legally distinct, cute, little electric rodent.",
+      "sport": "RUNNING",
+      "stats": {
+        "power": 101,
+        "speed": 95,
+        "endurance": 52
+      },
+      "unlockRequirements": {
+        "minCalories": 396,
+        "minDuration": 31,
+        "description": "Complete a running workout of at least 31 min and 396 calories."
+      },
+      "xPReward": 140,
+      "lore": "An adorable yellow mouse able to control electricity. It looks kind of familiar..."
+    },
+    {
+      "id": "022",
+      "name": "UWU Bird",
+      "rarity": "epic",
+      "description": "Renowned for its \"UWU\" cry.",
+      "sport": "HIKING",
+      "stats": {
+        "power": 89,
+        "speed": 130,
+        "endurance": 41
+      },
+      "unlockRequirements": {
+        "minCalories": 724,
+        "minDuration": 51,
+        "description": "Complete a hiking workout of at least 51 min and 724 calories."
+      },
+      "xPReward": 1000,
+      "lore": "The true koels, Eudynamys, are a genus of cuckoos from Asia, Australia and the Pacific. They are large sexually dimorphic cuckoos that eat fruits and insects and have loud distinctive calls. They are brood parasites, laying their eggs in the nests of other species."
+    },
+    {
+      "id": "023",
+      "name": "Ouroboros",
+      "rarity": "legendary",
+      "description": "A mythical and ancient snake that eats its own tail.",
+      "sport": "CIRCUIT",
+      "stats": {
+        "power": 111,
+        "speed": 222,
+        "endurance": 333
+      },
+      "unlockRequirements": {
+        "minCalories": 2191,
+        "minDuration": 164,
+        "description": "Complete a circuit workout of at least 164 min and 2191 calories."
+      },
+      "xPReward": 1111,
+      "lore": "An ancient myth speaks of a snake eating its own tail, representing the eternal cycle of life, death, and rebirth, as well as infinity and the unity of the beginning and the end."
+    },
+    {
+      "id": "024",
+      "name": "Fish with Legs",
+      "rarity": "common",
+      "description": "A curious fish with legs that likes to run.",
+      "sport": "RUNNING",
+      "stats": {
+        "power": 60,
+        "speed": 85,
+        "endurance": 40
+      },
+      "unlockRequirements": {
+        "minDuration": 16,
+        "minCalories": 169,
+        "description": "Complete a running workout of at least 16 min and 169 calories."
+      },
+      "xPReward": 75,
+      "lore": "This fish somehow grew legs. It doesn't seem to mind, however, and just keeps running anyways."
+    },
+    {
+      "id": "025",
+      "name": "Frostbite Lynx",
+      "rarity": "rare",
+      "description": "A cold-furred hunter moving silently on frozen lakes.",
+      "sport": "SWIMMING",
+      "stats": {
+        "power": 92,
+        "speed": 80,
+        "endurance": 110
+      },
+      "unlockRequirements": {
+        "minCalories": 889,
+        "minDuration": 32,
+        "description": "Complete a swimming workout of at least 32 min and 889 calories."
+      },
+      "xPReward": 240,
+      "lore": "Its breath crystallizes the air."
+    },
+    {
+      "id": "026",
+      "name": "Thunderhoof",
+      "rarity": "epic",
+      "description": "A zebra that charges with thunderous force.",
+      "sport": "FITNESS",
+      "stats": {
+        "power": 140,
+        "speed": 80,
+        "endurance": 90
+      },
+      "unlockRequirements": {
+        "minCalories": 1454,
+        "minDuration": 48,
+        "description": "Complete a fitness workout of at least 48 min and 1454 calories."
+      },
+      "xPReward": 300,
+      "lore": "Lightning dances beneath its hooves."
+    },
+    {
+      "id": "027",
+      "name": "Mossback Torto",
+      "rarity": "common",
+      "description": "A slow but relentless wanderer covered in moss.",
+      "sport": "HIKING",
+      "stats": {
+        "power": 60,
+        "speed": 20,
+        "endurance": 180
+      },
+      "unlockRequirements": {
+        "minCalories": 478,
+        "minDuration": 39,
+        "description": "Complete a hiking workout of at least 39 min and 478 calories."
+      },
+      "xPReward": 150,
+      "lore": "It carries centuries of wisdom."
+    },
+    {
+      "id": "028",
+      "name": "Obsidian Ravager",
+      "rarity": "epic",
+      "description": "A panther forged from volcanic glass.",
+      "sport": "RUNNING",
+      "stats": {
+        "power": 170,
+        "speed": 150,
+        "endurance": 140
+      },
+      "unlockRequirements": {
+        "minCalories": 1500,
+        "minDuration": 65,
+        "description": "Complete a running workout of at least 65 min and 1500 calories."
+      },
+      "xPReward": 520,
+      "lore": "Its claws leave molten trails."
+    },
+    {
+      "id": "029",
+      "name": "Radiant Griffin",
+      "rarity": "epic",
+      "description": "A fusion of strength and grace.",
+      "sport": "CYCLING",
+      "stats": {
+        "power": 135,
+        "speed": 100,
+        "endurance": 120
+      },
+      "unlockRequirements": {
+        "minCalories": 1249,
+        "minDuration": 89,
+        "description": "Complete a cycling workout of at least 89 min and 1249 calories."
+      },
+      "xPReward": 300,
+      "lore": "A noble creature of balance, soaring alongside those who blend power with grace."
+    },
+    {
+      "id": "030",
+      "name": "Twilight Raven",
+      "rarity": "rare",
+      "description": "A mysterious messenger of renewal.",
+      "sport": "RUNNING",
+      "stats": {
+        "power": 90,
+        "speed": 88,
+        "endurance": 100
+      },
+      "unlockRequirements": {
+        "minCalories": 497,
+        "minDuration": 47,
+        "description": "Complete a running workout of at least 47 min and 497 calories."
+      },
+      "xPReward": 170,
+      "lore": "A mysterious bird that heralds renewal, seen by runners who find peace in the dark."
+    },
+    {
+      "id": "031",
+      "name": "Swole Turtle",
+      "rarity": "rare",
+      "description": "A slow but absurdly strong reptile with the patience of a saint.",
+      "sport": "CIRCUIT",
+      "stats": {
+        "power": 120,
+        "speed": 45,
+        "endurance": 135
+      },
+      "unlockRequirements": {
+        "minCalories": 743,
+        "minDuration": 67,
+        "description": "Complete a circuit workout of at least 67 min and 743 calories."
+      },
+      "xPReward": 210,
+      "lore": "This calm companion reminds individuals that progress always beats pace."
+    },
+    {
+      "id": "032",
+      "name": "Quadzilla",
+      "rarity": "legendary",
+      "description": "A towering lizard known for legs so mighty they shake the earth.",
+      "sport": "CYCLING",
+      "stats": {
+        "power": 160,
+        "speed": 85,
+        "endurance": 140
+      },
+      "unlockRequirements": {
+        "minCalories": 1882,
+        "minDuration": 128,
+        "description": "Complete a cycling workout of at least 128 min and 1882 calories."
+      },
+      "xPReward": 450,
+      "lore": "Legend has it that it has quads the size of mountains."
+    },
+    {
+      "id": "033",
+      "name": "Captain Cardio",
+      "rarity": "epic",
+      "description": "A relentless motivator who believes the mind is the best weapon.",
+      "sport": "RUNNING",
+      "stats": {
+        "power": 130,
+        "speed": 115,
+        "endurance": 110
+      },
+      "unlockRequirements": {
+        "minCalories": 1066,
+        "minDuration": 81,
+        "description": "Complete a running workout of at least 81 min and 1066 calories."
+      },
+      "xPReward": 280,
+      "lore": "Legend says this hero once outran a treadmill for insubordination."
+    },
+    {
+      "id": "034",
+      "name": "Battle Badger",
+      "rarity": "rare",
+      "description": "A furious little fighter with unlimited rage and zero chill.",
+      "sport": "FITNESS",
+      "stats": {
+        "power": 120,
+        "speed": 105,
+        "endurance": 95
+      },
+      "unlockRequirements": {
+        "minCalories": 743,
+        "minDuration": 61,
+        "description": "Complete a fitness workout of at least 61 min and 743 calories."
+      },
+      "xPReward": 200,
+      "lore": "Don't let its size fool you, it's been banned from three boot camps for excessive aggression."
+    },
+    {
+      "id": "035",
+      "name": "Corporal Crunch",
+      "rarity": "epic",
+      "description": "A shredded man that leads core drills with terrifying enthusiasm.",
+      "sport": "FITNESS",
+      "stats": {
+        "power": 135,
+        "speed": 100,
+        "endurance": 115
+      },
+      "unlockRequirements": {
+        "minCalories": 1249,
+        "minDuration": 81,
+        "description": "Complete a fitness workout of at least 81 min and 1249 calories."
+      },
+      "xPReward": 300,
+      "lore": "Rumor says it once punched a protein shake into existence mid-sit-up."
+    },
+    {
+      "id": "036",
+      "name": "Storm Lynx",
+      "rarity": "rare",
+      "description": "A lightning-charged feline that moves in flashes.",
+      "sport": "RUNNING",
+      "stats": {
+        "power": 110,
+        "speed": 777,
+        "endurance": 15
+      },
+      "unlockRequirements": {
+        "minCalories": 497,
+        "minDuration": 38,
+        "description": "Complete a running workout of at least 38 min and 497 calories."
+      },
+      "xPReward": 259,
+      "lore": "Legends say it races thunder itself."
+    },
+    {
+      "id": "037",
+      "name": "Lava Moth",
+      "rarity": "epic",
+      "description": "A moth with wings dripping magma.",
+      "sport": "GENERAL",
+      "stats": {
+        "power": 130,
+        "speed": 90,
+        "endurance": 110
+      },
+      "unlockRequirements": {
+        "minCalories": 496,
+        "minDuration": 41,
+        "description": "Complete any workout of at least 41 min and 496 calories."
+      },
+      "xPReward": 400,
+      "lore": "It survives by drinking magma."
+    },
+    {
+      "id": "038",
+      "name": "Pebble Yak",
+      "rarity": "common",
+      "description": "A small yak with stone-like fur.",
+      "sport": "HIKING",
+      "stats": {
+        "power": 45,
+        "speed": 35,
+        "endurance": 110
+      },
+      "unlockRequirements": {
+        "minCalories": 233,
+        "minDuration": 22,
+        "description": "Complete a hiking workout of at least 22 min and 233 calories."
+      },
+      "xPReward": 100,
+      "lore": "Fur as hard as rock, just like its mental fortitude."
+    },
+    {
+      "id": "039",
+      "name": "Emberpaw",
+      "rarity": "rare",
+      "description": "A feline of pure flame sprinting across volcanic plains.",
+      "sport": "RUNNING",
+      "stats": {
+        "power": 88,
+        "speed": 120,
+        "endurance": 70
+      },
+      "unlockRequirements": {
+        "minCalories": 889,
+        "minDuration": 32,
+        "description": "Complete a running workout of at least 32 min and 889 calories."
+      },
+      "xPReward": 180,
+      "lore": "Born from smoldering molten golem embers casted by immortal wizards."
+    },
+    {
+      "id": "040",
+      "name": "Sain Ubolt",
+      "rarity": "legendary",
+      "description": "A lightning-forged sprinter whose footsteps split the air. The embodiment of ultimate speed and relentless discipline.",
+      "sport": "RUNNING",
+      "stats": {
+        "power": 888,
+        "speed": 888,
+        "endurance": 140
+      },
+      "unlockRequirements": {
+        "minCalories": 2500,
+        "minDuration": 180,
+        "description": "Complete a running workout of at least 180 min and 2500 calories."
+      },
+      "xPReward": 2688,
+      "lore": "Born from the spark of a legend, Sain Ubolt moves so fast he outruns his own shadow."
+    },
+    {
+      "id": "041",
+      "name": "Magical Monkey",
+      "rarity": "rare",
+      "description": "\u2570( \u0361\u00b0 \u035c\u0296 \u0361\u00b0 )\u3064\u2500\u2500\u2606*:\u30fb\uff9f\u2727",
+      "sport": "HIKING",
+      "stats": {
+        "power": 100,
+        "speed": 64,
+        "endurance": 48
+      },
+      "unlockRequirements": {
+        "minDuration": 26,
+        "minCalories": 331,
+        "description": "Complete a hiking workout of at least 26 min and 331 calories."
+      },
+      "xPReward": 200,
+      "lore": "This magical monkey is only visible to people who touch grass regularly."
+    },
+    {
+      "id": "042",
+      "name": "Commando Crab",
+      "rarity": "epic",
+      "description": "Better check your bearings.",
+      "sport": "RUNNING",
+      "stats": {
+        "power": 200,
+        "speed": 30,
+        "endurance": 45
+      },
+      "unlockRequirements": {
+        "minDuration": 35,
+        "minCalories": 450,
+        "description": "Complete a running workout of at least 35 min and 450 calories."
+      },
+      "xPReward": 500,
+      "lore": "Only for the best, this commando crab is only for those with commando gold."
+    },
+    {
+      "id": "043",
+      "name": "Fat Frog",
+      "rarity": "common",
+      "description": "This frog once ate 55 burgers, 55 fries, 55 tater tots and 55 milkshakes.",
+      "sport": "GENERAL",
+      "stats": {
+        "power": 55,
+        "speed": 55,
+        "endurance": 55
+      },
+      "unlockRequirements": {
+        "minCalories": 100,
+        "minDuration": 10,
+        "description": "Complete any workout of at least 10 min and 100 calories."
+      },
+      "xPReward": 55,
+      "lore": "This fat frog can fit 555 cheeeseburgers inside its belly"
+    },
+    {
+      "id": "044",
+      "name": "C4 Cat",
+      "rarity": "legendary",
+      "description": "Exploding kitten, but it grew up.",
+      "sport": "FITNESS",
+      "stats": {
+        "power": 999,
+        "speed": 999,
+        "endurance": 1
+      },
+      "unlockRequirements": {
+        "minCalories": 1573,
+        "minDuration": 147,
+        "description": "Complete a fitness workout of at least 147 min and 1573 calories."
+      },
+      "xPReward": 999,
+      "lore": "Nobody knows when this cat is going to expl-\ud83d\udca5"
+    },
+    {
+      "id": "045",
+      "name": "Twin Tapirs",
+      "rarity": "common",
+      "description": "A pair of powerful tapirs.",
+      "sport": "FITNESS",
+      "stats": {
+        "power": 57,
+        "speed": 24,
+        "endurance": 84
+      },
+      "unlockRequirements": {
+        "minCalories": 122,
+        "minDuration": 12,
+        "description": "Complete a fitness workout of at least 12 min and 122 calories."
+      },
+      "xPReward": 100,
+      "lore": "This pair of tapirs are always seen together, how cute."
+    },
+    {
+      "id": "046",
+      "name": "Clumsy Cheetah",
+      "rarity": "common",
+      "description": "One of the fastest creatures, but is hindered by its uncoordinated movements.",
+      "sport": "RUNNING",
+      "stats": {
+        "power": 27,
+        "speed": 137,
+        "endurance": 23
+      },
+      "unlockRequirements": {
+        "minCalories": 156,
+        "minDuration": 22,
+        "description": "Complete a running workout of at least 22 min and 156 calories."
+      },
+      "xPReward": 120,
+      "lore": "This clumsy cheetah was born with four left feet, constantly running into walls."
+    },
+    {
+      "id": "047",
+      "name": "Special Snake",
+      "rarity": "common",
+      "description": "A special snake with special behaviour.",
+      "sport": "CYCLING",
+      "stats": {
+        "power": 68,
+        "speed": 34,
+        "endurance": 75
+      },
+      "unlockRequirements": {
+        "minCalories": 289,
+        "minDuration": 34,
+        "description": "Complete a cycling workout of at least 34 min and 289 calories."
+      },
+      "xPReward": 100,
+      "lore": "This snake was born special, he looks down but is always positive about things."
+    },
+    {
+      "id": "048",
+      "name": "Resilient Guardian",
+      "rarity": "rare",
+      "description": "Got thrown in a forest for 3 days, didnt sleep for 4 days.",
+      "sport": "HIKING",
+      "stats": {
+        "power": 70,
+        "speed": 83,
+        "endurance": 27
+      },
+      "unlockRequirements": {
+        "minDuration": 67,
+        "minCalories": 864,
+        "description": "Complete a hiking workout of at least 67 min and 864 calories."
+      },
+      "xPReward": 121,
+      "lore": "This guardian has survived in the jungle for a long time."
+    },
+    {
+      "id": "049",
+      "name": "Matador Mole",
+      "rarity": "rare",
+      "description": "A mole with a rocket launcher.",
+      "sport": "GENERAL",
+      "stats": {
+        "power": 100,
+        "speed": 29,
+        "endurance": 32
+      },
+      "unlockRequirements": {
+        "minCalories": 396,
+        "minDuration": 26,
+        "description": "Complete any workout of at least 26 min and 396 calories."
+      },
+      "xPReward": 200,
+      "lore": "Nobody knows where this mole got his matador from, but nobody dares come close."
+    },
+    {
+      "id": "050",
+      "name": "Polar Bear",
+      "rarity": "legendary",
+      "description": "A normal bear wearing a polar watch.",
+      "sport": "GENERAL",
+      "stats": {
+        "power": 160,
+        "speed": 45,
+        "endurance": 149
+      },
+      "unlockRequirements": {
+        "minCalories": 1882,
+        "minDuration": 128,
+        "description": "Complete any workout of at least 128 min and 1882 calories."
+      },
+      "xPReward": 1000,
+      "lore": "Wait, it's not a polar bear? It's just a normal bear with a Polar watch??"
+    },
+    {
+      "id": "051",
+      "name": "Thundersnail",
+      "rarity": "epic",
+      "description": "The fastest snail you'll ever lay your eyes upon.",
+      "sport": "FITNESS",
+      "stats": {
+        "power": 90,
+        "speed": 10,
+        "endurance": 250
+      },
+      "unlockRequirements": {
+        "minDuration": 95,
+        "minCalories": 1500,
+        "description": "Complete a fitness workout of at least 95 min and 1500 calories."
+      },
+      "xPReward": 270,
+      "lore": "Said to be 10x the speed of the average snail."
+    },
+    {
+      "id": "052",
+      "name": "Lava Lizard",
+      "rarity": "rare",
+      "description": "A lizard with lava skin.",
+      "sport": "FITNESS",
+      "stats": {
+        "power": 130,
+        "speed": 75,
+        "endurance": 95
+      },
+      "unlockRequirements": {
+        "minCalories": 743,
+        "minDuration": 61,
+        "description": "Complete a fitness workout of at least 61 min and 743 calories."
+      },
+      "xPReward": 200,
+      "lore": "Born in magma, this lizard thrives when the body pushes through burning fatigue."
+    },
+    {
+      "id": "053",
+      "name": "Turbo Toad",
+      "rarity": "common",
+      "description": "A toad so fast it leaves dust clouds behind with every hop.",
+      "sport": "RUNNING",
+      "stats": {
+        "power": 40,
+        "speed": 120,
+        "endurance": 60
+      },
+      "unlockRequirements": {
+        "minCalories": 189,
+        "minDuration": 22,
+        "description": "Complete a running workout of at least 22 min and 189 calories."
+      },
+      "xPReward": 100,
+      "lore": "A toad faster than most humans. Its leaps defy common sense."
+    },
+    {
+      "id": "054",
+      "name": "Mecha Penguin",
+      "rarity": "epic",
+      "description": "A cybernetic swimmer designed for extreme endurance in icy waters.",
+      "sport": "SWIMMING",
+      "stats": {
+        "power": 150,
+        "speed": 80,
+        "endurance": 120
+      },
+      "unlockRequirements": {
+        "minCalories": 861,
+        "minDuration": 56,
+        "description": "Complete a swimming workout of at least 56 min and 861 calories."
+      },
+      "xPReward": 320,
+      "lore": "Engineered for icy endurance, this robotic penguin outswims submarines."
+    },
+    {
+      "id": "055",
+      "name": "Iron Koala",
+      "rarity": "rare",
+      "description": "A slow-moving powerhouse known for its quiet, unbreakable strength.",
+      "sport": "FITNESS",
+      "stats": {
+        "power": 110,
+        "speed": 40,
+        "endurance": 130
+      },
+      "unlockRequirements": {
+        "minDuration": 67,
+        "minCalories": 864,
+        "description": "Complete a fitness workout of at least 67 min and 864 calories."
+      },
+      "xPReward": 180,
+      "lore": "Moves slow, lifts heavy. Never skips eucalyptus day."
+    },
+    {
+      "id": "056",
+      "name": "Starlight Hare ",
+      "rarity": "epic",
+      "description": "A luminous runner that races through moonlit trails at incredible speed.",
+      "sport": "RUNNING",
+      "stats": {
+        "power": 115,
+        "speed": 150,
+        "endurance": 80
+      },
+      "unlockRequirements": {
+        "minDuration": 56,
+        "minCalories": 822,
+        "description": "Complete a running workout of at least 56 min and 822 calories."
+      },
+      "xPReward": 300,
+      "lore": "Said to leave glowing trails as it runs beneath moonlight."
+    },
+    {
+      "id": "057",
+      "name": "Caffeine Crow",
+      "rarity": "common",
+      "description": "A hyperactive bird that trains before sunrise and never rests.",
+      "sport": "GENERAL",
+      "stats": {
+        "power": 55,
+        "speed": 95,
+        "endurance": 70
+      },
+      "unlockRequirements": {
+        "minDuration": 28,
+        "minCalories": 308,
+        "description": "Complete any workout of at least 28 min and 308 calories."
+      },
+      "xPReward": 85,
+      "lore": "Fueled by caffeine and chaos, this crow wakes earlier than you."
+    },
+    {
+      "id": "058",
+      "name": "Boulder Crab",
+      "rarity": "rare",
+      "description": "A heavy-lifting crustacean that treats boulders like dumbbells.",
+      "sport": "CIRCUIT",
+      "stats": {
+        "power": 140,
+        "speed": 50,
+        "endurance": 110
+      },
+      "unlockRequirements": {
+        "minCalories": 743,
+        "minDuration": 53,
+        "description": "Complete a circuit workout of at least 53 min and 743 calories."
+      },
+      "xPReward": 210,
+      "lore": "Known to lift boulders larger than itself. It never skips leg day."
+    },
+    {
+      "id": "059",
+      "name": "Sonic Seahorse",
+      "rarity": "common",
+      "description": "A tiny sea creature that dashes through waves at lightning speed.",
+      "sport": "SWIMMING",
+      "stats": {
+        "power": 70,
+        "speed": 100,
+        "endurance": 65
+      },
+      "unlockRequirements": {
+        "minDuration": 22,
+        "minCalories": 238,
+        "description": "Complete a swimming workout of at least 22 min and 238 calories."
+      },
+      "xPReward": 90,
+      "lore": "Small, but quick as a current. Loves racing dolphins."
+    },
+    {
+      "id": "060",
+      "name": "Sleepy Sloth",
+      "rarity": "common",
+      "description": "A calm reminder that proper rest builds lasting strength.",
+      "sport": "GENERAL",
+      "stats": {
+        "power": 30,
+        "speed": 10,
+        "endurance": 160
+      },
+      "unlockRequirements": {
+        "minDuration": 44,
+        "minCalories": 485,
+        "description": "Complete any workout of at least 44 min and 485 calories."
+      },
+      "xPReward": 60,
+      "lore": "A reward for recovery. Even legends need sleep."
+    },
+    {
+      "id": "061",
+      "name": "Volt Viper",
+      "rarity": "epic",
+      "description": "A sleek serpent charged with energy, striking faster than thought.",
+      "sport": "RUNNING",
+      "stats": {
+        "power": 140,
+        "speed": 130,
+        "endurance": 90
+      },
+      "unlockRequirements": {
+        "minCalories": 1066,
+        "minDuration": 70,
+        "description": "Complete a running workout of at least 70 min and 1066 calories."
+      },
+      "xPReward": 280,
+      "lore": "A serpent charged with pure energy, striking faster than thought."
+    },
+    {
+      "id": "062",
+      "name": "Sushi Cat",
+      "rarity": "rare",
+      "description": "A cheerful cat that rolls into workouts with endless energy.",
+      "sport": "FITNESS",
+      "stats": {
+        "power": 50,
+        "speed": 70,
+        "endurance": 90
+      },
+      "unlockRequirements": {
+        "minDuration": 53,
+        "minCalories": 683,
+        "description": "Complete a fitness workout of at least 53 min and 683 calories."
+      },
+      "xPReward": 150,
+      "lore": "Known to roll into class uninvited. Always meows for protein snacks."
+    },
+    {
+      "id": "063",
+      "name": "Magma Rhino",
+      "rarity": "legendary",
+      "description": "A molten beast whose charge melts roads and limits alike.",
+      "sport": "CYCLING",
+      "stats": {
+        "power": 200,
+        "speed": 90,
+        "endurance": 130
+      },
+      "unlockRequirements": {
+        "minCalories": 2307,
+        "minDuration": 155,
+        "description": "Complete a cycling workout of at least 155 min and 2307 calories."
+      },
+      "xPReward": 500,
+      "lore": "Its hooves ignite the ground with every pedal stroke."
+    },
+    {
+      "id": "064",
+      "name": "Paper Crane",
+      "rarity": "common",
+      "description": "A fragile bird that follows hikers seeking peace and balance.",
+      "sport": "HIKING",
+      "stats": {
+        "power": 70,
+        "speed": 80,
+        "endurance": 20
+      },
+      "unlockRequirements": {
+        "minDuration": 34,
+        "minCalories": 369,
+        "description": "Complete a hiking workout of at least 34 min and 369 calories."
+      },
+      "xPReward": 70,
+      "lore": "A fragile symbol of peace that follows quiet hikers."
+    },
+    {
+      "id": "065",
+      "name": "Protein Duck",
+      "rarity": "rare",
+      "description": "A muscular duck obsessed with post-workout gains and meal timing.",
+      "sport": "FITNESS",
+      "stats": {
+        "power": 125,
+        "speed": 65,
+        "endurance": 100
+      },
+      "unlockRequirements": {
+        "minDuration": 61,
+        "minCalories": 783,
+        "description": "Complete a fitness workout of at least 61 min and 783 calories."
+      },
+      "xPReward": 200,
+      "lore": "Quacks every time you finish a rep. Always bulking."
+    },
+    {
+      "id": "066",
+      "name": "Phantom Fox",
+      "rarity": "legendary",
+      "description": "A spectral hunter seen only by those who train with perfect consistency.",
+      "sport": "GENERAL",
+      "stats": {
+        "power": 180,
+        "speed": 170,
+        "endurance": 160
+      },
+      "unlockRequirements": {
+        "minDuration": 169,
+        "minCalories": 2345,
+        "description": "Complete any workout of at least 169 min and 2345 calories."
+      },
+      "xPReward": 1000,
+      "lore": "Said to appear only to those with unbroken discipline. Disappears at dawn."
+    },
+    {
+      "id": "067",
+      "name": "67 Ants",
+      "rarity": "rare",
+      "description": "A handful of ants.",
+      "sport": "GENERAL",
+      "stats": {
+        "power": 67,
+        "speed": 67,
+        "endurance": 67
+      },
+      "unlockRequirements": {
+        "minCalories": 250,
+        "minDuration": 21,
+        "description": "Complete any workout of at least 21 min and 250 calories."
+      },
+      "xPReward": 67,
+      "lore": "These 7 ants always stay together as a group, although one always goes missing... "
+    },
+    {
+      "id": "068",
+      "name": "Flower Kitty",
+      "rarity": "common",
+      "description": "A cute little kitty made of flowers.",
+      "sport": "HIKING",
+      "stats": {
+        "power": 70,
+        "speed": 80,
+        "endurance": 60
+      },
+      "unlockRequirements": {
+        "minDuration": 16,
+        "minCalories": 169,
+        "description": "Complete a hiking workout of at least 16 min and 169 calories."
+      },
+      "xPReward": 50,
+      "lore": "When it purrs, it releases a nice floral aroma, calming anyone who smells it."
+    },
+    {
+      "id": "069",
+      "name": "Black Cat",
+      "rarity": "rare",
+      "description": "A mischievious black cat. Brings about misfortune to those near to it.",
+      "sport": "GENERAL",
+      "stats": {
+        "power": 130,
+        "speed": 91,
+        "endurance": 52
+      },
+      "unlockRequirements": {
+        "minCalories": 653,
+        "minDuration": 34,
+        "description": "Complete any workout of at least 34 min and 653 calories."
+      },
+      "xPReward": 169,
+      "lore": "Those that come near it are said to suffer from bad luck. At least it's cute."
+    },
+    {
+      "id": "070",
+      "name": "Rolla-dillo",
+      "rarity": "epic",
+      "description": "A rock-hard armadillo that rolls wherever it goes.",
+      "sport": "CYCLING",
+      "stats": {
+        "power": 110,
+        "speed": 120,
+        "endurance": 110
+      },
+      "unlockRequirements": {
+        "minCalories": 724,
+        "minDuration": 41,
+        "description": "Complete a cycling workout of at least 41 min and 724 calories."
+      },
+      "xPReward": 300,
+      "lore": "With its rock-hard scales, it builds up incredible speeds by tucking into a ball and rolling, before smashing into its target."
+    },
+    {
+      "id": "071",
+      "name": "Glass Canary",
+      "rarity": "legendary",
+      "description": "Fragile, but sharp and deadly.",
+      "sport": "RUNNING",
+      "stats": {
+        "power": 300,
+        "speed": 200,
+        "endurance": 25
+      },
+      "unlockRequirements": {
+        "minCalories": 1882,
+        "minDuration": 60,
+        "description": "Complete a running workout of at least 60 min and 1882 calories."
+      },
+      "xPReward": 750,
+      "lore": "A fragile, graceful bird that graces its opponents with 10000 cuts."
+    },
+    {
+      "id": "072",
+      "name": "Goldfish",
+      "rarity": "epic",
+      "description": "A fish that'll make you rich.",
+      "sport": "GENERAL",
+      "stats": {
+        "power": 79,
+        "speed": 19,
+        "endurance": 196
+      },
+      "unlockRequirements": {
+        "minCalories": 1363,
+        "minDuration": 70,
+        "description": "Complete any workout of at least 70 min and 1363 calories."
+      },
+      "xPReward": 2000,
+      "lore": "A fish made of pure, solid gold. While not the best for battle, it grants its owner riches far beyond imagination."
+    },
+    {
+      "id": "073",
+      "name": "Coastline Glider",
+      "rarity": "common",
+      "description": "A breezy spirit that glides along East Coast's paths, nudging you to keep pace.",
+      "sport": "CYCLING",
+      "stats": {
+        "power": 40,
+        "speed": 90,
+        "endurance": 60
+      },
+      "unlockRequirements": {
+        "minDuration": 28,
+        "minCalories": 308,
+        "description": "Complete a cycling workout of at least 28 min and 308 calories."
+      },
+      "xPReward": 120,
+      "lore": "Rumour says it formed from salty sea breezes and old skateboard stickers."
+    },
+    {
+      "id": "074",
+      "name": "Kopi Gorilla",
+      "rarity": "rare",
+      "description": "Powered by kopi-gao, this gorilla fuels morning lifts and never skips chest day.",
+      "sport": "FITNESS",
+      "stats": {
+        "power": 95,
+        "speed": 40,
+        "endurance": 80
+      },
+      "unlockRequirements": {
+        "minCalories": 317,
+        "minDuration": 20,
+        "description": "Complete a fitness workout of at least 20 min and 317 calories."
+      },
+      "xPReward": 150,
+      "lore": "Locals swear it used to work night shifts at a kopi stall before becoming a gym legend."
+    },
+    {
+      "id": "075",
+      "name": "Hawker Aunty",
+      "rarity": "rare",
+      "description": "Calls you 'shuai ge' or 'mei mei' no matter how sweaty you look, motivates you with loud tough-love.",
+      "sport": "GENERAL",
+      "stats": {
+        "power": 65,
+        "speed": 75,
+        "endurance": 80
+      },
+      "unlockRequirements": {
+        "minCalories": 396,
+        "minDuration": 26,
+        "description": "Complete any workout of at least 26 min and 396 calories."
+      },
+      "xPReward": 120,
+      "lore": "Appears across estates randomly, teleporting between kopitiams to shout encouragement."
+    },
+    {
+      "id": "076",
+      "name": "Monsoon Lynx",
+      "rarity": "rare",
+      "description": "A sleek rain-cat that appears when thunderclouds roll in, pushing you to run through puddles.",
+      "sport": "RUNNING",
+      "stats": {
+        "power": 60,
+        "speed": 95,
+        "endurance": 55
+      },
+      "unlockRequirements": {
+        "minCalories": 541,
+        "minDuration": 42,
+        "description": "Complete a running workout of at least 42 min and 541 calories."
+      },
+      "xPReward": 110,
+      "lore": "Joggers tell tales of a cat that guides them home through sudden downpours."
+    },
+    {
+      "id": "077",
+      "name": "Milo Dinosaur",
+      "rarity": "rare",
+      "description": "A cocoa-dusted dinosaur born from overflowed Milo cups, a chugger of comfort and stamina.",
+      "sport": "SWIMMING",
+      "stats": {
+        "power": 70,
+        "speed": 50,
+        "endurance": 90
+      },
+      "unlockRequirements": {
+        "minCalories": 396,
+        "minDuration": 38,
+        "description": "Complete a swimming workout of at least 38 min and 396 calories."
+      },
+      "xPReward": 200,
+      "lore": "Swim coaches joke Milo energy comes from powdered courage."
+    },
+    {
+      "id": "078",
+      "name": "Tiong Bahru Tiger",
+      "rarity": "epic",
+      "description": "Old-school morning runner: lean, disciplined, and spotted around heritage lanes.",
+      "sport": "RUNNING",
+      "stats": {
+        "power": 85,
+        "speed": 90,
+        "endurance": 95
+      },
+      "unlockRequirements": {
+        "minCalories": 633,
+        "minDuration": 45,
+        "description": "Complete a running workout of at least 45 min and 633 calories."
+      },
+      "xPReward": 180,
+      "lore": "Bread-shop aunties whisper about the tiger's steady sunrise route."
+    },
+    {
+      "id": "079",
+      "name": "Durian Pangolin",
+      "rarity": "rare",
+      "description": "A spiky pangolin with durian-thorn armour, defensive and surprisingly strong.",
+      "sport": "FITNESS",
+      "stats": {
+        "power": 100,
+        "speed": 40,
+        "endurance": 75
+      },
+      "unlockRequirements": {
+        "minCalories": 340,
+        "minDuration": 53,
+        "description": "Complete a fitness workout of at least 53 min and 340 calories."
+      },
+      "xPReward": 150,
+      "lore": "Only appears during durian season, smells like controversy and sweetness."
+    },
+    {
+      "id": "080",
+      "name": "Orchard Crane",
+      "rarity": "common",
+      "description": "A graceful city spirit born from neon lights and festival energy.",
+      "sport": "CIRCUIT",
+      "stats": {
+        "power": 45,
+        "speed": 95,
+        "endurance": 55
+      },
+      "unlockRequirements": {
+        "minDuration": 16,
+        "minCalories": 169,
+        "description": "Complete a circuit workout of at least 16 min and 169 calories."
+      },
+      "xPReward": 100,
+      "lore": "Festival lights coalesced into a bird that loves vertical movement."
+    },
+    {
+      "id": "081",
+      "name": "Chilli Stingray",
+      "rarity": "rare",
+      "description": "A spicy stingray that breathes steam and pushes you to hit hot training targets.",
+      "sport": "FITNESS",
+      "stats": {
+        "power": 90,
+        "speed": 65,
+        "endurance": 60
+      },
+      "unlockRequirements": {
+        "minDuration": 38,
+        "minCalories": 485,
+        "description": "Complete a fitness workout of at least 38 min and 485 calories."
+      },
+      "xPReward": 160,
+      "lore": "Fierce on the outside but fond of friendly sparring."
+    },
+    {
+      "id": "082",
+      "name": "Kallang Rooster",
+      "rarity": "rare",
+      "description": "A stadium-born rooster whose crow pumps adrenaline into local athletes.",
+      "sport": "RUNNING",
+      "stats": {
+        "power": 75,
+        "speed": 85,
+        "endurance": 60
+      },
+      "unlockRequirements": {
+        "minDuration": 53,
+        "minCalories": 683,
+        "description": "Complete a running workout of at least 53 min and 683 calories."
+      },
+      "xPReward": 140,
+      "lore": "Descended from the Kallang Roar that once shook stadiums."
+    },
+    {
+      "id": "083",
+      "name": "HDB Neko",
+      "rarity": "common",
+      "description": "Void-deck cat spirit known for calm stretches and tiny daily routines.",
+      "sport": "GENERAL",
+      "stats": {
+        "power": 40,
+        "speed": 60,
+        "endurance": 80
+      },
+      "unlockRequirements": {
+        "minCalories": 156,
+        "minDuration": 22,
+        "description": "Complete any workout of at least 22 min and 156 calories."
+      },
+      "xPReward": 90,
+      "lore": "Residents leave milk and luck in exchange for calm corridors."
+    },
+    {
+      "id": "084",
+      "name": "Rainforest Hornbill",
+      "rarity": "epic",
+      "description": "A lungy hornbill built for long effort \u00e2\u20ac\u201d thrives on sustained outdoor exertion.",
+      "sport": "HIKING",
+      "stats": {
+        "power": 90,
+        "speed": 70,
+        "endurance": 95
+      },
+      "unlockRequirements": {
+        "minCalories": 450,
+        "minDuration": 41,
+        "description": "Complete a hiking workout of at least 41 min and 450 calories."
+      },
+      "xPReward": 200,
+      "lore": "Its call is said to guide lost hikers back to the trailhead."
+    },
+    {
+      "id": "085",
+      "name": "Changi Glider",
+      "rarity": "rare",
+      "description": "A coastal glider that rides trade winds, great company for long rides.",
+      "sport": "CYCLING",
+      "stats": {
+        "power": 55,
+        "speed": 85,
+        "endurance": 75
+      },
+      "unlockRequirements": {
+        "minDuration": 70,
+        "minCalories": 900,
+        "description": "Complete a cycling workout of at least 70 min and 900 calories."
+      },
+      "xPReward": 150,
+      "lore": "Keeps night riders safe from bad navigation."
+    },
+    {
+      "id": "086",
+      "name": "Marina Sentinel",
+      "rarity": "legendary",
+      "description": "A stone-and-water harbour guardian that tests consistency.",
+      "sport": "CIRCUIT",
+      "stats": {
+        "power": 180,
+        "speed": 120,
+        "endurance": 180
+      },
+      "unlockRequirements": {
+        "minCalories": 1882,
+        "minDuration": 128,
+        "description": "Complete a circuit workout of at least 128 min and 1882 calories."
+      },
+      "xPReward": 1000,
+      "lore": "Awakens only for those who train like tides: constant and relentless."
+    },
+    {
+      "id": "087",
+      "name": "Morayna Barrage",
+      "rarity": "rare",
+      "description": "A wind-riding eel born from kite-flying gusts.",
+      "sport": "RUNNING",
+      "stats": {
+        "power": 60,
+        "speed": 85,
+        "endurance": 65
+      },
+      "unlockRequirements": {
+        "minCalories": 295,
+        "minDuration": 26,
+        "description": "Complete a running workout of at least 26 min and 295 calories."
+      },
+      "xPReward": 130,
+      "lore": "Born from the winds across the Barrage when kites fill the sky."
+    },
+    {
+      "id": "088",
+      "name": "Ice Kachang Beetle",
+      "rarity": "common",
+      "description": "A beetle with syrup-coloured shell patterns that boost small exercises.",
+      "sport": "GENERAL",
+      "stats": {
+        "power": 50,
+        "speed": 75,
+        "endurance": 60
+      },
+      "unlockRequirements": {
+        "minCalories": 256,
+        "minDuration": 16,
+        "description": "Complete any workout of at least 16 min and 256 calories."
+      },
+      "xPReward": 100,
+      "lore": "Forms where ice melts fastest: under kopitiam umbrellas."
+    },
+    {
+      "id": "089",
+      "name": "Esplanade Echo Bat",
+      "rarity": "epic",
+      "description": "A sound-reactive bat that thrives on rhythm and interval pacing.",
+      "sport": "CIRCUIT",
+      "stats": {
+        "power": 100,
+        "speed": 100,
+        "endurance": 55
+      },
+      "unlockRequirements": {
+        "minDuration": 56,
+        "minCalories": 822,
+        "description": "Complete a circuit workout of at least 56 min and 822 calories."
+      },
+      "xPReward": 140,
+      "lore": "Born from rehearsal rooms deep under the Esplanade."
+    },
+    {
+      "id": "090",
+      "name": "Hydroxia",
+      "rarity": "legendary",
+      "description": "An octopus capable of launching high pressured water projectiles.",
+      "sport": "SWIMMING",
+      "stats": {
+        "power": 250,
+        "speed": 200,
+        "endurance": 150
+      },
+      "unlockRequirements": {
+        "minCalories": 1380,
+        "minDuration": 109,
+        "description": "Complete a swimming workout of at least 109 min and 1380 calories."
+      },
+      "xPReward": 1250,
+      "lore": "Perplexed by how slow everything is, Hydroxia just wants people to swim fast like it. Unfortunately, it doesn't understand that drowning is a very real and serious issue that people can face."
+    },
+    {
+      "id": "091",
+      "name": "Fenrir Knight",
+      "rarity": "epic",
+      "description": "A glorious defender with valiancy and honour. He loves to defend with all of his might.",
+      "sport": "HIKING",
+      "stats": {
+        "power": 100,
+        "speed": 70,
+        "endurance": 200
+      },
+      "unlockRequirements": {
+        "minCalories": 861,
+        "minDuration": 74,
+        "description": "Complete a hiking workout of at least 74 min and 861 calories."
+      },
+      "xPReward": 450,
+      "lore": "Though he did not manage to win her heart, he managed to conquered his heartbreak and conquered the mountains."
+    },
+    {
+      "id": "092",
+      "name": "DIStroyer",
+      "rarity": "legendary",
+      "description": "An ultimate destructive weapon of the DIS.",
+      "sport": "GENERAL",
+      "stats": {
+        "power": 600,
+        "speed": 600,
+        "endurance": 600
+      },
+      "unlockRequirements": {
+        "minCalories": 2423,
+        "minDuration": 175,
+        "description": "Complete any workout of at least 175 min and 2423 calories."
+      },
+      "xPReward": 3000,
+      "lore": "D! I! S! LEADS THE WAY AH! Use with CAUTION!"
+    },
+    {
+      "id": "093",
+      "name": "Low Riders",
+      "rarity": "epic",
+      "description": "A bunch of gnomes who have strong willpower.",
+      "sport": "CIRCUIT",
+      "stats": {
+        "power": 125,
+        "speed": 50,
+        "endurance": 100
+      },
+      "unlockRequirements": {
+        "minCalories": 861,
+        "minDuration": 56,
+        "description": "Complete a circuit workout of at least 56 min and 861 calories."
+      },
+      "xPReward": 300,
+      "lore": "Once in a happy living village, these scoundrels decided to leave and live by themselves. Regretful decision? You can say so."
+    },
+    {
+      "id": "094",
+      "name": "Chromatic Alex",
+      "rarity": "legendary",
+      "description": "A quick, decisive, and agile fighter, with his chromatic sword of Excalibur.",
+      "sport": "RUNNING",
+      "stats": {
+        "power": 100,
+        "speed": 220,
+        "endurance": 125
+      },
+      "unlockRequirements": {
+        "minCalories": 1148,
+        "minDuration": 76,
+        "description": "Complete a running workout of at least 76 min and 1148 calories."
+      },
+      "xPReward": 500,
+      "lore": "Speedoooo. He's fast, he's chromatic, he's charismatic! He just wants to be fast!"
+    },
+    {
+      "id": "095",
+      "name": "Night Prowler",
+      "rarity": "epic",
+      "description": "A stealthy wolf that leaps and lashes on its enemy with deadly force.",
+      "sport": "RUNNING",
+      "stats": {
+        "power": 200,
+        "speed": 125,
+        "endurance": 50
+      },
+      "unlockRequirements": {
+        "minCalories": 1409,
+        "minDuration": 50,
+        "description": "Complete a running workout of at least 50 min and 1409 calories."
+      },
+      "xPReward": 650,
+      "lore": "Lurks and moves fast and swift and unleashes a heavy force, though it gets tired after one leap, especially during the day."
+    },
+    {
+      "id": "096",
+      "name": "Luxia",
+      "rarity": "legendary",
+      "description": "A wonderous mythological beauty that outshines the battlefield.",
+      "sport": "GENERAL",
+      "stats": {
+        "power": 300,
+        "speed": 300,
+        "endurance": 300
+      },
+      "unlockRequirements": {
+        "minCalories": 1148,
+        "minDuration": 104,
+        "description": "Complete any workout of at least 104 min and 1148 calories."
+      },
+      "xPReward": 2000,
+      "lore": "Her love to levitate around the skies and bask in the sun's horizon tints her complexity, making her outshine her opponents."
+    },
+    {
+      "id": "097",
+      "name": "Electroman",
+      "rarity": "rare",
+      "description": "Obsessed with electricity and boom boom.",
+      "sport": "CYCLING",
+      "stats": {
+        "power": 70,
+        "speed": 70,
+        "endurance": 80
+      },
+      "unlockRequirements": {
+        "minCalories": 597,
+        "minDuration": 47,
+        "description": "Complete a cycling workout of at least 47 min and 597 calories."
+      },
+      "xPReward": 250,
+      "lore": "Loves striking its foes with electrifying fear. (Though it's not very scary...)"
+    },
+    {
+      "id": "098",
+      "name": "Saitamars",
+      "rarity": "legendary",
+      "description": "Deals devastation with just one punch.",
+      "sport": "FITNESS",
+      "stats": {
+        "power": 999,
+        "speed": 1,
+        "endurance": 100
+      },
+      "unlockRequirements": {
+        "minCalories": 1882,
+        "minDuration": 65,
+        "description": "Complete a fitness workout of at least 65 min and 1882 calories."
+      },
+      "xPReward": 400,
+      "lore": "100 push ups, sit ups, and squats. But at what cost of his humanity?"
+    },
+    {
+      "id": "099",
+      "name": "Miracle Sprout",
+      "rarity": "common",
+      "description": "A little plant that loves to boost the morale of the team.",
+      "sport": "HIKING",
+      "stats": {
+        "power": 40,
+        "speed": 15,
+        "endurance": 150
+      },
+      "unlockRequirements": {
+        "minCalories": 500,
+        "minDuration": 41,
+        "description": "Complete a hiking workout of at least 41 min and 500 calories."
+      },
+      "xPReward": 200,
+      "lore": "It just loves to heal and boost the team's morale, being the guardian of the backlines."
+    },
+    {
+      "id": "100",
+      "name": "Bastion",
+      "rarity": "epic",
+      "description": "A creature that controls a robot to conquer any adversary imminent.",
+      "sport": "FITNESS",
+      "stats": {
+        "power": 125,
+        "speed": 125,
+        "endurance": 125
+      },
+      "unlockRequirements": {
+        "minCalories": 1066,
+        "minDuration": 81,
+        "description": "Complete a fitness workout of at least 81 min and 1066 calories."
+      },
+      "xPReward": 750,
+      "lore": "On the outside he's tough, on the inside he's soft. So bipolar..."
+    },
+    {
+      "id": "101",
+      "name": "Earth Bender",
+      "rarity": "epic",
+      "description": "A monkey that uses his stick to erupt havock and smash rocks.",
+      "sport": "GENERAL",
+      "stats": {
+        "power": 100,
+        "speed": 100,
+        "endurance": 100
+      },
+      "unlockRequirements": {
+        "minCalories": 564,
+        "minDuration": 41,
+        "description": "Complete any workout of at least 41 min and 564 calories."
+      },
+      "xPReward": 200,
+      "lore": "Thought the monkeys would only swing across trees? This one destroys them instead!"
+    },
+    {
+      "id": "102",
+      "name": "Thornscale Ravager",
+      "rarity": "legendary",
+      "description": "A swift, armored predator with immense strength, blistering speed, and relentless endurance.",
+      "sport": "CIRCUIT",
+      "stats": {
+        "power": 250,
+        "speed": 250,
+        "endurance": 200
+      },
+      "unlockRequirements": {
+        "minCalories": 916,
+        "minDuration": 93,
+        "description": "Complete a circuit workout of at least 93 min and 916 calories."
+      },
+      "xPReward": 800,
+      "lore": "Born from ancient forest spirits, it hunts intruders to preserve forgotten wilderness."
+    },
+    {
+      "id": "103",
+      "name": "Frostgloom Strider",
+      "rarity": "epic",
+      "description": "A silent, ice-veiled hunter with sharp power, quick movement, and decent stamina.",
+      "sport": "HIKING",
+      "stats": {
+        "power": 140,
+        "speed": 170,
+        "endurance": 140
+      },
+      "unlockRequirements": {
+        "minCalories": 564,
+        "minDuration": 65,
+        "description": "Complete a hiking workout of at least 65 min and 564 calories."
+      },
+      "xPReward": 500,
+      "lore": "Born in eternal blizzards, it wanders frozen realms seeking forgotten truths."
+    },
+    {
+      "id": "104",
+      "name": "Ironbark Devourer",
+      "rarity": "rare",
+      "description": "A lumbering creature with sturdy strength, slow but steady speed, and great resilience.",
+      "sport": "CYCLING",
+      "stats": {
+        "power": 125,
+        "speed": 50,
+        "endurance": 150
+      },
+      "unlockRequirements": {
+        "minCalories": 743,
+        "minDuration": 47,
+        "description": "Complete a cycling workout of at least 47 min and 743 calories."
+      },
+      "xPReward": 300,
+      "lore": "Formed from ancient roots, it protects forest borders from careless wanderers."
+    },
+    {
+      "id": "105",
+      "name": "Stormlash Gryphon",
+      "rarity": "epic",
+      "description": "A winged warrior channeling fierce lightning, unmatched aerial speed, and long-lasting vigour.",
+      "sport": "FLYING",
+      "stats": {
+        "power": 150,
+        "speed": 200,
+        "endurance": 50
+      },
+      "unlockRequirements": {
+        "minCalories": 1066,
+        "minDuration": 65,
+        "description": "Complete a flying workout of at least 65 min and 1066 calories."
+      },
+      "xPReward": 650,
+      "lore": "Born from thunderclouds, it serves as guardian to ancient sky temples."
+    },
+    {
+      "id": "106",
+      "name": "Mirefang Creeper",
+      "rarity": "rare",
+      "description": "A swamp-dwelling crawler with modest strength, slow speed, and stubborn endurance.",
+      "sport": "SWIMMING",
+      "stats": {
+        "power": 100,
+        "speed": 50,
+        "endurance": 100
+      },
+      "unlockRequirements": {
+        "minCalories": 597,
+        "minDuration": 38,
+        "description": "Complete a swimming workout of at least 38 min and 597 calories."
+      },
+      "xPReward": 500,
+      "lore": "Legends say it evolved from cursed marsh spirits seeking solid ground."
+    },
+    {
+      "id": "107",
+      "name": "Celestine Veilwyrm",
+      "rarity": "legendary",
+      "description": "A radiant serpent wielding cosmic power, near-instant speed, and endless endurance.",
+      "sport": "CIRCUIT",
+      "stats": {
+        "power": 400,
+        "speed": 400,
+        "endurance": 400
+      },
+      "unlockRequirements": {
+        "minCalories": 1380,
+        "minDuration": 93,
+        "description": "Complete a circuit workout of at least 93 min and 1380 calories."
+      },
+      "xPReward": 1250,
+      "lore": "Formed from stardust, it drifts between realms guiding chosen travelers."
+    },
+    {
+      "id": "108",
+      "name": "Rambletooth Grazer",
+      "rarity": "rare",
+      "description": "A gentle herbivore with mild strength, steady pace, and dependable endurance.",
+      "sport": "FITNESS",
+      "stats": {
+        "power": 50,
+        "speed": 100,
+        "endurance": 100
+      },
+      "unlockRequirements": {
+        "minCalories": 743,
+        "minDuration": 26,
+        "description": "Complete a fitness workout of at least 26 min and 743 calories."
+      },
+      "xPReward": 300,
+      "lore": "Ancient farmers bred it to maintain overgrown fields and peaceful valleys."
+    },
+    {
+      "id": "109",
+      "name": "Rusthide Burrower",
+      "rarity": "rare",
+      "description": "A small tunneler with surprising toughness, moderate speed, and sturdy persistence.",
+      "sport": "HIKING",
+      "stats": {
+        "power": 100,
+        "speed": 80,
+        "endurance": 80
+      },
+      "unlockRequirements": {
+        "minCalories": 844,
+        "minDuration": 47,
+        "description": "Complete a hiking workout of at least 47 min and 844 calories."
+      },
+      "xPReward": 400,
+      "lore": "Said to shape underground paths used by travelers avoiding surface dangers."
+    },
+    {
+      "id": "110",
+      "name": "Shadowmane Skulker",
+      "rarity": "legendary",
+      "description": "A swift night-stalking beast with sharp power and impressive stamina reserves.",
+      "sport": "RUNNING",
+      "stats": {
+        "power": 200,
+        "speed": 160,
+        "endurance": 160
+      },
+      "unlockRequirements": {
+        "minCalories": 916,
+        "minDuration": 71,
+        "description": "Complete a running workout of at least 71 min and 916 calories."
+      },
+      "xPReward": 550,
+      "lore": "Rumored to watch over moonlit forests, judging intruders silently from darkness."
+    },
+    {
+      "id": "111",
+      "name": "Stormroot Charger",
+      "rarity": "legendary",
+      "description": "A bulky creature empowered by earth energy, charging quickly with immense durability.",
+      "sport": "FITNESS",
+      "stats": {
+        "power": 175,
+        "speed": 150,
+        "endurance": 200
+      },
+      "unlockRequirements": {
+        "minCalories": 1148,
+        "minDuration": 82,
+        "description": "Complete a fitness workout of at least 82 min and 1148 calories."
+      },
+      "xPReward": 570,
+      "lore": "Born where lightning strikes ancient trees, it absorbs nature\u00e2\u20ac\u2122s fury effortlessly."
+    },
+    {
+      "id": "112",
+      "name": "Ironwing Stryker",
+      "rarity": "legendary",
+      "description": "A metal-feathered raptor boasting strong power, razor speed, and fierce endurance.",
+      "sport": "FITNESS",
+      "stats": {
+        "power": 175,
+        "speed": 200,
+        "endurance": 175
+      },
+      "unlockRequirements": {
+        "minCalories": 1495,
+        "minDuration": 128,
+        "description": "Complete a fitness workout of at least 128 min and 1495 calories."
+      },
+      "xPReward": 850,
+      "lore": "Forged by forgotten smith-gods, it patrols high cliffs for worthy challengers."
+    },
+    {
+      "id": "113",
+      "name": "Twilight Riftcaller",
+      "rarity": "legendary",
+      "description": "A mystical predator bending shadows, moving blindingly fast with tireless resilience.",
+      "sport": "RUNNING",
+      "stats": {
+        "power": 225,
+        "speed": 225,
+        "endurance": 300
+      },
+      "unlockRequirements": {
+        "minCalories": 1882,
+        "minDuration": 155,
+        "description": "Complete a running workout of at least 155 min and 1882 calories."
+      },
+      "xPReward": 900,
+      "lore": "Emerges through dimensional tears to hunt anomalies disturbing cosmic balance."
+    },
+    {
+      "id": "114",
+      "name": "Ling Gang Guli",
+      "rarity": "legendary",
+      "description": "A fabulous pig-knight with sparkly armor, power, and dramatic flair.",
+      "sport": "HIKING",
+      "stats": {
+        "power": 300,
+        "speed": 150,
+        "endurance": 450
+      },
+      "unlockRequirements": {
+        "minCalories": 2307,
+        "minDuration": 128,
+        "description": "Complete a hiking workout of at least 128 min and 2307 calories."
+      },
+      "xPReward": 1500,
+      "lore": "Born when a potato sneezed, it wanders chanting incomprehensible wobble noises."
+    },
+    {
+      "id": "115",
+      "name": "Bingbong Skibbidler",
+      "rarity": "common",
+      "description": "Spins violently, screams \"BINGBONG\", and then immediately forgets what it's doing.",
+      "sport": "GENERAL",
+      "stats": {
+        "power": 100,
+        "speed": 50,
+        "endurance": 50
+      },
+      "unlockRequirements": {
+        "minCalories": 444,
+        "minDuration": 34,
+        "description": "Complete any workout of at least 34 min and 444 calories."
+      },
+      "xPReward": 200,
+      "lore": "Sages say its brain rattles like marbles in a metal bowl."
+    },
+    {
+      "id": "116",
+      "name": "Tung Tung Beast",
+      "rarity": "rare",
+      "description": "Runs in circles yelling \"TUNG TUNG BRRRT\", fueled by cosmic stupidity.",
+      "sport": "RUNNING",
+      "stats": {
+        "power": 50,
+        "speed": 100,
+        "endurance": 150
+      },
+      "unlockRequirements": {
+        "minCalories": 743,
+        "minDuration": 61,
+        "description": "Complete a running workout of at least 61 min and 743 calories."
+      },
+      "xPReward": 400,
+      "lore": "Summoned accidentally during a midnight snack ritual gone horribly silly."
+    },
+    {
+      "id": "117",
+      "name": "Sahur Snoingler",
+      "rarity": "rare",
+      "description": "Makes bizarre \"SAHUR SAHUR\" noises while hopping sideways like malfunctioning furniture.",
+      "sport": "CIRCUIT",
+      "stats": {
+        "power": 150,
+        "speed": 100,
+        "endurance": 50
+      },
+      "unlockRequirements": {
+        "minCalories": 844,
+        "minDuration": 61,
+        "description": "Complete a circuit workout of at least 61 min and 844 calories."
+      },
+      "xPReward": 500,
+      "lore": "Said to appear at dawn screaming nonsense to wake lazy villagers."
+    },
+    {
+      "id": "118",
+      "name": "Zurzleblorp Giggletoad",
+      "rarity": "legendary",
+      "description": "A vibrating amphibian blurping uncontrollably, spreading chaotic giggles everywhere.",
+      "sport": "SWIMMING",
+      "stats": {
+        "power": 300,
+        "speed": 200,
+        "endurance": 200
+      },
+      "unlockRequirements": {
+        "minCalories": 1148,
+        "minDuration": 93,
+        "description": "Complete a swimming workout of at least 93 min and 1148 calories."
+      },
+      "xPReward": 725,
+      "lore": "Spawned when a frog licked a lightning crystal during a dare."
+    },
+    {
+      "id": "119",
+      "name": "Fweebloink the Unhinged",
+      "rarity": "common",
+      "description": "A wobbling goofy blob going \"glooba glooba\" while tripping over itself.",
+      "sport": "GENERAL",
+      "stats": {
+        "power": 150,
+        "speed": 50,
+        "endurance": 50
+      },
+      "unlockRequirements": {
+        "minCalories": 444,
+        "minDuration": 37,
+        "description": "Complete any workout of at least 37 min and 444 calories."
+      },
+      "xPReward": 100,
+      "lore": "Historians claim it once fought a tree for looking suspicious, whatever that means."
     }
   ],
-  "rarityWeights": { 
-  "common": 0.55,
-  "rare": 0.30,
-  "epic": 0.12,
-  "legendary": 0.03
+  "rarityWeights": {
+    "common": 0.55,
+    "rare": 0.3,
+    "epic": 0.12,
+    "legendary": 0.03
   }
 }
