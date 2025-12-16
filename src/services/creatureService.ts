@@ -92,7 +92,7 @@ class CreatureService {
       }
 
       // make sure its the right sport type if that matters
-      if (creature.sport !== 'NEUTRAL' && workoutData.sport !== creature.sport) {
+      if (creature.sport !== 'GENERAL' && workoutData.sport !== creature.sport) {
         meetsRequirements = false;
         failedRequirements.push(`sport: ${workoutData.sport} !== ${creature.sport}`);
       }
@@ -175,7 +175,7 @@ class CreatureService {
       });
     }
 
-    if (creature.sport !== 'NEUTRAL') {
+    if (creature.sport !== 'GENERAL') {
       progress.push({
         requirement: 'Sport Type',
         current: workoutData.sport === creature.sport ? 1 : 0,

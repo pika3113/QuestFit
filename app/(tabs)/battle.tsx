@@ -14,7 +14,7 @@ const creatureImages = require.context(
   /^\.\/creature_icon_\d+\.png$/
 );
 
-const typeMatchups = [[1, 1, 1, 1, 1, 1, 1], // NEUTRAL
+const typeMatchups = [[1, 1, 1, 1, 1, 1, 1], // GENERAL
                       [1, 1, 0.5, 2, 2, 0.5, 0.5], // RUNNING
                       [1, 2, 1, 0.5, 1, 1, 2], // SWIMMING
                       [1, 0.5, 2, 0.5, 0.5, 2, 1], // HIKING
@@ -76,7 +76,7 @@ function IdleIcon ({ creature }: IconProps) {
 interface SpecialProps {
   max: number;
   current: number;
-  sport: "NEUTRAL" | "RUNNING" | "SWIMMING" | "HIKING" | "FITNESS" | "CYCLING" | "CIRCUIT";
+  sport: "GENERAL" | "RUNNING" | "SWIMMING" | "HIKING" | "FITNESS" | "CYCLING" | "CIRCUIT";
 };
 
 function SpecialIcon() {
@@ -130,16 +130,16 @@ function HealthBar ({ health, maxHealth }: HealthBarProps) {
 }
 
 function calcDamage(attacker: Creature, defender: Creature): number {
-  const typeDict = {'NEUTRAL': 0, 'RUNNING': 1, 'SWIMMING': 2, 'HIKING': 3, 'FITNESS': 4, 'CYCLING': 5, 'CIRCUIT': 6};
+  const typeDict = {'GENERAL': 0, 'RUNNING': 1, 'SWIMMING': 2, 'HIKING': 3, 'FITNESS': 4, 'CYCLING': 5, 'CIRCUIT': 6};
   return Math.floor((attacker.stats.power/defender.stats.endurance*4+1)*typeMatchups[typeDict[attacker.sport]][typeDict[defender.sport]]);
 }
 
-function calcDelay(creature: Creature): number {
-  return 100000/(creature.stats.speed+9);
+function calcClicks(creature: Creature): number {
+  return 1000/(creature.stats.speed+9);
 }
 
 function calcChargeMax(creature: Creature): number {
-  return Math.ceil((creature.stats.power**2*creature.stats.endurance/(100*creature.stats.speed))**(1/3));
+  return Math.ceil((creature.stats.power**2*creature.stats.endurance/(100*creature.stats.speed))**(2/5));
 }
 
 export default function BattleScreen() {
@@ -150,7 +150,8 @@ export default function BattleScreen() {
   const allCreatures = creatureService.getAllCreatures(); // This is just for the placeholders lol
 
   const creatures = [allCreatures[0], allCreatures[3], allCreatures[5], allCreatures[6], allCreatures[21], allCreatures[22]]; // Placeholder for creatures, first 3 is user, last 3 is opponent
-  const delays = [calcDelay(creatures[0]), calcDelay(creatures[1]), calcDelay(creatures[2]), calcDelay(creatures[3]), calcDelay(creatures[4]), calcDelay(creatures[5])];
+  const clicks = [calcClicks(creatures[0]), calcClicks(creatures[1]), calcClicks(creatures[2]), calcClicks(creatures[3]), calcClicks(creatures[4]), calcClicks(creatures[5])];
+  const [clickNum, setClickNum] = useState(0);
   const [healths, setHealths] = useState<number[]>(
     creatures.map(c => c.stats.endurance)
   );
@@ -162,11 +163,10 @@ export default function BattleScreen() {
   const [userSelectedCreature, setUserSelectedCreature] = useState<0 | 1 | 2>(0);
   const [opponentSelectedCreature, setOpponentSelectedCreature] = useState<3 | 4 | 5>(3);
 
-  const isLocked = useRef(false);
-  const battlePress = (delay: number) => {
-    if (isLocked.current) return;
-
-    isLocked.current = true;
+  const battlePress = () => {
+    setClickNum(prev => prev + 1);
+    console.log(`Click num: ${clickNum}, Required: ${clicks[userSelectedCreature]}`);
+    if (clickNum < clicks[userSelectedCreature]) return;
 
     setHealths(prev => {
       const next = [...prev];
@@ -180,9 +180,7 @@ export default function BattleScreen() {
       return next;
     });
 
-    setTimeout(() => {
-      isLocked.current = false;
-    }, delay);
+    setClickNum(0);
   };
 
   const specialPress = () => {
@@ -209,24 +207,42 @@ export default function BattleScreen() {
       </View>
       <View style={[styles.header, {borderBottomWidth: 1, borderBottomColor: '#E5E7EB'}]}>
         <View style={styles.creatureHeader}>
-          <View style={[styles.creatureIconContainer, {borderColor: '#3B82F6'}]}>
+          <Pressable 
+            style={[styles.creatureIconContainer, {borderColor: '#3B82F6'}]}
+            onPress={() => { 
+              if (userSelectedCreature == 0) return;
+              setUserSelectedCreature(0); 
+              setClickNum(0);
+            }}>
             <Image 
               source={getCreatureImage(creatures[0].id)}
               style={styles.creatureIcon} 
             />
-          </View>
-          <View style={[styles.creatureIconContainer, {borderColor: '#3B82F6'}]}>
+          </Pressable>
+          <Pressable 
+            style={[styles.creatureIconContainer, {borderColor: '#3B82F6'}]}
+            onPress={() => {
+              if (userSelectedCreature == 1) return;
+              setUserSelectedCreature(1); 
+              setClickNum(0);
+            }}>
             <Image 
               source={getCreatureImage(creatures[1].id)}
               style={styles.creatureIcon} 
             />
-          </View>
-          <View style={[styles.creatureIconContainer, {borderColor: '#3B82F6'}]}>
+          </Pressable>
+          <Pressable 
+            style={[styles.creatureIconContainer, {borderColor: '#3B82F6'}]}
+            onPress={() => {
+              if (userSelectedCreature == 2) return;
+              setUserSelectedCreature(2); 
+              setClickNum(0);
+            }}>
             <Image 
               source={getCreatureImage(creatures[2].id)}
               style={styles.creatureIcon} 
             />
-          </View>
+          </Pressable>
         </View>
         <View style={styles.creatureHeader}>
           <View style={[styles.creatureIconContainer, {borderColor: '#EF4444'}]}>
@@ -249,7 +265,7 @@ export default function BattleScreen() {
           </View>
         </View>
       </View>
-      <Pressable style={{flex: 1}} onPress={() => { battlePress(delays[userSelectedCreature]); }}>
+      <Pressable style={{flex: 1}} onPress={() => { battlePress(); }}>
         <View style={styles.battleArea}> 
           <View style={[styles.creature, {transform: [ {scaleX: -1} ]}]}>
             <View style={[styles.creatureStats, {transform: [ {scaleX: -1} ], marginTop: 12}]}>
