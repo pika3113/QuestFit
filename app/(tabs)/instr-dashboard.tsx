@@ -29,10 +29,11 @@ import { StudentCard, StudentCardSkeleton, StudentStats, ChartType } from '@/com
 import { formatDateDdMm } from '@/src/utils/dateFormat';
 import { formatCompactNumber } from '@/src/utils/numberFormat';
 import { instructorDashboardScreenStyles as styles, WEB_DATE_INPUT_STYLE } from '@/src/styles/screens/instructorDashboardScreenStyles';
+import { IS_DEV_MODE } from '@/constants/DevConfig';
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
 
-const AUTO_FLAG_COOLDOWN_MS = 30 * 60_000;
+const AUTO_FLAG_COOLDOWN_MS = IS_DEV_MODE ? 0 : 30 * 60_000;
 
 const MOBILE_CUSTOM_MAX_DAYS = 10;
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
@@ -416,11 +417,11 @@ export default function InstructorDashboard() {
           const userId = userDoc.id;
 
           // 2. Fetch recent exercises
-          const hrHistory: number[] = [];
-          const distanceHistory: number[] = [];
-          const stepsHistory: number[] = [];
-          const caloriesHistory: number[] = [];
-          const sleepHistory: number[] = []; // Placeholder for now
+          const hrHistory: Array<number | null> = [];
+          const distanceHistory: Array<number | null> = [];
+          const stepsHistory: Array<number | null> = [];
+          const caloriesHistory: Array<number | null> = [];
+          const sleepHistory: Array<number | null> = [];
           
           let lastSync: string | undefined = userData.lastSync;
           const lastChecked: string | undefined = userData.lastChecked;
@@ -482,16 +483,18 @@ export default function InstructorDashboard() {
             const exercisesSnap = exercisesDocs[index];
             const activitySnap = activityDocs[index];
 
+            const hasActivityDoc = !!activitySnap?.exists();
+
             // HR comes from exercises (best source)
             let dayHrSum = 0;
             let dayHrCount = 0;
 
             // Distance/Calories prefer activities (more consistently present), fallback to exercises
-            let dayDist = 0;
-            let dayCals = 0;
-            let daySteps = 0;
+            let dayDist: number | null = null;
+            let dayCals: number | null = null;
+            let daySteps: number | null = null;
 
-            if (activitySnap?.exists()) {
+            if (hasActivityDoc) {
               const a = activitySnap.data();
 
               const steps =
@@ -527,24 +530,39 @@ export default function InstructorDashboard() {
             if (exercisesSnap?.exists()) {
               const data = exercisesSnap.data();
               if (data.exercises && Array.isArray(data.exercises)) {
+                const exerciseCount = data.exercises.length;
                 let exDist = 0;
                 let exCals = 0;
+                let exDistCount = 0;
+                let exCalsCount = 0;
                 data.exercises.forEach((ex: any) => {
                   if (ex.heart_rate?.average) {
                     dayHrSum += ex.heart_rate.average;
                     dayHrCount++;
                   }
-                  if (typeof ex.distance === 'number') exDist += ex.distance;
-                  if (typeof ex.calories === 'number') exCals += ex.calories;
+                  if (typeof ex.distance === 'number') {
+                    exDist += ex.distance;
+                    exDistCount++;
+                  }
+                  if (typeof ex.calories === 'number') {
+                    exCals += ex.calories;
+                    exCalsCount++;
+                  }
                 });
 
                 // Fallback only if activities didn't provide these
-                if (dayDist === 0) dayDist = Math.round(exDist);
-                if (dayCals === 0) dayCals = Math.round(exCals);
+                if (exerciseCount > 0) {
+                  // Only backfill if we have an activity doc for the day.
+                  // If the activity doc is missing entirely, treat distance/calories as "no data".
+                  if (hasActivityDoc) {
+                    if (dayDist == null && exDistCount > 0) dayDist = Math.round(exDist);
+                    if (dayCals == null && exCalsCount > 0) dayCals = Math.round(exCals);
+                  }
+                }
               }
             }
 
-            hrHistory.push(dayHrCount > 0 ? Math.round(dayHrSum / dayHrCount) : 0);
+            hrHistory.push(dayHrCount > 0 ? Math.round(dayHrSum / dayHrCount) : null);
             distanceHistory.push(dayDist);
             stepsHistory.push(daySteps);
             caloriesHistory.push(dayCals);
@@ -553,9 +571,9 @@ export default function InstructorDashboard() {
             const sleepDoc = sleepDocs[index];
             if (sleepDoc?.exists()) {
               const sleepScore = sleepDoc.data()?.sleep_score;
-              sleepHistory.push(typeof sleepScore === 'number' ? sleepScore : 0);
+              sleepHistory.push(typeof sleepScore === 'number' ? sleepScore : null);
             } else {
-              sleepHistory.push(0);
+              sleepHistory.push(null);
             }
           });
 
@@ -586,26 +604,26 @@ export default function InstructorDashboard() {
           // For now, let's exclude 0s for HR, include 0s for others or exclude? 
           // Let's exclude 0s to show "Active Day Average")
           
-          const validHrs = hrHistory.filter(v => v > 0);
+          const validHrs = hrHistory.filter((v): v is number => typeof v === 'number' && v > 0);
           const avgHr = validHrs.length > 0 ? Math.round(validHrs.reduce((a, b) => a + b, 0) / validHrs.length) : 0;
 
-          const validDist = distanceHistory.filter(v => v > 0);
+          const validDist = distanceHistory.filter((v): v is number => typeof v === 'number' && v > 0);
           const avgDistance = validDist.length > 0 ? Math.round(validDist.reduce((a, b) => a + b, 0) / validDist.length) : 0;
 
-          const validSteps = stepsHistory.filter(v => v > 0);
+          const validSteps = stepsHistory.filter((v): v is number => typeof v === 'number' && v > 0);
           const avgSteps = validSteps.length > 0 ? Math.round(validSteps.reduce((a, b) => a + b, 0) / validSteps.length) : 0;
 
-          const validCals = caloriesHistory.filter(v => v > 0);
+          const validCals = caloriesHistory.filter((v): v is number => typeof v === 'number' && v > 0);
           const avgCalories = validCals.length > 0 ? Math.round(validCals.reduce((a, b) => a + b, 0) / validCals.length) : 0;
 
-          const validSleep = sleepHistory.filter(v => v > 0);
+          const validSleep = sleepHistory.filter((v): v is number => typeof v === 'number' && v > 0);
           const avgSleep = validSleep.length > 0 ? Math.round(validSleep.reduce((a, b) => a + b, 0) / validSleep.length) : 0;
 
           const displayName = userData.displayName || 'Unknown Cadet';
 
           const trendResult = computeTrendFromStepsAndCalories(
-            stepsHistory,
-            caloriesHistory,
+            stepsHistory.map((v) => v ?? 0),
+            caloriesHistory.map((v) => v ?? 0),
             TREND_SLOPE_THRESHOLD
           );
           const trend: Trend = trendResult.trend;

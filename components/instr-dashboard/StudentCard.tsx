@@ -15,11 +15,11 @@ export interface StudentStats {
   lastChecked?: string;
   
   // History arrays (7 days)
-  hrHistory: number[];
-  distanceHistory: number[];
-  stepsHistory: number[];
-  sleepHistory: number[];
-  caloriesHistory: number[];
+  hrHistory: Array<number | null>;
+  distanceHistory: Array<number | null>;
+  stepsHistory: Array<number | null>;
+  sleepHistory: Array<number | null>;
+  caloriesHistory: Array<number | null>;
   labels: string[];
 
   // Averages
@@ -135,6 +135,11 @@ export const StudentCard: React.FC<StudentCardProps> = ({
     }
   };
 
+  const hasAnyNumericPoint = (values: Array<number | null> | undefined) => {
+    if (!Array.isArray(values) || values.length === 0) return false;
+    return values.some((v) => typeof v === 'number' && Number.isFinite(v));
+  };
+
   const getChartColor = () => {
     switch (selectedMetric) {
       case 'hr': return 'rgba(255, 107, 53, 1)'; // Orange
@@ -155,10 +160,8 @@ export const StudentCard: React.FC<StudentCardProps> = ({
     }
   };
 
-  const data = getChartData();
-  const safeData = data.length > 0
-    ? data
-    : (item.labels?.length ? new Array(item.labels.length).fill(0) : [0]);
+  const data = getChartData() ?? [];
+  const hasChartData = hasAnyNumericPoint(data);
 
   const trendIcon = (
     item.trend === 'up'
@@ -300,7 +303,7 @@ export const StudentCard: React.FC<StudentCardProps> = ({
           onPress={() => setSelectedMetric('hr')}
         >
           <Ionicons name="heart" size={14} color="#FF6B35" />
-          <Text style={styles.statValue}>{item.avgHr > 0 ? item.avgHr : '-'}</Text>
+          <Text style={styles.statValue}>{Number.isFinite(item.avgHr) ? item.avgHr : '-'}</Text>
           <Text style={styles.statLabel}>BPM</Text>
         </TouchableOpacity>
 
@@ -309,7 +312,7 @@ export const StudentCard: React.FC<StudentCardProps> = ({
           onPress={() => setSelectedMetric('sleep')}
         >
           <Ionicons name="moon" size={14} color="#A23B72" />
-          <Text style={styles.statValue}>{item.avgSleep > 0 ? item.avgSleep : '-'}</Text>
+          <Text style={styles.statValue}>{Number.isFinite(item.avgSleep) ? item.avgSleep : '-'}</Text>
           <Text style={styles.statLabel}>Sleep</Text>
         </TouchableOpacity>
 
@@ -330,15 +333,20 @@ export const StudentCard: React.FC<StudentCardProps> = ({
           activeOpacity={0.8}
           style={{ width: '100%' }}
         >
-          <View style={{ height: collapsedChartHeight, width: '100%', overflow: 'hidden', borderRadius: 16 }}>
+          <View style={{ height: collapsedChartHeight, width: '100%', overflow: 'hidden', borderRadius: 16, position: 'relative' }}>
             <Sparkline 
-              data={safeData}
+              data={data}
               labels={item.labels}
               color={getChartColor()} 
               height={collapsedChartHeight}
               type={chartConfig[selectedMetric]}
               compactNumbers={compactNumbers}
             />
+            {!hasChartData && (
+              <View style={styles.noDataOverlay} pointerEvents="none">
+                <Text style={styles.noDataText}>No data</Text>
+              </View>
+            )}
           </View>
         </TouchableOpacity>
       </View>
@@ -363,15 +371,20 @@ export const StudentCard: React.FC<StudentCardProps> = ({
                 <Ionicons name="close-circle" size={32} color="#636E72" />
               </TouchableOpacity>
             </View>
-            <View style={{ height: expandedChartHeight, width: '100%', marginTop: 20 }}>
+            <View style={{ height: expandedChartHeight, width: '100%', marginTop: 20, position: 'relative' }}>
               <Sparkline 
-                data={safeData}
+                data={data}
                 labels={item.labels}
                 color={getChartColor()} 
                 height={expandedChartHeight}
                 type={chartConfig[selectedMetric]}
                 compactNumbers={compactNumbers}
               />
+              {!hasChartData && (
+                <View style={styles.noDataOverlay} pointerEvents="none">
+                  <Text style={styles.noDataText}>No data</Text>
+                </View>
+              )}
             </View>
           </View>
         </Pressable>
@@ -444,6 +457,21 @@ const styles = StyleSheet.create({
   cardSelected: {
     borderColor: '#FF6B35',
     backgroundColor: '#FFF5F0',
+  },
+  noDataOverlay: {
+    position: 'absolute',
+    top: 0,
+    right: 0,
+    bottom: 0,
+    left: 0,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(255, 255, 255, 0.65)',
+  },
+  noDataText: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#636E72',
   },
   checkbox: {
     width: 24,
