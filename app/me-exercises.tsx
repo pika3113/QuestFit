@@ -119,6 +119,11 @@ export default function MeExercisesScreen() {
     return dates;
   }, [dateRange]);
 
+  const dateStrings = useMemo(() => {
+    // Newest-first, aligned with ExerciseRow.date which uses `display`.
+    return dateBuckets.map((d) => d.display);
+  }, [dateBuckets]);
+
   const rangeLabel = useMemo(() => {
     if (dateRange.type !== 'custom') {
       return dateRange.type === '7d' ? 'Last 7 days' : dateRange.type === '14d' ? 'Last 14 days' : 'Last 30 days';
