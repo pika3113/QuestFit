@@ -3,12 +3,8 @@ import { View, Text, Pressable, Modal, useWindowDimensions } from 'react-native'
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Creature } from '../../src/types/polar';
-import {
-  creatureCardStyles as styles,
-  LEGENDARY_BADGE_GRADIENT_COLORS,
-  LEGENDARY_SPECTRUM_GRADIENT_COLORS,
-} from '@/src/styles/components/creatureCardStyles';
-import { getRarityColor, getSportColor } from '@/src/styles';
+import { creatureCardStyles as styles } from '@/src/styles/components/creatureCardStyles';
+import { getRarityColor, getSportColor, LEGENDARY_BADGE_GRADIENT_COLORS, LEGENDARY_SPECTRUM_GRADIENT_COLORS } from '@/src/styles';
 
 const SKELETON_BG = '#F3F4F6';
 const SKELETON_FG = '#E5E7EB';
@@ -81,7 +77,7 @@ export const CreatureCard: React.FC<CreatureCardProps> = ({ creature, captured =
                 colors={[...LEGENDARY_BADGE_GRADIENT_COLORS]}
                 start={{ x: 0, y: 0 }}
                 end={{ x: 1, y: 1 }}
-                style={styles.legendaryBadge}
+                style={styles.rarityBadge}
               >
                 <Text style={styles.legendaryBadgeText}>{creature.rarity.toUpperCase()}</Text>
               </LinearGradient>

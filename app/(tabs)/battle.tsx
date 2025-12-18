@@ -1,5 +1,5 @@
 import { View, Text } from '@/components/Themed';
-import { battleStyles as styles, getRarityColor, getSportColor } from '@/src/styles';
+import { battleStyles as styles, getRarityColor, getSportColor, LEGENDARY_BADGE_GRADIENT_COLORS } from '@/src/styles';
 import creatureService from '@/src/services/creatureService';
 import { Image } from 'expo-image';
 import React, { useEffect, useRef, useState } from 'react';
@@ -7,6 +7,7 @@ import { Animated, Easing, Pressable } from 'react-native';
 import { Creature } from '@/src/types/polar';
 import {  } from '@/src/styles';
 import Svg, { G, Path, Defs, ClipPath, Rect } from 'react-native-svg';
+import { LinearGradient } from 'expo-linear-gradient';
 
 const creatureImages = require.context(
   '../../assets/images/creatures',
@@ -276,14 +277,32 @@ export default function BattleScreen() {
               </Text>
             </View>
             <View style={[styles.creatureStats, {transform: [ {scaleX: -1} ], marginTop: 4}]}>
-              <Text style={[styles.creatureRarity, { color: getRarityColor(creatures[userSelectedCreature].rarity) }]}>
-                {creatures[userSelectedCreature].rarity.toUpperCase()}
-              </Text>
-              <Text style={[styles.creatureSportBadge, { 
-                backgroundColor: getSportColor(creatures[userSelectedCreature].sport)[0],
-                color: getSportColor(creatures[userSelectedCreature].sport)[1] }]}>
+              <Text style={[styles.creatureSport, { 
+                color: getSportColor(creatures[userSelectedCreature].sport)[0] }]}>
                 {creatures[userSelectedCreature].sport}
               </Text>
+              {creatures[userSelectedCreature].rarity === 'legendary' ? (
+                            <LinearGradient
+                              colors={[...LEGENDARY_BADGE_GRADIENT_COLORS]}
+                              start={{ x: 0, y: 0 }}
+                              end={{ x: 1, y: 1 }}
+                              style={styles.creatureRarityBadge}
+                            >
+                              <Text style={styles.legendaryBadgeText}>{creatures[userSelectedCreature].rarity.toUpperCase()}</Text>
+                            </LinearGradient>
+                          ) : (
+                            <Text
+                              style={[
+                                styles.creatureRarityBadge,
+                                {
+                                  backgroundColor: getRarityColor(creatures[userSelectedCreature].rarity),
+                                  color: '#FFFFFF',
+                                },
+                              ]}
+                            >
+                              {creatures[userSelectedCreature].rarity.toUpperCase()}
+                            </Text>
+                          )}
             </View>
             <HealthBar 
               health={healths[userSelectedCreature]} 
@@ -302,14 +321,32 @@ export default function BattleScreen() {
               </Text>
             </View>
             <View style={[styles.creatureStats, {justifyContent: 'flex-end', marginTop: 4}]}>
-              <Text style={[styles.creatureRarity, { color: getRarityColor(creatures[opponentSelectedCreature].rarity) }]}>
-                {creatures[opponentSelectedCreature].rarity.toUpperCase()}
-              </Text>
-              <Text style={[styles.creatureSportBadge, { 
-                backgroundColor: getSportColor(creatures[opponentSelectedCreature].sport)[0],
-                color: getSportColor(creatures[opponentSelectedCreature].sport)[1] }]}>
+              <Text style={[styles.creatureSport, { 
+                color: getSportColor(creatures[opponentSelectedCreature].sport)[0] }]}>
                 {creatures[opponentSelectedCreature].sport}
               </Text>
+              {creatures[opponentSelectedCreature].rarity === 'legendary' ? (
+                            <LinearGradient
+                              colors={[...LEGENDARY_BADGE_GRADIENT_COLORS]}
+                              start={{ x: 0, y: 0 }}
+                              end={{ x: 1, y: 1 }}
+                              style={styles.creatureRarityBadge}
+                            >
+                              <Text style={styles.legendaryBadgeText}>{creatures[opponentSelectedCreature].rarity.toUpperCase()}</Text>
+                            </LinearGradient>
+                          ) : (
+                            <Text
+                              style={[
+                                styles.creatureRarityBadge,
+                                {
+                                  backgroundColor: getRarityColor(creatures[opponentSelectedCreature].rarity),
+                                  color: '#FFFFFF',
+                                },
+                              ]}
+                            >
+                              {creatures[opponentSelectedCreature].rarity.toUpperCase()}
+                            </Text>
+                          )}
             </View>
             <HealthBar 
               health={healths[opponentSelectedCreature]} 

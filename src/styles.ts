@@ -8,13 +8,25 @@ type ColorPair = readonly [background: string, foreground: string];
 //Creature styles
 
 // Rarity
-export const RARITY_COLORS: Record<Creature['rarity'], string> = {
+export const RARITY_COLORS: Record<'common' | 'rare' | 'epic', string> = {
   common: '#3BA8F6',
   rare: '#43C073',
   epic: '#8B5CF6',
   // Used for badges/borders/text; legendary use gradient elsewhere.
-  legendary: '#A855F7', // esentially a fallbackplaceholder
 } as const;
+
+export const LEGENDARY_BADGE_GRADIENT_COLORS = ['#FF5A5F', '#00D084', '#A855F7'] as const;
+
+export const LEGENDARY_SPECTRUM_GRADIENT_COLORS = [
+  '#FF3B30',
+  '#FF9500',
+  '#FFCC00',
+  '#34C759',
+  '#5AC8FA',
+  '#007AFF',
+  '#5856D6',
+  '#AF52DE',
+] as const;
 
 // Type of exercise 
 export const SPORT_PRIMARY_COLORS: Record<string, string> = {
@@ -41,7 +53,7 @@ function getReadableTextColor(hexColor: string): string {
   return luminance > 0.7 ? '#111827' : '#FFFFFF';
 }
 
-export function getRarityColor(rarity: Creature['rarity']): string {
+export function getRarityColor(rarity: 'common' | 'rare' | 'epic'): string {
   return RARITY_COLORS[rarity] ?? RARITY_COLORS.common;
 }
 
@@ -229,18 +241,23 @@ export const battleStyles = StyleSheet.create({
     color: black,
     marginBottom: 4,
   },
-  creatureRarity: {
-    fontSize: 11,
+  creatureSport: {
+    fontSize: 12,
     fontWeight: '600',
     textTransform: 'uppercase',
   },
-  creatureSportBadge: {
-    fontSize: 11,
+  creatureRarityBadge: {
+    fontSize: 12,
     paddingHorizontal: 12,
     paddingVertical: 4,
     borderRadius: 12,
     marginTop: -4,
     marginLeft: 8,
+  },
+  legendaryBadgeText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#FFFFFF',
   },
   creatureStat: {
     fontSize: 11,
