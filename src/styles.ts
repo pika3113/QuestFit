@@ -191,7 +191,16 @@ export const battleStyles = StyleSheet.create({
     backgroundColor: '#FFFFFF',
     margin: 2,
     borderRadius: 12,
-    borderWidth: 2
+    borderWidth: 2,
+    overflow: 'hidden',
+  },
+  cooldownFill: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    backgroundColor: 'rgba(59, 130, 246, 0.35)', // blue fill
+    zIndex: 1,
   },
   battleArea: {
     flexDirection: 'row',
@@ -273,7 +282,7 @@ export const battleStyles = StyleSheet.create({
   specialButton: {
     width: 175,
     aspectRatio: 1,
-  }
+  },
 });
 
 // Live Workout Tab Styles

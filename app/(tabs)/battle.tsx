@@ -164,6 +164,9 @@ export default function BattleScreen() {
   const [userSelectedCreature, setUserSelectedCreature] = useState<0 | 1 | 2>(0);
   const [opponentSelectedCreature, setOpponentSelectedCreature] = useState<3 | 4 | 5>(3);
 
+  const [canSwitch, setCanSwitch] = useState(true);
+  const cooldownAnim = useRef(new Animated.Value(0)).current; 
+
   const battlePress = () => {
     setClickNum(prev => prev + 1);
     console.log(`Click num: ${clickNum}, Required: ${clicks[userSelectedCreature]}`);
@@ -200,6 +203,31 @@ export default function BattleScreen() {
     });
   };
 
+  const switchCreature = (index: 0 | 1 | 2) => {
+    if (!canSwitch) return;
+    if (userSelectedCreature === index) return;
+
+    setUserSelectedCreature(index);
+    setClickNum(0);
+
+    setCanSwitch(false);
+    cooldownAnim.setValue(1);
+
+    Animated.timing(cooldownAnim, {
+      toValue: 0,
+      duration: 10000, // 10 seconds cooldown
+      easing: Easing.linear,
+      useNativeDriver: false, // height animation
+    }).start(() => {
+      setCanSwitch(true);
+    });
+  };
+
+  const fillHeight = cooldownAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [0, 60],
+  });
+
   return (
     <View style={styles.container}>
       <View style={styles.header}>
@@ -208,40 +236,70 @@ export default function BattleScreen() {
       </View>
       <View style={[styles.header, {borderBottomWidth: 1, borderBottomColor: '#E5E7EB'}]}>
         <View style={styles.creatureHeader}>
-          <Pressable 
+          <Pressable
+            disabled={!canSwitch}
+            onPress={() => switchCreature(0)}
             style={[styles.creatureIconContainer, {borderColor: '#3B82F6'}]}
-            onPress={() => { 
-              if (userSelectedCreature == 0) return;
-              setUserSelectedCreature(0); 
-              setClickNum(0);
-            }}>
-            <Image 
+          >
+            <Animated.View
+              pointerEvents="none"
+              style={[
+                styles.cooldownFill,
+                {
+                  height: fillHeight,
+                },
+              ]}
+            />
+            <Image
               source={getCreatureImage(creatures[0].id)}
-              style={styles.creatureIcon} 
+              style={[
+                styles.creatureIcon,
+                { opacity: canSwitch ? 1 : 0.5 },
+              ]}
             />
           </Pressable>
-          <Pressable 
+          <Pressable
+            disabled={!canSwitch}
+            onPress={() => switchCreature(1)}
             style={[styles.creatureIconContainer, {borderColor: '#3B82F6'}]}
-            onPress={() => {
-              if (userSelectedCreature == 1) return;
-              setUserSelectedCreature(1); 
-              setClickNum(0);
-            }}>
-            <Image 
+          >
+            <Animated.View
+              pointerEvents="none"
+              style={[
+                styles.cooldownFill,
+                {
+                  height: fillHeight,
+                },
+              ]}
+            />
+            <Image
               source={getCreatureImage(creatures[1].id)}
-              style={styles.creatureIcon} 
+              style={[
+                styles.creatureIcon,
+                { opacity: canSwitch ? 1 : 0.5 },
+              ]}
             />
           </Pressable>
-          <Pressable 
+          <Pressable
+            disabled={!canSwitch}
+            onPress={() => switchCreature(2)}
             style={[styles.creatureIconContainer, {borderColor: '#3B82F6'}]}
-            onPress={() => {
-              if (userSelectedCreature == 2) return;
-              setUserSelectedCreature(2); 
-              setClickNum(0);
-            }}>
-            <Image 
+          >
+            <Animated.View
+              pointerEvents="none"
+              style={[
+                styles.cooldownFill,
+                {
+                  height: fillHeight,
+                },
+              ]}
+            />
+            <Image
               source={getCreatureImage(creatures[2].id)}
-              style={styles.creatureIcon} 
+              style={[
+                styles.creatureIcon,
+                { opacity: canSwitch ? 1 : 0.5 },
+              ]}
             />
           </Pressable>
         </View>
