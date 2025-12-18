@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, Modal, SafeAreaView, useWindowDimensions, Platform, Pressable } from 'react-native';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { View, Text, TouchableOpacity, StyleSheet, Modal, SafeAreaView, useWindowDimensions, Platform, Pressable, TextInput } from 'react-native';
 import { Image } from 'expo-image';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
@@ -36,6 +36,7 @@ export type ChartType = 'line' | 'bar' | 'area' | 'scatter';
 
 export type CadetFlag = 'good' | 'bad' | 'none';
 export type CadetFlagSource = 'manual' | 'ai' | 'none';
+export type CadetNoteSource = 'manual' | 'ai' | 'none';
 
 interface StudentCardProps {
   item: StudentStats;
@@ -47,6 +48,10 @@ interface StudentCardProps {
   rangeDays?: number;
   flag?: CadetFlag;
   flagSource?: CadetFlagSource;
+  aiNote?: string;
+  note?: string;
+  noteSource?: CadetNoteSource;
+  onChangeNote?: (note: string) => void;
   onChangeFlag?: (flag: CadetFlag) => void;
   isLightDuty?: boolean;
 }
@@ -81,12 +86,20 @@ export const StudentCard: React.FC<StudentCardProps> = ({
   rangeDays,
   flag = 'none',
   flagSource = 'none',
+  aiNote,
+  note,
+  noteSource = 'none',
+  onChangeNote,
   onChangeFlag,
   isLightDuty = false,
 }) => {
   const { width: windowWidth, height: windowHeight } = useWindowDimensions();
   const [selectedMetric, setSelectedMetric] = useState<MetricType>('distance');
   const [isChartExpanded, setIsChartExpanded] = useState(false);
+  const [inlineNoteDraft, setInlineNoteDraft] = useState<string>('');
+  const [isEditingInlineNote, setIsEditingInlineNote] = useState(false);
+  const [isAddingNote, setIsAddingNote] = useState(false);
+  const noteInputRef = useRef<TextInput>(null);
 
   const isCompactViewport = windowHeight <= 760;
   const collapsedChartHeight = isCompactViewport ? 210 : 270;
@@ -115,6 +128,17 @@ export const StudentCard: React.FC<StudentCardProps> = ({
   const expandedModalTargetWidth = Platform.OS === 'web' ? windowWidth * 0.92 : windowWidth - 40;
   const expandedModalWidth = Math.max(320, Math.min(expandedModalTargetWidth, expandedModalMaxWidth));
   const expandedChartHeight = Math.round(Math.min(420, Math.max(260, windowHeight * 0.5)));
+
+  const normalizedNote = useMemo(() => (typeof note === 'string' ? note.trim() : ''), [note]);
+  const normalizedAiNote = useMemo(() => (typeof aiNote === 'string' ? aiNote.trim() : ''), [aiNote]);
+  const canEditNote = typeof onChangeNote === 'function';
+  const showInlineNoteEditor = flag !== 'none' || normalizedNote.length > 0 || isAddingNote;
+  const showAiNoteInline = flag !== 'none' && normalizedAiNote.length > 0;
+
+  useEffect(() => {
+    if (isEditingInlineNote) return;
+    setInlineNoteDraft(normalizedNote);
+  }, [normalizedNote, isEditingInlineNote]);
 
   const handlePress = () => {
     if (isChartExpanded) return;
@@ -180,7 +204,7 @@ export const StudentCard: React.FC<StudentCardProps> = ({
       ]}
       onPress={handlePress}
       activeOpacity={0.9}
-      disabled={isChartExpanded}
+      disabled={isChartExpanded || isEditingInlineNote}
     >
       <View style={[styles.cardHeader, isCompactViewport && { marginBottom: 12 }]}>
         <View style={styles.userInfo}>
@@ -215,22 +239,14 @@ export const StudentCard: React.FC<StudentCardProps> = ({
             isCompactHeader && { flexDirection: 'column', alignItems: 'center', gap: 6, padding: 6 },
           ]}
         >
-          {isCompactHeader && (
-            <View style={styles.trendIconBlock}>
-              {trendIcon}
-            </View>
-          )}
-
-          {isCompactHeader && <View style={styles.trendDividerHorizontal} />}
-
           <View style={styles.flagBlock}>
-            {!!onChangeFlag && !isSelectionMode ? (
+            {typeof onChangeFlag === 'function' ? (
               <View style={styles.flagActionsRow}>
                 <TouchableOpacity
                   style={[styles.flagActionBtn, flag === 'good' && styles.flagActionBtnActiveGood]}
                   onPress={() => onChangeFlag(flag === 'good' ? 'none' : 'good')}
                   accessibilityRole="button"
-                  accessibilityLabel={flag === 'good' ? 'Unflag good' : 'Flag good'}
+                  accessibilityLabel={flag === 'good' ? 'Unflag doing well' : 'Flag doing well'}
                 >
                   <View style={styles.flagIconWrap}>
                     <Ionicons name="thumbs-up" size={thumbIconSize} color="#00B894" />
@@ -270,20 +286,90 @@ export const StudentCard: React.FC<StudentCardProps> = ({
               <>
                 {flag === 'good' && <Ionicons name="thumbs-up" size={flagIconSize} color="#00B894" />}
                 {flag === 'bad' && <Ionicons name="thumbs-down" size={flagIconSize} color="#D63031" />}
-                {flag !== 'none' && flagSource === 'ai' && <Ionicons name="sparkles" size={sparklesIconSize} color="#636E72" />}
+                {flag !== 'none' && flagSource === 'ai' && (
+                  <Ionicons name="sparkles" size={sparklesIconSize} color="#636E72" />
+                )}
               </>
             )}
           </View>
 
-          {!isCompactHeader && <View style={styles.trendDividerVertical} />}
-
-          {!isCompactHeader && (
-            <View style={styles.trendIconBlock}>
-              {trendIcon}
-            </View>
-          )}
+          {isCompactHeader ? <View style={styles.trendDividerHorizontal} /> : <View style={styles.trendDividerVertical} />}
+          <View style={styles.trendIconBlock}>{trendIcon}</View>
         </View>
       </View>
+
+      {showAiNoteInline && (
+        <View style={styles.aiNoteInline}>
+          <View style={styles.noteEditorInlineHeader}>
+            <View style={styles.noteBadge}>
+              <Ionicons name="sparkles" size={12} color="#636E72" />
+              <Text style={styles.noteBadgeText}>AI</Text>
+            </View>
+          </View>
+          <Text style={styles.aiNoteText} numberOfLines={3}>
+            {normalizedAiNote}
+          </Text>
+        </View>
+      )}
+
+      {showInlineNoteEditor && (
+        <View style={styles.noteEditorInline}>
+          <View style={styles.noteEditorInlineHeader}>
+            <View style={styles.noteBadge}>
+              {noteSource === 'ai' ? (
+                <>
+                  <Ionicons name="sparkles" size={12} color="#636E72" />
+                  <Text style={styles.noteBadgeText}>AI</Text>
+                </>
+              ) : (
+                <>
+                  <Ionicons name="create-outline" size={12} color="#636E72" />
+                  <Text style={styles.noteBadgeText}>Note</Text>
+                </>
+              )}
+            </View>
+            <Text style={styles.noteHintText}>Tap to edit</Text>
+          </View>
+
+          {onChangeNote ? (
+            <TextInput
+              ref={noteInputRef}
+              value={inlineNoteDraft}
+              onChangeText={setInlineNoteDraft}
+              placeholder="Add a note for this cadet..."
+              placeholderTextColor="#9CA3AF"
+              style={styles.noteInputInline}
+              multiline
+              onFocus={() => setIsEditingInlineNote(true)}
+              onBlur={() => {
+                setIsEditingInlineNote(false);
+                const next = inlineNoteDraft.trim();
+                if (next !== normalizedNote) onChangeNote(next);
+                if (flag === 'none' && next.length === 0) setIsAddingNote(false);
+              }}
+            />
+          ) : (
+            <Text style={styles.noteText} numberOfLines={2}>
+              {normalizedNote}
+            </Text>
+          )}
+        </View>
+      )}
+
+      {!showInlineNoteEditor && canEditNote && (
+        <TouchableOpacity
+          style={styles.addNoteCta}
+          onPress={() => {
+            setIsAddingNote(true);
+            requestAnimationFrame(() => noteInputRef.current?.focus());
+          }}
+          accessibilityRole="button"
+          accessibilityLabel="Add note"
+        >
+          <Ionicons name="create-outline" size={14} color="#636E72" />
+          <Text style={styles.addNoteCtaText}>Add note</Text>
+        </TouchableOpacity>
+      )}
 
       {/* Stats Grid - Clickable to switch chart */}
       <View style={[styles.statsGrid, isCompactViewport && { marginBottom: 12 }]}>
@@ -636,6 +722,87 @@ const styles = StyleSheet.create({
   },
   chartContainer: {
     alignItems: 'center',
+  },
+  noteEditorInline: {
+    backgroundColor: '#F8F9FA',
+    borderRadius: 12,
+    paddingHorizontal: 10,
+    paddingVertical: 10,
+    marginBottom: 12,
+  },
+  noteEditorInlineHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 8,
+    backgroundColor: 'transparent',
+  },
+  noteBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFFFFF',
+    borderRadius: 10,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    marginRight: 8,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+  },
+  noteBadgeText: {
+    marginLeft: 6,
+    fontSize: 10,
+    fontWeight: '700',
+    color: '#636E72',
+  },
+  noteText: {
+    flex: 1,
+    fontSize: 12,
+    color: '#2D3436',
+    lineHeight: 16,
+  },
+  noteHintText: {
+    fontSize: 11,
+    color: '#636E72',
+    fontWeight: '600',
+  },
+  noteInputInline: {
+    minHeight: 44,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    fontSize: 13,
+    color: '#2D3436',
+    backgroundColor: '#FFFFFF',
+    textAlignVertical: 'top',
+  },
+  aiNoteInline: {
+    backgroundColor: '#F8F9FA',
+    borderRadius: 12,
+    paddingHorizontal: 10,
+    paddingVertical: 10,
+    marginBottom: 12,
+  },
+  aiNoteText: {
+    fontSize: 12,
+    color: '#2D3436',
+    lineHeight: 16,
+  },
+  addNoteCta: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: '#F8F9FA',
+    borderRadius: 12,
+    paddingHorizontal: 10,
+    paddingVertical: 10,
+    marginBottom: 12,
+  },
+  addNoteCtaText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#636E72',
   },
   chartLabel: {
     fontSize: 12,
