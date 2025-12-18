@@ -11,7 +11,10 @@ import { Creature } from '@/src/types/polar';
 import { Ionicons } from '@expo/vector-icons';
 
 const RARITIES = ['common', 'rare', 'epic', 'legendary'];
-const SPORTS = ['NEUTRAL', 'RUNNING', 'SWIMMING', 'HIKING', 'FITNESS', 'CYCLING', 'CIRCUIT'];
+const SPORTS = ['GENERAL', 'RUNNING', 'SWIMMING', 'HIKING', 'FITNESS', 'CYCLING', 'CIRCUIT'];
+
+type SortField = 'none' | 'rarity' | 'sport';
+type SortDirection = 'asc' | 'desc';
 
 export default function CreaturesScreen() {
   const { user } = useAuth();
@@ -27,8 +30,10 @@ export default function CreaturesScreen() {
   // Filter & Search State
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<'all' | 'captured' | 'locked'>('all');
-  const [rarityFilter, setRarityFilter] = useState<string>('all');
-  const [sportFilter, setSportFilter] = useState<string>('all');
+  const [selectedRarities, setSelectedRarities] = useState<string[]>([]);
+  const [selectedSports, setSelectedSports] = useState<string[]>([]);
+  const [sortField, setSortField] = useState<SortField>('none');
+  const [sortDirection, setSortDirection] = useState<SortDirection>('asc');
   const [showFilterModal, setShowFilterModal] = useState(false);
   
   useEffect(() => {
@@ -44,18 +49,47 @@ export default function CreaturesScreen() {
     captured: capturedCreatureIds.includes(creature.id)
   }));
 
+  const toggleSelection = (current: string[], value: string) => {
+    if (current.includes(value)) return current.filter(v => v !== value);
+    return [...current, value];
+  };
+
   const filteredCards = cards.filter(card => {
     const matchesSearch = card.creature.name.toLowerCase().includes(searchQuery.toLowerCase());
     const matchesStatus = statusFilter === 'all' 
       ? true 
       : statusFilter === 'captured' ? card.captured : !card.captured;
-    const matchesRarity = rarityFilter === 'all' ? true : card.creature.rarity === rarityFilter;
-    const matchesSport = sportFilter === 'all' ? true : card.creature.sport === sportFilter;
+    const matchesRarity = selectedRarities.length === 0 ? true : selectedRarities.includes(card.creature.rarity);
+    const matchesSport = selectedSports.length === 0 ? true : selectedSports.includes(card.creature.sport);
 
     return matchesSearch && matchesStatus && matchesRarity && matchesSport;
   });
 
-  const activeFiltersCount = (statusFilter !== 'all' ? 1 : 0) + (rarityFilter !== 'all' ? 1 : 0) + (sportFilter !== 'all' ? 1 : 0);
+  const activeFiltersCount =
+    (statusFilter !== 'all' ? 1 : 0) +
+    (selectedRarities.length > 0 ? 1 : 0) +
+    (selectedSports.length > 0 ? 1 : 0) +
+    (sortField !== 'none' ? 1 : 0);
+
+  const rarityOrder: Record<string, number> = { common: 0, rare: 1, epic: 2, legendary: 3 };
+  const sportOrder = Object.fromEntries(SPORTS.map((s, idx) => [s, idx])) as Record<string, number>;
+
+  const sortedCards = [...filteredCards].sort((a, b) => {
+    if (sortField === 'none') return 0;
+
+    let cmp = 0;
+    if (sortField === 'rarity') {
+      cmp = (rarityOrder[a.creature.rarity] ?? 999) - (rarityOrder[b.creature.rarity] ?? 999);
+    } else if (sortField === 'sport') {
+      cmp = (sportOrder[a.creature.sport] ?? 999) - (sportOrder[b.creature.sport] ?? 999);
+    }
+
+    if (cmp === 0) {
+      cmp = a.creature.name.localeCompare(b.creature.name);
+    }
+
+    return sortDirection === 'desc' ? -cmp : cmp;
+  });
 
   return (
     <SafeAreaView style={styles.container} edges={['top', 'left', 'right', 'bottom']}>
@@ -111,7 +145,7 @@ export default function CreaturesScreen() {
         <CreatureCardGridSkeleton count={12} />
       ) : (
         <CreatureCardGrid
-          cards={filteredCards}
+          cards={sortedCards}
           onPress={(id) => {
             const card = cards.find(c => parseInt(c.creature.id) === id);
             if (card) {
@@ -122,14 +156,16 @@ export default function CreaturesScreen() {
           }}
         />
       )}
-      {!isLoading && filteredCards.length === 0 && (
+      {!isLoading && sortedCards.length === 0 && (
         <View style={localStyles.emptyState}>
           <Text style={localStyles.emptyStateText}>No creatures found matching your filters.</Text>
           <TouchableOpacity onPress={() => {
             setSearchQuery('');
             setStatusFilter('all');
-            setRarityFilter('all');
-            setSportFilter('all');
+            setSelectedRarities([]);
+            setSelectedSports([]);
+            setSortField('none');
+            setSortDirection('asc');
           }}>
             <Text style={localStyles.clearFiltersText}>Clear all filters</Text>
           </TouchableOpacity>
@@ -172,18 +208,18 @@ export default function CreaturesScreen() {
               <Text style={localStyles.filterLabel}>Rarity</Text>
               <View style={localStyles.chipContainer}>
                 <TouchableOpacity
-                    style={[localStyles.chip, rarityFilter === 'all' && localStyles.chipActive]}
-                    onPress={() => setRarityFilter('all')}
+                    style={[localStyles.chip, selectedRarities.length === 0 && localStyles.chipActive]}
+                    onPress={() => setSelectedRarities([])}
                   >
-                    <Text style={[localStyles.chipText, rarityFilter === 'all' && localStyles.chipTextActive]}>All</Text>
+                    <Text style={[localStyles.chipText, selectedRarities.length === 0 && localStyles.chipTextActive]}>All</Text>
                 </TouchableOpacity>
                 {RARITIES.map((rarity) => (
                   <TouchableOpacity
                     key={rarity}
-                    style={[localStyles.chip, rarityFilter === rarity && localStyles.chipActive]}
-                    onPress={() => setRarityFilter(rarity)}
+                    style={[localStyles.chip, selectedRarities.includes(rarity) && localStyles.chipActive]}
+                    onPress={() => setSelectedRarities((prev) => toggleSelection(prev, rarity))}
                   >
-                    <Text style={[localStyles.chipText, rarityFilter === rarity && localStyles.chipTextActive]}>
+                    <Text style={[localStyles.chipText, selectedRarities.includes(rarity) && localStyles.chipTextActive]}>
                       {rarity.charAt(0).toUpperCase() + rarity.slice(1)}
                     </Text>
                   </TouchableOpacity>
@@ -193,19 +229,60 @@ export default function CreaturesScreen() {
               <Text style={localStyles.filterLabel}>Exercise Type</Text>
               <View style={localStyles.chipContainer}>
                 <TouchableOpacity
-                    style={[localStyles.chip, sportFilter === 'all' && localStyles.chipActive]}
-                    onPress={() => setSportFilter('all')}
+                    style={[localStyles.chip, selectedSports.length === 0 && localStyles.chipActive]}
+                    onPress={() => setSelectedSports([])}
                   >
-                    <Text style={[localStyles.chipText, sportFilter === 'all' && localStyles.chipTextActive]}>All</Text>
+                    <Text style={[localStyles.chipText, selectedSports.length === 0 && localStyles.chipTextActive]}>All</Text>
                 </TouchableOpacity>
                 {SPORTS.map((sport) => (
                   <TouchableOpacity
                     key={sport}
-                    style={[localStyles.chip, sportFilter === sport && localStyles.chipActive]}
-                    onPress={() => setSportFilter(sport)}
+                    style={[localStyles.chip, selectedSports.includes(sport) && localStyles.chipActive]}
+                    onPress={() => setSelectedSports((prev) => toggleSelection(prev, sport))}
                   >
-                    <Text style={[localStyles.chipText, sportFilter === sport && localStyles.chipTextActive]}>
+                    <Text style={[localStyles.chipText, selectedSports.includes(sport) && localStyles.chipTextActive]}>
                       {sport.charAt(0) + sport.slice(1).toLowerCase()}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+
+              <Text style={localStyles.filterLabel}>Sort</Text>
+              <View style={localStyles.chipContainer}>
+                {(
+                  [
+                    { key: 'none' as const, label: 'None' },
+                    { key: 'rarity' as const, label: 'Rarity' },
+                    { key: 'sport' as const, label: 'Exercise Type' },
+                  ]
+                ).map((opt) => (
+                  <TouchableOpacity
+                    key={opt.key}
+                    style={[localStyles.chip, sortField === opt.key && localStyles.chipActive]}
+                    onPress={() => setSortField(opt.key)}
+                  >
+                    <Text style={[localStyles.chipText, sortField === opt.key && localStyles.chipTextActive]}>
+                      {opt.label}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+
+              <Text style={localStyles.filterLabel}>Sort Order</Text>
+              <View style={localStyles.chipContainer}>
+                {(
+                  [
+                    { key: 'asc' as const, label: 'Asc' },
+                    { key: 'desc' as const, label: 'Desc' },
+                  ]
+                ).map((opt) => (
+                  <TouchableOpacity
+                    key={opt.key}
+                    style={[localStyles.chip, sortDirection === opt.key && localStyles.chipActive]}
+                    onPress={() => setSortDirection(opt.key)}
+                  >
+                    <Text style={[localStyles.chipText, sortDirection === opt.key && localStyles.chipTextActive]}>
+                      {opt.label}
                     </Text>
                   </TouchableOpacity>
                 ))}
@@ -217,8 +294,10 @@ export default function CreaturesScreen() {
                 style={localStyles.resetButton}
                 onPress={() => {
                   setStatusFilter('all');
-                  setRarityFilter('all');
-                  setSportFilter('all');
+                  setSelectedRarities([]);
+                  setSelectedSports([]);
+                  setSortField('none');
+                  setSortDirection('asc');
                 }}
               >
                 <Text style={localStyles.resetButtonText}>Reset</Text>

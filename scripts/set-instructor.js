@@ -6,14 +6,21 @@
  */
 
 const admin = require('firebase-admin');
-require('dotenv').config({ path: '.env' });
+const path = require('path');
+require('dotenv').config({ path: path.resolve(__dirname, '../.env') });
 
 // Initialize Firebase Admin
 const serviceAccount = {
-  projectId: process.env.FIREBASE_PROJECT_ID,
-  clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
-  privateKey: process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, '\n'),
+  project_id: process.env.FIREBASE_PROJECT_ID,
+  client_email: process.env.FIREBASE_CLIENT_EMAIL,
+  private_key: process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, '\n'),
 };
+
+if (!serviceAccount.project_id || !serviceAccount.client_email || !serviceAccount.private_key) {
+  console.error('❌ Missing Firebase Admin credentials in environment.');
+  console.error('Expected FIREBASE_PROJECT_ID, FIREBASE_CLIENT_EMAIL, FIREBASE_PRIVATE_KEY in .env');
+  process.exit(1);
+}
 
 if (!admin.apps.length) {
   admin.initializeApp({

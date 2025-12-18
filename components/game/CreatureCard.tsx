@@ -1,8 +1,13 @@
 import React from 'react';
 import { View, Text, Pressable, Modal, useWindowDimensions } from 'react-native';
 import { Image } from 'expo-image';
+import { LinearGradient } from 'expo-linear-gradient';
 import { Creature } from '../../src/types/polar';
-import { creatureCardStyles as styles } from '@/src/styles/components/creatureCardStyles';
+import {
+  creatureCardStyles as styles,
+  LEGENDARY_BADGE_GRADIENT_COLORS,
+  LEGENDARY_SPECTRUM_GRADIENT_COLORS,
+} from '@/src/styles/components/creatureCardStyles';
 import { getRarityColor, getSportColor } from '@/src/styles';
 
 const SKELETON_BG = '#F3F4F6';
@@ -21,13 +26,14 @@ function getCreatureImage(id: string) {
 interface CreatureCardProps {
   creature: Creature;
   captured?: boolean;
+  layout?: 'grid' | 'modal';
 }
 
 export const CreatureCardSkeleton: React.FC = () => {
   return (
     <View style={{ width: '100%' }}>
       <View style={styles.header}>
-        <View style={{ flex: 1, paddingRight: 8 }}>
+        <View style={{ flex: 1, paddingRight: 8, minHeight: 56 }}>
           <View style={{ height: 14, width: '75%', backgroundColor: SKELETON_FG, borderRadius: 6 }} />
           <View style={{ height: 10, width: 44, backgroundColor: SKELETON_FG, borderRadius: 6, marginTop: 6 }} />
         </View>
@@ -51,36 +57,49 @@ export const CreatureCardSkeleton: React.FC = () => {
   );
 };
 
-export const CreatureCard: React.FC<CreatureCardProps> = ({ creature, captured = false }) => {
+export const CreatureCard: React.FC<CreatureCardProps> = ({ creature, captured = false, layout = 'modal' }) => {
+  const isGrid = layout === 'grid';
 
   return (
-    <View style={{ width: '100%' }}>
+    <View style={{ width: '100%', flex: isGrid ? 1 : 0 }}>
       <View style={styles.header}>
-          <Text style={styles.name}>
-            {creature.name}
-            {'\n'}
+          <View style={{ flex: 1, paddingRight: 8, minHeight: 56 }}>
+            <Text style={styles.name}>
+              {creature.name}
+            </Text>
             <Text style={styles.id}>#{creature.id}</Text>
-          </Text>
+          </View>
           <View style={styles.header}>
             <Text
               style={[
-                styles.rarity,
+                styles.sport,
                 { color: getSportColor(creature.sport)[0] },
               ]}
             >
               {creature.sport}
             </Text>
-            <Text
-              style={[
-                styles.sportBadge,
-                {
-                  backgroundColor: getRarityColor(creature.rarity),
-                  color: '#FFFFFF',
-                },
-              ]}
-            >
-              {creature.rarity.toUpperCase()}
-            </Text>
+            {creature.rarity === 'legendary' ? (
+              <LinearGradient
+                colors={[...LEGENDARY_BADGE_GRADIENT_COLORS]}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={styles.legendaryBadge}
+              >
+                <Text style={styles.legendaryBadgeText}>{creature.rarity.toUpperCase()}</Text>
+              </LinearGradient>
+            ) : (
+              <Text
+                style={[
+                  styles.rarityBadge,
+                  {
+                    backgroundColor: getRarityColor(creature.rarity),
+                    color: '#FFFFFF',
+                  },
+                ]}
+              >
+                {creature.rarity.toUpperCase()}
+              </Text>
+            )}
           </View>
         </View>
         <View>
@@ -97,7 +116,7 @@ export const CreatureCard: React.FC<CreatureCardProps> = ({ creature, captured =
             />
           )}
         </View>
-        <View style={styles.stats}>
+        <View style={[styles.stats, isGrid && { marginTop: 'auto' }]}>
           <View style={styles.stat}>
             <Text style={styles.statLabel}>⚔️ Power</Text>
             <Text style={styles.statValue}>{creature.stats.power}</Text>
@@ -132,45 +151,107 @@ export const CreatureCardGrid: React.FC<CardGridProps> = ({
   const columns = Math.max(Math.floor(effectiveWidth / minCardWidth), 1); // at least 1 column
   const cardWidthPercent = `${100 / columns}%` as `${number}%`;
 
+  const rows: CreatureCardProps[][] = React.useMemo(() => {
+    const next: CreatureCardProps[][] = [];
+    for (let i = 0; i < cards.length; i += columns) {
+      next.push(cards.slice(i, i + columns));
+    }
+    return next;
+  }, [cards, columns]);
+
   return (
     <View
-      style={styles.grid}
+      style={{ width: '100%' }}
       onLayout={(e) => {
         const next = Math.round(e.nativeEvent.layout.width);
         if (next > 0 && next !== containerWidth) setContainerWidth(next);
       }}
     >
-      {cards.map(card => (
-        <View style={{ width: cardWidthPercent, padding: 8 }} key={card.creature.id}>
-        <Pressable 
-        style={[styles.card, { 
-          borderColor: getRarityColor(card.creature.rarity),
-          margin: 0,
-          width: '100%'
-        }]}
-        onPress={() => onPress?.(parseInt(card.creature.id))}
+      {rows.map((row, rowIdx) => (
+        <View
+          key={`creature-row-${rowIdx}`}
+          style={{ flexDirection: 'row', alignItems: 'stretch', width: '100%' }}
         >
-          <CreatureCard 
-            creature={card.creature} 
-            captured={card.captured} 
-          />
-          <View style={styles.border}>
-            <View style={styles.header}>
-              <Text style={styles.desc}>{card.creature.description}</Text>
-              {card.captured && (
-              <View style={styles.capturedBadge}>
-                <Text style={styles.capturedText}>CAPTURED!</Text>
-              </View>
-              )}
-              {!card.captured && (
-              <View style={styles.lockedBadge}>
-                <Text style={styles.capturedText}>LOCKED</Text>
-              </View>
+          {row.map((card) => (
+            <View
+              style={{ width: cardWidthPercent, padding: 8, alignSelf: 'stretch' }}
+              key={card.creature.id}
+            >
+              {card.creature.rarity === 'legendary' ? (
+                <LinearGradient
+                  colors={[...LEGENDARY_SPECTRUM_GRADIENT_COLORS]}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 1 }}
+                  style={[styles.legendaryCardBorderWrap, { width: '100%', flex: 1 }]}
+                >
+                  <Pressable
+                    style={[styles.card, styles.legendaryCardInner, { flex: 1 }]}
+                    onPress={() => onPress?.(parseInt(card.creature.id))}
+                  >
+                    <LinearGradient
+                      pointerEvents="none"
+                      colors={[...LEGENDARY_SPECTRUM_GRADIENT_COLORS]}
+                      start={{ x: 0, y: 0 }}
+                      end={{ x: 1, y: 1 }}
+                      style={styles.legendaryCardBackground}
+                    />
+
+                    <CreatureCard creature={card.creature} captured={card.captured} layout="grid" />
+
+                    <View style={styles.border}>
+                      <View style={styles.header}>
+                        <Text style={styles.desc}>{card.creature.description}</Text>
+                        {card.captured && (
+                          <View style={styles.capturedBadge}>
+                            <Text style={styles.capturedText}>CAPTURED!</Text>
+                          </View>
+                        )}
+                        {!card.captured && (
+                          <View style={styles.lockedBadge}>
+                            <Text style={styles.capturedText}>LOCKED</Text>
+                          </View>
+                        )}
+                      </View>
+                    </View>
+                  </Pressable>
+                </LinearGradient>
+              ) : (
+                <View
+                  style={[
+                    styles.legendaryCardBorderWrap,
+                    {
+                      width: '100%',
+                      flex: 1,
+                      backgroundColor: getRarityColor(card.creature.rarity),
+                    },
+                  ]}
+                >
+                  <Pressable
+                    style={[styles.card, styles.legendaryCardInner, { flex: 1 }]}
+                    onPress={() => onPress?.(parseInt(card.creature.id))}
+                  >
+                    <CreatureCard creature={card.creature} captured={card.captured} layout="grid" />
+                    <View style={styles.border}>
+                      <View style={styles.header}>
+                        <Text style={styles.desc}>{card.creature.description}</Text>
+                        {card.captured && (
+                          <View style={styles.capturedBadge}>
+                            <Text style={styles.capturedText}>CAPTURED!</Text>
+                          </View>
+                        )}
+                        {!card.captured && (
+                          <View style={styles.lockedBadge}>
+                            <Text style={styles.capturedText}>LOCKED</Text>
+                          </View>
+                        )}
+                      </View>
+                    </View>
+                  </Pressable>
+                </View>
               )}
             </View>
-          </View>
-      </Pressable>
-      </View>
+          ))}
+        </View>
       ))}
     </View>
   );
@@ -186,35 +267,55 @@ export const CreatureCardGridSkeleton: React.FC<{ count?: number; minCardWidth?:
   const columns = Math.max(Math.floor(effectiveWidth / minCardWidth), 1);
   const cardWidthPercent = `${100 / columns}%` as `${number}%`;
 
+  const rows = React.useMemo(() => {
+    const items = Array.from({ length: count });
+    const next: number[][] = [];
+    for (let i = 0; i < items.length; i += columns) {
+      next.push(items.slice(i, i + columns).map((_, idx) => i + idx));
+    }
+    return next;
+  }, [count, columns]);
+
   return (
     <View
-      style={styles.grid}
+      style={{ width: '100%' }}
       onLayout={(e) => {
         const next = Math.round(e.nativeEvent.layout.width);
         if (next > 0 && next !== containerWidth) setContainerWidth(next);
       }}
     >
-      {Array.from({ length: count }).map((_, idx) => (
-        <View style={{ width: cardWidthPercent, padding: 8 }} key={`creature-skeleton-${idx}`}>
-          <View
-            style={[
-              styles.card,
-              {
-                borderColor: SKELETON_FG,
-                margin: 0,
-                width: '100%',
-                backgroundColor: SKELETON_BG,
-              },
-            ]}
-          >
-            <CreatureCardSkeleton />
-            <View style={styles.border}>
-              <View style={styles.header}>
-                <View style={{ flex: 1, height: 12, backgroundColor: SKELETON_FG, borderRadius: 6, marginBottom: 4 }} />
-                <View style={{ width: 78, height: 18, backgroundColor: SKELETON_FG, borderRadius: 6, marginLeft: 8 }} />
+      {rows.map((row, rowIdx) => (
+        <View
+          key={`creature-skeleton-row-${rowIdx}`}
+          style={{ flexDirection: 'row', alignItems: 'stretch', width: '100%' }}
+        >
+          {row.map((idx) => (
+            <View
+              style={{ width: cardWidthPercent, padding: 8, alignSelf: 'stretch' }}
+              key={`creature-skeleton-${idx}`}
+            >
+              <View
+                style={[
+                  styles.card,
+                  {
+                    borderColor: SKELETON_FG,
+                    margin: 0,
+                    width: '100%',
+                    flex: 1,
+                    backgroundColor: SKELETON_BG,
+                  },
+                ]}
+              >
+                <CreatureCardSkeleton />
+                <View style={styles.border}>
+                  <View style={styles.header}>
+                    <View style={{ flex: 1, height: 12, backgroundColor: SKELETON_FG, borderRadius: 6, marginBottom: 4 }} />
+                    <View style={{ width: 78, height: 18, backgroundColor: SKELETON_FG, borderRadius: 6, marginLeft: 8 }} />
+                  </View>
+                </View>
               </View>
             </View>
-          </View>
+          ))}
         </View>
       ))}
     </View>
@@ -243,7 +344,65 @@ export const CreatureDetailsModal: React.FC<CreatureDetailsModalProps> = ({
       onRequestClose={onClose}
     >
       <View style={styles.overlay}>
-        <View style={[styles.modal, {borderColor: getRarityColor(creature.rarity)}]}>
+        {creature.rarity === 'legendary' ? (
+          <LinearGradient
+            colors={[...LEGENDARY_SPECTRUM_GRADIENT_COLORS]}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={styles.legendaryModalBorderWrap}
+          >
+            <View style={styles.legendaryModalInner}>
+              <LinearGradient
+                pointerEvents="none"
+                colors={[...LEGENDARY_SPECTRUM_GRADIENT_COLORS]}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={styles.legendaryModalBackground}
+              />
+
+              <CreatureCard 
+                creature={creature} 
+                captured={captured}
+              />
+              <View style={styles.border}>
+                  {captured && (
+                    <View style={styles.header}>
+                      <Text style={styles.desc}>{creature.lore}</Text>
+                      <View style={styles.capturedBadge}>
+                        <Text style={styles.capturedText}>CAPTURED!</Text>
+                      </View>
+                    </View>
+                  )}
+                  {!captured && (
+                    <View>
+                      <View style={styles.header}>
+                        <Text style={styles.requirementsTitle}>Unlock Requirements:</Text>
+                        <View style={styles.lockedBadge}>
+                          <Text style={styles.capturedText}>LOCKED</Text>
+                        </View>
+                      </View>
+                        {creature.unlockRequirements.minCalories && (
+                          <Text style={styles.requirement}>• {creature.unlockRequirements.minCalories} calories</Text>
+                        )}
+                        {creature.unlockRequirements.minDistance && (
+                          <Text style={styles.requirement}>• {(creature.unlockRequirements.minDistance / 1000).toFixed(1)}km distance</Text>
+                        )}
+                        {creature.unlockRequirements.minDuration && (
+                          <Text style={styles.requirement}>• {creature.unlockRequirements.minDuration} minutes</Text>
+                        )}
+                        {creature.sport != 'GENERAL' && (
+                          <Text style={styles.requirement}>• {creature.sport} workout</Text>
+                        )}
+                    </View>
+                  )}
+              </View>
+              <Pressable style={styles.closeButton} onPress={onClose}>
+                <Text style={styles.closeButtonText}>Close</Text>
+              </Pressable>
+            </View>
+          </LinearGradient>
+        ) : (
+          <View style={[styles.modal, {borderColor: getRarityColor(creature.rarity)}]}>
           <CreatureCard 
             creature={creature} 
             captured={captured}
@@ -274,7 +433,7 @@ export const CreatureDetailsModal: React.FC<CreatureDetailsModalProps> = ({
                     {creature.unlockRequirements.minDuration && (
                       <Text style={styles.requirement}>• {creature.unlockRequirements.minDuration} minutes</Text>
                     )}
-                    {creature.sport != 'NEUTRAL' && (
+                    {creature.sport != 'GENERAL' && (
                       <Text style={styles.requirement}>• {creature.sport} workout</Text>
                     )}
                 </View>
@@ -284,6 +443,7 @@ export const CreatureDetailsModal: React.FC<CreatureDetailsModalProps> = ({
             <Text style={styles.closeButtonText}>Close</Text>
           </Pressable>
         </View>
+        )}
       </View>
     </Modal>
   );

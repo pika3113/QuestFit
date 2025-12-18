@@ -13,6 +13,7 @@ type ActivityMetric = 'steps' | 'distance';
 type CadetInput = {
   cadetId: string;
   displayName: string;
+  isLightDuty?: boolean;
   avgSteps: number;
   avgDistance: number;
   avgCalories: number;
@@ -29,6 +30,31 @@ type FlagResult = {
   flag: Flag;
   reason: string;
 };
+
+function extractResponseText(response: any): string | null {
+  if (typeof response?.output_text === 'string' && response.output_text.trim().length > 0) {
+    return response.output_text;
+  }
+
+  const output = response?.output;
+  if (!Array.isArray(output)) return null;
+
+  for (const item of output) {
+    const content = item?.content;
+    if (!Array.isArray(content)) continue;
+
+    for (const part of content) {
+      if (typeof part?.text === 'string' && part.text.trim().length > 0) {
+        return part.text;
+      }
+      if (typeof part?.output_text === 'string' && part.output_text.trim().length > 0) {
+        return part.output_text;
+      }
+    }
+  }
+
+  return null;
+}
 
 function coerceBodyObject(body: unknown): Record<string, unknown> | null {
   if (!body) return null;
@@ -67,9 +93,11 @@ function coerceBodyObject(body: unknown): Record<string, unknown> | null {
 function isCadetInput(value: unknown): value is CadetInput {
   if (!value || typeof value !== 'object') return false;
   const v = value as Record<string, unknown>;
+  const isLightDutyOk = v.isLightDuty === undefined || typeof v.isLightDuty === 'boolean';
   return (
     typeof v.cadetId === 'string' &&
     typeof v.displayName === 'string' &&
+    isLightDutyOk &&
     typeof v.avgSteps === 'number' &&
     typeof v.avgDistance === 'number' &&
     typeof v.avgCalories === 'number' &&
@@ -112,6 +140,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       'You are an instructor performance analyst for a fitness cadet cohort.',
       'You must flag cadets as good, bad, or none based on the provided averages.',
       'Prefer conservative flagging: only flag clear good/bad cases.',
+      'Some cadets are marked isLightDuty=true (LD). They may do less PT than others.',
+      'For LD cadets, be more lenient: do NOT flag bad for low activity alone. Only flag bad if there is clear, extreme concern (e.g., very poor trend or consistently zero data), otherwise prefer none.',
       'Keep reasons short (<= 12 words), concrete, and data-backed.',
       'If data is missing (e.g., sleep=0), mention it in the reason and be conservative.',
       'Return ONLY JSON. No markdown. No surrounding text.',
@@ -150,8 +180,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       reasoning: { effort: 'low' },
     });
 
-    // @ts-ignore
-    const content = response.output_text;
+    const content = extractResponseText(response);
+    if (!content) {
+      return res.status(502).json({
+        error: 'No content returned from OpenAI',
+        hint: 'Expected response.output_text or response.output[].content[].text',
+      });
+    }
+
     let obj: any;
     try {
       obj = JSON.parse(content);

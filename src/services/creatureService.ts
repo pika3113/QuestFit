@@ -4,6 +4,13 @@ import { Creature } from '../types/polar';
 class CreatureService {
   private creatures: Creature[];
 
+  private static readonly UNLOCK_CHANCE_BY_RARITY: Record<string, number> = {
+    common: 0.75,
+    rare: 0.45,
+    epic: 0.22,
+    legendary: 0.08,
+  };
+
   constructor() {
     this.creatures = creaturesData.creatures as Creature[];
   }
@@ -65,6 +72,9 @@ class CreatureService {
   }, alreadyCaptured: string[]): Creature[] {
     const unlockedCreatures: Creature[] = [];
 
+    const normalizeSport = (s: unknown) => (typeof s === 'string' ? s.trim().toUpperCase() : '');
+    const workoutSport = normalizeSport(workoutData.sport);
+
     console.log('🔍 Checking workout for unlocks:', workoutData);
     console.log(`📊 Already captured: ${alreadyCaptured.length}/${this.creatures.length} creatures`);
     console.log(`🔓 Checking ${this.creatures.length - alreadyCaptured.length} locked creatures...`);
@@ -92,14 +102,29 @@ class CreatureService {
       }
 
       // make sure its the right sport type if that matters
-      if (creature.sport !== 'NEUTRAL' && workoutData.sport !== creature.sport) {
+      // NOTE: Some creatures are tagged as GENERAL in data; treat that as "any sport".
+      const creatureSport = normalizeSport(creature.sport);
+      const sportIsNeutral = creatureSport === 'GENERAL' || creatureSport === '';
+      if (!sportIsNeutral && workoutSport !== creatureSport) {
         meetsRequirements = false;
-        failedRequirements.push(`sport: ${workoutData.sport} !== ${creature.sport}`);
+        failedRequirements.push(`sport: ${workoutSport || '(none)'} !== ${creatureSport}`);
       }
 
       if (meetsRequirements) {
-        console.log(`✅ ${creature.name} (${creature.rarity}) - UNLOCKED!`);
-        unlockedCreatures.push(creature);
+        const chance =
+          CreatureService.UNLOCK_CHANCE_BY_RARITY[creature.rarity] ?? 0.35;
+        const roll = Math.random();
+
+        if (roll < chance) {
+          console.log(
+            `✅ ${creature.name} (${creature.rarity}) - UNLOCKED! (roll=${roll.toFixed(3)} < chance=${chance})`
+          );
+          unlockedCreatures.push(creature);
+        } else {
+          console.log(
+            `🎲 ${creature.name} (${creature.rarity}) - Requirements met but not unlocked (roll=${roll.toFixed(3)} ≥ chance=${chance})`
+          );
+        }
       } else {
         console.log(`❌ ${creature.name} - Failed: ${failedRequirements.join(', ')}`);
       }
@@ -175,7 +200,7 @@ class CreatureService {
       });
     }
 
-    if (creature.sport !== 'NEUTRAL') {
+    if (creature.sport !== 'GENERAL') {
       progress.push({
         requirement: 'Sport Type',
         current: workoutData.sport === creature.sport ? 1 : 0,

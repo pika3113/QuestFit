@@ -29,10 +29,11 @@ import { StudentCard, StudentCardSkeleton, StudentStats, ChartType, CadetNoteSou
 import { formatDateDdMm } from '@/src/utils/dateFormat';
 import { formatCompactNumber } from '@/src/utils/numberFormat';
 import { instructorDashboardScreenStyles as styles, WEB_DATE_INPUT_STYLE } from '@/src/styles/screens/instructorDashboardScreenStyles';
+import { IS_DEV_MODE } from '@/constants/DevConfig';
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
 
-const AUTO_FLAG_COOLDOWN_MS = 30 * 60_000;
+const AUTO_FLAG_COOLDOWN_MS = IS_DEV_MODE ? 0 : 30 * 60_000;
 
 const MOBILE_CUSTOM_MAX_DAYS = 10;
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
@@ -51,6 +52,84 @@ function formatLocalIsoDate(d: Date) {
   const m = String(d.getMonth() + 1).padStart(2, '0');
   const day = String(d.getDate()).padStart(2, '0');
   return `${y}-${m}-${day}`;
+}
+
+const SG_TZ_OFFSET_MINUTES = 8 * 60;
+
+function formatIsoDateWithOffsetMinutes(d: Date, offsetMinutes: number) {
+  const shifted = new Date(d.getTime() + offsetMinutes * 60_000);
+  const y = shifted.getUTCFullYear();
+  const m = String(shifted.getUTCMonth() + 1).padStart(2, '0');
+  const day = String(shifted.getUTCDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
+type Trend = 'up' | 'down' | 'stable';
+
+type TrendRegressionResult = {
+  trend: Trend;
+  slope: number;
+};
+
+function computeTrendFromStepsAndCalories(
+  stepsHistory: number[],
+  caloriesHistory: number[],
+  slopeThreshold: number = 0.15
+): TrendRegressionResult {
+  try {
+    const idx: number[] = [];
+    for (let i = 0; i < stepsHistory.length; i++) {
+      const steps = stepsHistory[i] || 0;
+      const calories = caloriesHistory[i] || 0;
+      if (steps > 0 || calories > 0) idx.push(i);
+    }
+
+    if (idx.length < 2) return { trend: 'stable', slope: 0 };
+
+    const stepsForTrend = idx.map((i) => stepsHistory[i] || 0);
+    const calsForTrend = idx.map((i) => caloriesHistory[i] || 0);
+
+    const meanStd = (arr: number[]) => {
+      const n = arr.length;
+      if (n === 0) return { mean: 0, std: 0 };
+      const mean = arr.reduce((a, b) => a + b, 0) / n;
+      const variance = arr.reduce((acc, v) => acc + (v - mean) * (v - mean), 0) / n;
+      const std = Math.sqrt(variance);
+      return { mean, std };
+    };
+
+    const sStats = meanStd(stepsForTrend);
+    const cStats = meanStd(calsForTrend);
+
+    const combined = idx.map((_, j) => {
+      const zS = sStats.std > 0 ? (stepsForTrend[j] - sStats.mean) / sStats.std : 0;
+      const zC = cStats.std > 0 ? (calsForTrend[j] - cStats.mean) / cStats.std : 0;
+      return zS + zC;
+    });
+
+    const n = combined.length;
+    if (n < 2) return { trend: 'stable', slope: 0 };
+
+    // x is 0..n-1
+    const meanX = (n - 1) / 2;
+    const meanY = combined.reduce((a, b) => a + b, 0) / n;
+    let num = 0;
+    let den = 0;
+    for (let i = 0; i < n; i++) {
+      const dx = i - meanX;
+      const dy = combined[i] - meanY;
+      num += dx * dy;
+      den += dx * dx;
+    }
+    const slope = den > 0 ? num / den : 0;
+
+    // Slope is in (z-score units) per day.
+    if (slope > slopeThreshold) return { trend: 'up', slope };
+    if (slope < -slopeThreshold) return { trend: 'down', slope };
+    return { trend: 'stable', slope };
+  } catch {
+    return { trend: 'stable', slope: 0 };
+  }
 }
 
 export default function InstructorDashboard() {
@@ -72,6 +151,9 @@ export default function InstructorDashboard() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+
+  // Keep last-seen regression slope per user to avoid log spam.
+  const lastTrendRegressionRef = React.useRef<Record<string, { slopeRounded: number; trend: Trend }>>({});
 
   const normalizedSearchQuery = typeof searchQuery === 'string' ? searchQuery : '';
   
@@ -138,6 +220,8 @@ export default function InstructorDashboard() {
     if (minutes <= 0) return `${seconds}s`;
     return `${minutes}m ${seconds}s`;
   }, []);
+
+  const TREND_SLOPE_THRESHOLD = 0.15;
 
   // Activity display toggle (affects the "distance" metric card/chart)
   const [activityMetric, setActivityMetric] = useState<'steps' | 'distance'>('steps');
@@ -410,64 +494,92 @@ export default function InstructorDashboard() {
       // 1. Fetch all users (In a real app, you might filter by class/instructor)
       const usersSnapshot = await getDocs(collection(db, 'users'));
       
-      const studentsData = await Promise.all(usersSnapshot.docs.map(async (userDoc) => {
+      const trendRegressionChanges: Array<{ name: string; slopeRounded: number; trend: Trend }> = [];
+
+      const studentsData = await Promise.all(usersSnapshot.docs.map(async (userDoc: any) => {
         try {
           const userData = userDoc.data();
           const userId = userDoc.id;
 
           // 2. Fetch recent exercises
-          const hrHistory: number[] = [];
-          const distanceHistory: number[] = [];
-          const stepsHistory: number[] = [];
-          const caloriesHistory: number[] = [];
-          const sleepHistory: number[] = []; // Placeholder for now
+          const hrHistory: Array<number | null> = [];
+          const distanceHistory: Array<number | null> = [];
+          const stepsHistory: Array<number | null> = [];
+          const caloriesHistory: Array<number | null> = [];
+          const sleepHistory: Array<number | null> = [];
           
           let lastSync: string | undefined = userData.lastSync;
           const lastChecked: string | undefined = userData.lastChecked;
           
           const dateKeysToFetch: string[] = [];
+          const utcFallbackKeys: string[] = [];
           const displayDates: string[] = [];
           const current = new Date(range.start);
           const end = new Date(range.end);
           
           // Normalize to start of day
-          current.setHours(0,0,0,0);
-          end.setHours(23,59,59,999);
+          current.setHours(0, 0, 0, 0);
+          end.setHours(0, 0, 0, 0);
 
           while (current <= end) {
             // Firestore docs are keyed by an ISO date string (historically stored using toISOString()).
             // BUT labels should reflect the user's selected calendar days (local dates).
-            displayDates.push(formatLocalIsoDate(current));
-            dateKeysToFetch.push(current.toISOString().split('T')[0]);
+            const localKey = formatLocalIsoDate(current);
+            // If we need a fallback, use a fixed UTC+8 key (Singapore) rather than raw UTC,
+            // otherwise we can silently shift the day and show misleading values.
+            const utcKey = formatIsoDateWithOffsetMinutes(current, SG_TZ_OFFSET_MINUTES);
+            displayDates.push(localKey);
+            dateKeysToFetch.push(localKey);
+            utcFallbackKeys.push(utcKey);
             current.setDate(current.getDate() + 1);
           }
 
+          const getDocsWithUtcFallback = async (basePath: string) => {
+            const localSnaps = await Promise.all(
+              dateKeysToFetch.map((date) => getDoc(doc(db, `${basePath}/${date}`)))
+            );
+
+            const missingIdx: number[] = [];
+            for (let i = 0; i < localSnaps.length; i++) {
+              if (!localSnaps[i]?.exists() && utcFallbackKeys[i] && utcFallbackKeys[i] !== dateKeysToFetch[i]) {
+                missingIdx.push(i);
+              }
+            }
+
+            if (missingIdx.length === 0) return localSnaps;
+
+            const fallbackSnaps = await Promise.all(
+              missingIdx.map((i) => getDoc(doc(db, `${basePath}/${utcFallbackKeys[i]}`)))
+            );
+
+            const fallbackByIndex = new Map<number, any>();
+            missingIdx.forEach((idx, j) => fallbackByIndex.set(idx, fallbackSnaps[j]));
+
+            return localSnaps.map((snap, i) => (snap?.exists() ? snap : (fallbackByIndex.get(i) || snap)));
+          };
+
           const [exercisesDocs, sleepDocs, activityDocs] = await Promise.all([
-            Promise.all(dateKeysToFetch.map(date =>
-              getDoc(doc(db, `users/${userId}/polarData/exercises/all/${date}`))
-            )),
-            Promise.all(dateKeysToFetch.map(date =>
-              getDoc(doc(db, `users/${userId}/polarData/sleep/all/${date}`))
-            )),
-            Promise.all(dateKeysToFetch.map(date =>
-              getDoc(doc(db, `users/${userId}/polarData/activities/all/${date}`))
-            )),
+            getDocsWithUtcFallback(`users/${userId}/polarData/exercises/all`),
+            getDocsWithUtcFallback(`users/${userId}/polarData/sleep/all`),
+            getDocsWithUtcFallback(`users/${userId}/polarData/activities/all`),
           ]);
 
           dateKeysToFetch.forEach((_, index) => {
             const exercisesSnap = exercisesDocs[index];
             const activitySnap = activityDocs[index];
 
+            const hasActivityDoc = !!activitySnap?.exists();
+
             // HR comes from exercises (best source)
             let dayHrSum = 0;
             let dayHrCount = 0;
 
             // Distance/Calories prefer activities (more consistently present), fallback to exercises
-            let dayDist = 0;
-            let dayCals = 0;
-            let daySteps = 0;
+            let dayDist: number | null = null;
+            let dayCals: number | null = null;
+            let daySteps: number | null = null;
 
-            if (activitySnap?.exists()) {
+            if (hasActivityDoc) {
               const a = activitySnap.data();
 
               const steps =
@@ -503,24 +615,39 @@ export default function InstructorDashboard() {
             if (exercisesSnap?.exists()) {
               const data = exercisesSnap.data();
               if (data.exercises && Array.isArray(data.exercises)) {
+                const exerciseCount = data.exercises.length;
                 let exDist = 0;
                 let exCals = 0;
+                let exDistCount = 0;
+                let exCalsCount = 0;
                 data.exercises.forEach((ex: any) => {
                   if (ex.heart_rate?.average) {
                     dayHrSum += ex.heart_rate.average;
                     dayHrCount++;
                   }
-                  if (typeof ex.distance === 'number') exDist += ex.distance;
-                  if (typeof ex.calories === 'number') exCals += ex.calories;
+                  if (typeof ex.distance === 'number') {
+                    exDist += ex.distance;
+                    exDistCount++;
+                  }
+                  if (typeof ex.calories === 'number') {
+                    exCals += ex.calories;
+                    exCalsCount++;
+                  }
                 });
 
                 // Fallback only if activities didn't provide these
-                if (dayDist === 0) dayDist = Math.round(exDist);
-                if (dayCals === 0) dayCals = Math.round(exCals);
+                if (exerciseCount > 0) {
+                  // Only backfill if we have an activity doc for the day.
+                  // If the activity doc is missing entirely, treat distance/calories as "no data".
+                  if (hasActivityDoc) {
+                    if (dayDist == null && exDistCount > 0) dayDist = Math.round(exDist);
+                    if (dayCals == null && exCalsCount > 0) dayCals = Math.round(exCals);
+                  }
+                }
               }
             }
 
-            hrHistory.push(dayHrCount > 0 ? Math.round(dayHrSum / dayHrCount) : 0);
+            hrHistory.push(dayHrCount > 0 ? Math.round(dayHrSum / dayHrCount) : null);
             distanceHistory.push(dayDist);
             stepsHistory.push(daySteps);
             caloriesHistory.push(dayCals);
@@ -529,9 +656,9 @@ export default function InstructorDashboard() {
             const sleepDoc = sleepDocs[index];
             if (sleepDoc?.exists()) {
               const sleepScore = sleepDoc.data()?.sleep_score;
-              sleepHistory.push(typeof sleepScore === 'number' ? sleepScore : 0);
+              sleepHistory.push(typeof sleepScore === 'number' ? sleepScore : null);
             } else {
-              sleepHistory.push(0);
+              sleepHistory.push(null);
             }
           });
 
@@ -562,33 +689,41 @@ export default function InstructorDashboard() {
           // For now, let's exclude 0s for HR, include 0s for others or exclude? 
           // Let's exclude 0s to show "Active Day Average")
           
-          const validHrs = hrHistory.filter(v => v > 0);
+          const validHrs = hrHistory.filter((v): v is number => typeof v === 'number' && v > 0);
           const avgHr = validHrs.length > 0 ? Math.round(validHrs.reduce((a, b) => a + b, 0) / validHrs.length) : 0;
 
-          const validDist = distanceHistory.filter(v => v > 0);
+          const validDist = distanceHistory.filter((v): v is number => typeof v === 'number' && v > 0);
           const avgDistance = validDist.length > 0 ? Math.round(validDist.reduce((a, b) => a + b, 0) / validDist.length) : 0;
 
-          const validSteps = stepsHistory.filter(v => v > 0);
+          const validSteps = stepsHistory.filter((v): v is number => typeof v === 'number' && v > 0);
           const avgSteps = validSteps.length > 0 ? Math.round(validSteps.reduce((a, b) => a + b, 0) / validSteps.length) : 0;
 
-          const validCals = caloriesHistory.filter(v => v > 0);
+          const validCals = caloriesHistory.filter((v): v is number => typeof v === 'number' && v > 0);
           const avgCalories = validCals.length > 0 ? Math.round(validCals.reduce((a, b) => a + b, 0) / validCals.length) : 0;
 
-          const validSleep = sleepHistory.filter(v => v > 0);
+          const validSleep = sleepHistory.filter((v): v is number => typeof v === 'number' && v > 0);
           const avgSleep = validSleep.length > 0 ? Math.round(validSleep.reduce((a, b) => a + b, 0) / validSleep.length) : 0;
 
-          // Determine trend based on Calories (or HR?) - Let's use Calories as "Effort"
-          let trend: 'up' | 'down' | 'stable' = 'stable';
-          if (validCals.length >= 2) {
-            const recent = validCals[validCals.length - 1];
-            const previous = validCals[validCals.length - 2];
-            if (recent > previous + 50) trend = 'up';
-            else if (recent < previous - 50) trend = 'down';
+          const displayName = userData.displayName || 'Unknown Cadet';
+
+          const trendResult = computeTrendFromStepsAndCalories(
+            stepsHistory.map((v) => v ?? 0),
+            caloriesHistory.map((v) => v ?? 0),
+            TREND_SLOPE_THRESHOLD
+          );
+          const trend: Trend = trendResult.trend;
+
+          // Track slope changes (rounded) per user, but emit a single aggregated log line per refresh.
+          const slopeRounded = Math.round((trendResult.slope || 0) * 1000) / 1000;
+          const prev = lastTrendRegressionRef.current[userId];
+          if (!prev || prev.slopeRounded !== slopeRounded || prev.trend !== trend) {
+            trendRegressionChanges.push({ name: displayName, slopeRounded, trend });
+            lastTrendRegressionRef.current[userId] = { slopeRounded, trend };
           }
 
           return {
             id: userId,
-            displayName: userData.displayName || 'Unknown Cadet',
+            displayName,
             photoURL: userData.photoURL,
             lastSync,
             lastChecked,
@@ -611,7 +746,19 @@ export default function InstructorDashboard() {
         }
       }));
 
-      setStudents(studentsData.filter((s): s is StudentStats => s !== null));
+      if (trendRegressionChanges.length > 0) {
+        const summary = trendRegressionChanges
+          .slice()
+          .sort((a, b) => a.name.localeCompare(b.name))
+          .map((c) => `${c.name}(slope=${c.slopeRounded.toFixed(3)},trend=${c.trend})`)
+          .join(' | ');
+
+        console.log(
+          `[trend-regression] changed=${trendRegressionChanges.length} threshold=${TREND_SLOPE_THRESHOLD}: ${summary}`
+        );
+      }
+
+      setStudents(studentsData.filter((s: StudentStats | null): s is StudentStats => s !== null));
     } catch (error) {
       console.error("Error fetching dashboard data:", error);
     } finally {
@@ -765,13 +912,17 @@ export default function InstructorDashboard() {
     const bottomN = Math.max(1, Math.round(unflaggedRanked.length * 0.2));
 
     const top = unflaggedRanked.slice(0, topN).map((r) => r.s.id);
-    const bottom = unflaggedRanked.slice(-bottomN).map((r) => r.s.id);
+    // Be more lenient for Light-Duty cadets: don't auto-flag them as bad in the fallback heuristic.
+    const bottom = unflaggedRanked
+      .slice(-bottomN)
+      .map((r) => r.s.id)
+      .filter((id) => !isCadetLightDuty(id));
 
     await Promise.all([
       ...top.map((id) => setCadetFlag(id, 'good', 'ai')),
       ...bottom.map((id) => setCadetFlag(id, 'bad', 'ai')),
     ]);
-  }, [overviewRanked, setCadetFlag, isCadetUnflagged]);
+  }, [overviewRanked, setCadetFlag, isCadetUnflagged, isCadetLightDuty]);
 
   const runAutoFlagAI = useCallback(async () => {
     if (cohort.length === 0) return;
@@ -814,6 +965,7 @@ export default function InstructorDashboard() {
           cohort: cohort.map((s) => ({
             cadetId: s.id,
             displayName: s.displayName,
+            isLightDuty: isCadetLightDuty(s.id),
             avgSteps: s.avgSteps,
             avgDistance: s.avgDistance,
             avgCalories: s.avgCalories,
@@ -1475,6 +1627,7 @@ export default function InstructorDashboard() {
                 noteSource={getCadetNoteSource((item as any).id) as StudentCardCadetNoteSource}
                 onChangeNote={(nextNote) => setCadetNote((item as any).id, nextNote, 'manual')}
                 onChangeFlag={(nextFlag) => setCadetFlag((item as any).id, nextFlag, 'manual')}
+                isLightDuty={isCadetLightDuty((item as any).id)}
               />
             )
           }
@@ -1519,15 +1672,26 @@ export default function InstructorDashboard() {
               data={students}
               keyExtractor={item => item.id}
               renderItem={({ item }) => (
-                <TouchableOpacity 
-                  style={styles.modalItem} 
-                  onPress={() => toggleUser(item.id)}
-                >
-                  <View style={[styles.checkbox, selectedIds.includes(item.id) && styles.checkboxSelected]}>
-                    {selectedIds.includes(item.id) && <Ionicons name="checkmark" size={16} color="#FFF" />}
-                  </View>
-                  <Text style={styles.modalItemText}>{item.displayName}</Text>
-                </TouchableOpacity>
+                <View style={styles.modalItemRow}>
+                  <TouchableOpacity
+                    style={[styles.modalItem, styles.modalItemLeft]}
+                    onPress={() => toggleUser(item.id)}
+                  >
+                    <View style={[styles.checkbox, selectedIds.includes(item.id) && styles.checkboxSelected]}>
+                      {selectedIds.includes(item.id) && <Ionicons name="checkmark" size={16} color="#FFF" />}
+                    </View>
+                    <Text style={styles.modalItemText}>{item.displayName}</Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    style={[styles.ldPill, isCadetLightDuty(item.id) && styles.ldPillActive]}
+                    onPress={() => setCadetLightDutyStatus(item.id, !isCadetLightDuty(item.id))}
+                    accessibilityRole="button"
+                    accessibilityLabel={isCadetLightDuty(item.id) ? 'Unset light duty' : 'Set light duty'}
+                  >
+                    <Text style={[styles.ldPillText, isCadetLightDuty(item.id) && styles.ldPillTextActive]}>LD</Text>
+                  </TouchableOpacity>
+                </View>
               )}
             />
           </View>
