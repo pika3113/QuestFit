@@ -17,15 +17,16 @@ if (typeof window !== 'undefined') {
 }
 
 interface SparklineProps {
-  data: number[];
+  data: Array<number | null>;
   labels?: string[];
   color: string;
   height?: number;
   type?: 'line' | 'bar' | 'area' | 'scatter';
   compactNumbers?: boolean;
+  noDataText?: string;
 }
 
-export default function Sparkline({ data, labels, color, height = 100, type = 'line', compactNumbers }: SparklineProps) {
+export default function Sparkline({ data, labels, color, height = 100, type = 'line', compactNumbers, noDataText = 'No data' }: SparklineProps) {
   const [isMounted, setIsMounted] = useState(false);
 
   const isReactNativeOrExpoUserAgent = (() => {
@@ -40,11 +41,6 @@ export default function Sparkline({ data, labels, color, height = 100, type = 'l
   useEffect(() => {
     setIsMounted(true);
   }, []);
-
-  const series = [{
-    name: "Value",
-    data: data
-  }];
 
   const dataLen = Array.isArray(data) ? data.length : 0;
   const isLineOrArea = type === 'line' || type === 'area';
@@ -71,11 +67,44 @@ export default function Sparkline({ data, labels, color, height = 100, type = 'l
     return `${sign}${text}k`;
   };
 
-  const finiteData = Array.isArray(data) ? data.filter((v) => typeof v === 'number' && Number.isFinite(v)) : [];
+  const finiteData = Array.isArray(data) ? data.filter((v): v is number => typeof v === 'number' && Number.isFinite(v)) : [];
   const maxVal = finiteData.length ? Math.max(...finiteData) : 0;
   // Keep a small amount of headroom so bars/lines don't touch the top.
   const headroomPct = 0;
   const yMax = maxVal > 0 ? Math.ceil(maxVal * (1 + headroomPct)) : undefined;
+
+  const hasNumericPoint = finiteData.length > 0;
+  const isAllZeros = hasNumericPoint && finiteData.every((v) => v === 0);
+  const missingIdx: number[] = Array.isArray(data)
+    ? data
+        .map((v, i) => (v == null || (typeof v === 'number' && !Number.isFinite(v)) ? i : -1))
+        .filter((i) => i >= 0)
+    : [];
+
+  const missingSeriesData: Array<number | null> = (() => {
+    if (!labels || labels.length === 0 || dataLen === 0) return [];
+    const arr: Array<number | null> = new Array(dataLen).fill(null);
+    for (const i of missingIdx) {
+      if (i >= 0 && i < arr.length) arr[i] = 0;
+    }
+    return arr;
+  })();
+
+  const series: any[] = [
+    {
+      name: 'Value',
+      type,
+      data,
+    },
+  ];
+
+  if (missingSeriesData.length > 0 && missingIdx.length > 0) {
+    series.push({
+      name: 'Missing',
+      type: 'scatter',
+      data: missingSeriesData,
+    });
+  }
 
   const options: any = {
     chart: {
@@ -116,7 +145,15 @@ export default function Sparkline({ data, labels, color, height = 100, type = 'l
     },
     dataLabels: {
       enabled: true,
-      formatter: (val: number) => {
+      formatter: (val: number, opts: any) => {
+        const seriesIndex = typeof opts?.seriesIndex === 'number' ? opts.seriesIndex : 0;
+
+        // Secondary series: label missing points.
+        if (seriesIndex === 1) {
+          if (typeof val !== 'number' || !Number.isFinite(val)) return '';
+          return noDataText;
+        }
+
         if (typeof val !== 'number' || !Number.isFinite(val)) return '';
 
         // Mobile: keep labels compact so they don't crowd the plot.
@@ -132,14 +169,14 @@ export default function Sparkline({ data, labels, color, height = 100, type = 'l
         return Math.round(val).toLocaleString();
       },
       style: {
-        colors: [type === 'bar' ? '#FFFFFF' : '#2D3436'],
+        colors: ['#2D3436'],
         fontSize: '12px',
         fontWeight: 700,
       },
       textAnchor: 'middle',
       offsetX: 0,
       // Bars: nudge slightly down to center. Lines/areas/scatter: pull slightly above the point.
-      offsetY: type === 'bar' ? 2 : (isLineOrArea ? -8 : -10),
+      offsetY: type === 'bar' ? -8 : (isLineOrArea ? -8 : -10),
       background: {
         // Disable the floating "bubble" for non-bar charts (it can render without text
         // depending on theme/defaults). Bars remain readable without this background.
@@ -155,8 +192,8 @@ export default function Sparkline({ data, labels, color, height = 100, type = 'l
       },
     },
     markers: {
-      size: type === 'scatter' ? 5 : (type === 'line' || type === 'area' ? 3 : 0),
-      colors: [color],
+      size: [type === 'scatter' ? 5 : (type === 'line' || type === 'area' ? 3 : 0), 1],
+      colors: [color, 'rgba(0,0,0,0)'],
       strokeColors: '#fff',
       strokeWidth: 2,
     },
@@ -204,6 +241,7 @@ export default function Sparkline({ data, labels, color, height = 100, type = 'l
     },
     yaxis: {
       show: false,
+      min: 0,
       max: yMax,
     },
     tooltip: {
@@ -231,11 +269,47 @@ export default function Sparkline({ data, labels, color, height = 100, type = 'l
   };
 
   return (
-    <div style={{ width: '100%', height: `${height}px`, touchAction: 'pan-y' }}>
-      {isMounted && ApexChart ? (
-        <ApexChart options={options} series={series} type={type} height={height} width="100%" />
+    <div style={{ width: '100%', height: `${height}px`, touchAction: 'pan-y', position: 'relative' }}>
+      {hasNumericPoint ? (
+        (isAllZeros ? (
+          <div
+            style={{
+              width: '100%',
+              height: `${height}px`,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              fontSize: '18px',
+              fontWeight: 800,
+              color: '#636E72',
+              userSelect: 'none',
+            }}
+          >
+            0
+          </div>
+        ) : (
+          (isMounted && ApexChart ? (
+            <ApexChart options={options} series={series} type={type} height={height} width="100%" />
+          ) : (
+            <div />
+          ))
+        ))
       ) : (
-        <div />
+        <div
+          style={{
+            width: '100%',
+            height: `${height}px`,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            fontSize: '14px',
+            fontWeight: 700,
+            color: '#636E72',
+            userSelect: 'none',
+          }}
+        >
+          {noDataText}
+        </div>
       )}
     </div>
   );

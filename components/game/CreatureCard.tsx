@@ -26,13 +26,14 @@ function getCreatureImage(id: string) {
 interface CreatureCardProps {
   creature: Creature;
   captured?: boolean;
+  layout?: 'grid' | 'modal';
 }
 
 export const CreatureCardSkeleton: React.FC = () => {
   return (
     <View style={{ width: '100%' }}>
       <View style={styles.header}>
-        <View style={{ flex: 1, paddingRight: 8 }}>
+        <View style={{ flex: 1, paddingRight: 8, minHeight: 56 }}>
           <View style={{ height: 14, width: '75%', backgroundColor: SKELETON_FG, borderRadius: 6 }} />
           <View style={{ height: 10, width: 44, backgroundColor: SKELETON_FG, borderRadius: 6, marginTop: 6 }} />
         </View>
@@ -56,12 +57,13 @@ export const CreatureCardSkeleton: React.FC = () => {
   );
 };
 
-export const CreatureCard: React.FC<CreatureCardProps> = ({ creature, captured = false }) => {
+export const CreatureCard: React.FC<CreatureCardProps> = ({ creature, captured = false, layout = 'modal' }) => {
+  const isGrid = layout === 'grid';
 
   return (
-    <View style={{ width: '100%' }}>
+    <View style={{ width: '100%', flex: isGrid ? 1 : 0 }}>
       <View style={styles.header}>
-          <View style={{ flex: 1, paddingRight: 8 }}>
+          <View style={{ flex: 1, paddingRight: 8, minHeight: 56 }}>
             <Text style={styles.name}>
               {creature.name}
             </Text>
@@ -114,7 +116,7 @@ export const CreatureCard: React.FC<CreatureCardProps> = ({ creature, captured =
             />
           )}
         </View>
-        <View style={styles.stats}>
+        <View style={[styles.stats, isGrid && { marginTop: 'auto' }]}>
           <View style={styles.stat}>
             <Text style={styles.statLabel}>⚔️ Power</Text>
             <Text style={styles.statValue}>{creature.stats.power}</Text>
@@ -194,7 +196,7 @@ export const CreatureCardGrid: React.FC<CardGridProps> = ({
                       style={styles.legendaryCardBackground}
                     />
 
-                    <CreatureCard creature={card.creature} captured={card.captured} />
+                    <CreatureCard creature={card.creature} captured={card.captured} layout="grid" />
 
                     <View style={styles.border}>
                       <View style={styles.header}>
@@ -214,35 +216,38 @@ export const CreatureCardGrid: React.FC<CardGridProps> = ({
                   </Pressable>
                 </LinearGradient>
               ) : (
-                <Pressable
+                <View
                   style={[
-                    styles.card,
+                    styles.legendaryCardBorderWrap,
                     {
-                      borderColor: getRarityColor(card.creature.rarity),
-                      margin: 0,
                       width: '100%',
                       flex: 1,
+                      backgroundColor: getRarityColor(card.creature.rarity),
                     },
                   ]}
-                  onPress={() => onPress?.(parseInt(card.creature.id))}
                 >
-                  <CreatureCard creature={card.creature} captured={card.captured} />
-                  <View style={styles.border}>
-                    <View style={styles.header}>
-                      <Text style={styles.desc}>{card.creature.description}</Text>
-                      {card.captured && (
-                        <View style={styles.capturedBadge}>
-                          <Text style={styles.capturedText}>CAPTURED!</Text>
-                        </View>
-                      )}
-                      {!card.captured && (
-                        <View style={styles.lockedBadge}>
-                          <Text style={styles.capturedText}>LOCKED</Text>
-                        </View>
-                      )}
+                  <Pressable
+                    style={[styles.card, styles.legendaryCardInner, { flex: 1 }]}
+                    onPress={() => onPress?.(parseInt(card.creature.id))}
+                  >
+                    <CreatureCard creature={card.creature} captured={card.captured} layout="grid" />
+                    <View style={styles.border}>
+                      <View style={styles.header}>
+                        <Text style={styles.desc}>{card.creature.description}</Text>
+                        {card.captured && (
+                          <View style={styles.capturedBadge}>
+                            <Text style={styles.capturedText}>CAPTURED!</Text>
+                          </View>
+                        )}
+                        {!card.captured && (
+                          <View style={styles.lockedBadge}>
+                            <Text style={styles.capturedText}>LOCKED</Text>
+                          </View>
+                        )}
+                      </View>
                     </View>
-                  </View>
-                </Pressable>
+                  </Pressable>
+                </View>
               )}
             </View>
           ))}

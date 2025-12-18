@@ -51,6 +51,31 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null;
 }
 
+function extractResponseText(response: any): string | null {
+  if (typeof response?.output_text === 'string' && response.output_text.trim().length > 0) {
+    return response.output_text;
+  }
+
+  const output = response?.output;
+  if (!Array.isArray(output)) return null;
+
+  for (const item of output) {
+    const content = item?.content;
+    if (!Array.isArray(content)) continue;
+
+    for (const part of content) {
+      if (typeof part?.text === 'string' && part.text.trim().length > 0) {
+        return part.text;
+      }
+      if (typeof part?.output_text === 'string' && part.output_text.trim().length > 0) {
+        return part.output_text;
+      }
+    }
+  }
+
+  return null;
+}
+
 // Helper to convert JS object to Firestore JSON for writing
 function toFirestoreValue(value: any): any {
   if (value === null) return { nullValue: null };
@@ -230,10 +255,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       },
     });
 
-    // @ts-ignore
-    const content = response.output_text;
+    const content = extractResponseText(response);
     if (!content) {
-      throw new Error('No content returned from OpenAI');
+      return res.status(502).json({
+        error: 'No content returned from OpenAI',
+        hint: 'Expected response.output_text or response.output[].content[].text',
+      });
     }
 
     let result;
