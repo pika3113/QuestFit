@@ -25,7 +25,7 @@ import { useInstructorStudents } from '@/src/hooks/useInstructorStudents';
 import { Ionicons } from '@expo/vector-icons';
 import { db } from '@/src/services/firebase';
 import { collection, getDocs, doc, getDoc, limit, orderBy, query, setDoc } from 'firebase/firestore';
-import { StudentCard, StudentCardSkeleton, StudentStats, ChartType } from '@/components/instr-dashboard/StudentCard';
+import { StudentCard, StudentCardSkeleton, StudentStats, ChartType, CadetNoteSource as StudentCardCadetNoteSource } from '@/components/instr-dashboard/StudentCard';
 import { formatDateDdMm } from '@/src/utils/dateFormat';
 import { formatCompactNumber } from '@/src/utils/numberFormat';
 import { instructorDashboardScreenStyles as styles, WEB_DATE_INPUT_STYLE } from '@/src/styles/screens/instructorDashboardScreenStyles';
@@ -44,6 +44,7 @@ function startOfLocalDay(d: Date) {
 type DashboardMode = 'overview' | 'cadets';
 type CadetFlag = 'good' | 'bad' | 'none';
 type CadetFlagSource = 'manual' | 'ai' | 'none';
+type CadetNoteSource = 'manual' | 'ai' | 'none';
 
 function formatLocalIsoDate(d: Date) {
   const y = d.getFullYear();
@@ -88,7 +89,9 @@ export default function InstructorDashboard() {
 
   const [cadetFlags, setCadetFlags] = useState<Record<string, CadetFlag>>({});
   const [cadetFlagSources, setCadetFlagSources] = useState<Record<string, CadetFlagSource>>({});
-  const [cadetFlagReasons, setCadetFlagReasons] = useState<Record<string, string>>({});
+  const [cadetNotes, setCadetNotes] = useState<Record<string, string>>({});
+  const [cadetNoteSources, setCadetNoteSources] = useState<Record<string, CadetNoteSource>>({});
+  const [cadetAiNotes, setCadetAiNotes] = useState<Record<string, string>>({});
 
   const [autoFlagState, setAutoFlagState] = useState<'idle' | 'loading' | 'success_ai' | 'success_fallback' | 'error'>('idle');
   const [autoFlagTooltipText, setAutoFlagTooltipText] = useState<string | null>(null);
@@ -175,7 +178,10 @@ export default function InstructorDashboard() {
         const data = instructorDoc.data();
         const raw = data?.cadetFlags;
         const rawSources = data?.cadetFlagSources;
-        const rawReasons = data?.cadetFlagReasons;
+        const rawNotes = (data as any)?.cadetNotes;
+        const rawNoteSources = (data as any)?.cadetNoteSources;
+        const rawAiNotes = (data as any)?.cadetAiNotes;
+        const rawLegacyReasons = data?.cadetFlagReasons;
         if (raw && typeof raw === 'object') {
           setCadetFlags(raw as Record<string, CadetFlag>);
         } else {
@@ -188,11 +194,63 @@ export default function InstructorDashboard() {
           setCadetFlagSources({});
         }
 
-        if (rawReasons && typeof rawReasons === 'object') {
-          setCadetFlagReasons(rawReasons as Record<string, string>);
-        } else {
-          setCadetFlagReasons({});
-        }
+        // Notes:
+        // - Manual notes: cadetNotes + cadetNoteSources
+        // - AI explanations: cadetAiNotes
+        // Backward compat:
+        // - If older builds stored AI explanations in cadetNotes with source=ai, treat those as AI notes.
+        // - If cadetAiNotes is missing, fall back to legacy cadetFlagReasons (AI vs manual based on cadetFlagSources).
+
+        const notesObj = (rawNotes && typeof rawNotes === 'object') ? (rawNotes as Record<string, string>) : {};
+        const noteSourcesObj = (rawNoteSources && typeof rawNoteSources === 'object')
+          ? (rawNoteSources as Record<string, CadetNoteSource>)
+          : {};
+        const legacyReasonsObj = (rawLegacyReasons && typeof rawLegacyReasons === 'object')
+          ? (rawLegacyReasons as Record<string, string>)
+          : {};
+        const legacyFlagSourcesObj = (rawSources && typeof rawSources === 'object')
+          ? (rawSources as Record<string, CadetFlagSource>)
+          : {};
+        const aiNotesObj = (rawAiNotes && typeof rawAiNotes === 'object') ? (rawAiNotes as Record<string, string>) : {};
+
+        const nextManualNotes: Record<string, string> = {};
+        const nextManualSources: Record<string, CadetNoteSource> = {};
+        const nextAiNotes: Record<string, string> = { ...aiNotesObj };
+
+        Object.keys(notesObj).forEach((cadetId) => {
+          const txt = typeof notesObj[cadetId] === 'string' ? notesObj[cadetId].trim() : '';
+          if (!txt) return;
+
+          const srcFromNewField = noteSourcesObj[cadetId];
+          const legacyFlagSrc = legacyFlagSourcesObj[cadetId] ?? 'none';
+          const src: CadetNoteSource =
+            srcFromNewField === 'ai' || srcFromNewField === 'manual' || srcFromNewField === 'none'
+              ? srcFromNewField
+              : (legacyFlagSrc === 'ai' ? 'ai' : 'manual');
+
+          if (src === 'ai') {
+            if (!nextAiNotes[cadetId] || nextAiNotes[cadetId].trim().length === 0) nextAiNotes[cadetId] = txt;
+          } else {
+            nextManualNotes[cadetId] = txt;
+            nextManualSources[cadetId] = src === 'manual' ? 'manual' : 'none';
+          }
+        });
+
+        Object.keys(legacyReasonsObj).forEach((cadetId) => {
+          const txt = typeof legacyReasonsObj[cadetId] === 'string' ? legacyReasonsObj[cadetId].trim() : '';
+          if (!txt) return;
+          const legacySrc = legacyFlagSourcesObj[cadetId] ?? 'none';
+          if (legacySrc === 'ai') {
+            if (!nextAiNotes[cadetId] || nextAiNotes[cadetId].trim().length === 0) nextAiNotes[cadetId] = txt;
+          } else {
+            if (!nextManualNotes[cadetId] || nextManualNotes[cadetId].trim().length === 0) nextManualNotes[cadetId] = txt;
+            nextManualSources[cadetId] = 'manual';
+          }
+        });
+
+        setCadetNotes(nextManualNotes);
+        setCadetNoteSources(nextManualSources);
+        setCadetAiNotes(nextAiNotes);
 
         const rawNextAllowed = (data as any)?.autoFlagNextAllowedAtMs;
         if (typeof rawNextAllowed === 'number' && Number.isFinite(rawNextAllowed)) {
@@ -224,27 +282,35 @@ export default function InstructorDashboard() {
 
   const getCadetFlag = (cadetId: string): CadetFlag => cadetFlags[cadetId] ?? 'none';
   const getCadetFlagSource = (cadetId: string): CadetFlagSource => cadetFlagSources[cadetId] ?? 'none';
-  const getCadetFlagReason = (cadetId: string): string => cadetFlagReasons[cadetId] ?? '';
+  const getCadetNote = (cadetId: string): string => cadetNotes[cadetId] ?? '';
+  const getCadetNoteSource = (cadetId: string): CadetNoteSource => cadetNoteSources[cadetId] ?? 'none';
+  const getCadetAiNote = (cadetId: string): string => cadetAiNotes[cadetId] ?? '';
 
   const setCadetFlag = useCallback(
-    async (cadetId: string, flag: CadetFlag, source: CadetFlagSource = 'manual', reason?: string) => {
+    async (cadetId: string, flag: CadetFlag, source: CadetFlagSource = 'manual') => {
       if (!user?.uid) return;
+      const prevSource: CadetFlagSource = cadetFlagSources[cadetId] ?? 'none';
       const nextSource: CadetFlagSource = flag === 'none' ? 'none' : source;
+      const shouldClearAiNote = flag === 'none' && prevSource === 'ai';
+      const legacyReasonFallback = (cadetNotes[cadetId] ?? '').trim();
       setCadetFlags((prev) => ({ ...prev, [cadetId]: flag }));
       setCadetFlagSources((prev) => ({ ...prev, [cadetId]: nextSource }));
-
-      const nextReason = flag === 'none' || nextSource === 'manual'
-        ? ''
-        : (typeof reason === 'string' ? reason : getCadetFlagReason(cadetId));
-
-      setCadetFlagReasons((prev) => ({ ...prev, [cadetId]: nextReason }));
+      if (shouldClearAiNote) {
+        setCadetAiNotes((prev) => ({ ...prev, [cadetId]: '' }));
+      }
       try {
         await setDoc(
           doc(db, 'instructors', user.uid),
           {
             cadetFlags: { [cadetId]: flag },
             cadetFlagSources: { [cadetId]: nextSource },
-            cadetFlagReasons: { [cadetId]: nextReason },
+            ...(shouldClearAiNote
+              ? {
+                  cadetAiNotes: { [cadetId]: '' },
+                  // Keep legacy field sensible for older builds.
+                  cadetFlagReasons: { [cadetId]: legacyReasonFallback },
+                }
+              : {}),
             updatedAt: new Date().toISOString(),
           },
           { merge: true }
@@ -253,7 +319,57 @@ export default function InstructorDashboard() {
         console.error('Failed to save cadet flag', e);
       }
     },
-    [user?.uid, cadetFlagReasons]
+    [user?.uid, cadetFlagSources, cadetNotes]
+  );
+
+  const setCadetNote = useCallback(
+    async (cadetId: string, note: string, source: CadetNoteSource = 'manual') => {
+      if (!user?.uid) return;
+      const normalized = typeof note === 'string' ? note.trim() : '';
+      const nextSource: CadetNoteSource = normalized.length > 0 ? (source === 'ai' ? 'manual' : source) : 'none';
+      setCadetNotes((prev) => ({ ...prev, [cadetId]: normalized }));
+      setCadetNoteSources((prev) => ({ ...prev, [cadetId]: nextSource }));
+      try {
+        await setDoc(
+          doc(db, 'instructors', user.uid),
+          {
+            cadetNotes: { [cadetId]: normalized },
+            cadetNoteSources: { [cadetId]: nextSource },
+            // Keep legacy field in sync for older builds.
+            cadetFlagReasons: { [cadetId]: normalized },
+            updatedAt: new Date().toISOString(),
+          },
+          { merge: true }
+        );
+      } catch (e) {
+        console.error('Failed to save cadet note', e);
+      }
+    },
+    [user?.uid]
+  );
+
+  const setCadetAiNote = useCallback(
+    async (cadetId: string, aiNote: string) => {
+      if (!user?.uid) return;
+      const normalized = typeof aiNote === 'string' ? aiNote.trim() : '';
+      setCadetAiNotes((prev) => ({ ...prev, [cadetId]: normalized }));
+      try {
+        await setDoc(
+          doc(db, 'instructors', user.uid),
+          {
+            cadetAiNotes: { [cadetId]: normalized },
+            // Legacy field: older builds only show one "reason".
+            // Keep it aligned with the AI explanation so older builds still show something.
+            cadetFlagReasons: { [cadetId]: normalized },
+            updatedAt: new Date().toISOString(),
+          },
+          { merge: true }
+        );
+      } catch (e) {
+        console.error('Failed to save cadet AI note', e);
+      }
+    },
+    [user?.uid]
   );
 
   const autoFlagCooldownRemainingMs = Math.max(0, (autoFlagNextAllowedAtMs ?? 0) - (Date.now() + autoFlagCooldownTick * 0));
@@ -724,7 +840,15 @@ export default function InstructorDashboard() {
           // Only fill currently-unflagged cadets; never modify manual or existing AI flags.
           if (!isCadetUnflagged(cadetId)) return Promise.resolve();
           if (flag !== 'good' && flag !== 'bad') return Promise.resolve();
-          return setCadetFlag(cadetId, flag, 'ai', reason);
+
+          const existingAi = (cadetAiNotes[cadetId] ?? '').trim();
+          const normalizedReason = reason.trim();
+          const shouldWriteAiNote = normalizedReason.length > 0 && normalizedReason !== existingAi;
+
+          return Promise.all([
+            setCadetFlag(cadetId, flag, 'ai'),
+            shouldWriteAiNote ? setCadetAiNote(cadetId, normalizedReason) : Promise.resolve(),
+          ]);
         })
       );
 
@@ -741,7 +865,7 @@ export default function InstructorDashboard() {
         await persistAutoFlagResult('error');
       }
     }
-  }, [cohort, activityMetric, dateRange, runAutoFlagSimple, setCadetFlag, autoFlagState, isCadetUnflagged, isAutoFlagCoolingDown, user?.uid, persistAutoFlagResult]);
+  }, [cohort, activityMetric, dateRange, runAutoFlagSimple, setCadetFlag, setCadetAiNote, autoFlagState, isCadetUnflagged, isAutoFlagCoolingDown, user?.uid, persistAutoFlagResult, cadetAiNotes]);
 
   const flaggedGoodCadets = React.useMemo(() => {
     return cohort
@@ -1197,17 +1321,30 @@ export default function InstructorDashboard() {
                               {s.avgSleep > 0 ? `${s.avgSleep} sleep` : 'sleep -'}
                               {'  •  '}
                               {formatLastSyncShort(s.lastSync)}
-                              {getCadetFlagSource(s.id) === 'ai' ? '  |' : ''}
                             </Text>
 
-                            {getCadetFlagSource(s.id) === 'ai' && (
+                            {getCadetFlag(s.id) !== 'none' && getCadetAiNote(s.id).trim().length > 0 && (
                               <View style={styles.aiReasonRow}>
+                                <Text style={styles.aiReasonPipe}>|</Text>
                                 <View style={styles.aiFlagBadge}>
                                   <Ionicons name="sparkles" size={10} color="#636E72" />
                                   <Text style={styles.aiFlagBadgeText}>AI</Text>
                                 </View>
                                 <Text style={styles.aiFlagReasonText} numberOfLines={2}>
-                                  {getCadetFlagReason(s.id) || 'Auto-flagged'}
+                                  {getCadetAiNote(s.id)}
+                                </Text>
+                              </View>
+                            )}
+
+                            {getCadetFlag(s.id) !== 'none' && getCadetNote(s.id).trim().length > 0 && (
+                              <View style={styles.aiReasonRow}>
+                                <Text style={styles.aiReasonPipe}>|</Text>
+                                <View style={styles.aiFlagBadge}>
+                                  <Ionicons name="create-outline" size={10} color="#636E72" />
+                                  <Text style={styles.aiFlagBadgeText}>Note</Text>
+                                </View>
+                                <Text style={styles.aiFlagReasonText} numberOfLines={2}>
+                                  {getCadetNote(s.id)}
                                 </Text>
                               </View>
                             )}
@@ -1253,17 +1390,30 @@ export default function InstructorDashboard() {
                               {s.avgSleep > 0 ? `${s.avgSleep} sleep` : 'sleep -'}
                               {'  •  '}
                               {formatLastSyncShort(s.lastSync)}
-                              {getCadetFlagSource(s.id) === 'ai' ? '  |' : ''}
                             </Text>
 
-                            {getCadetFlagSource(s.id) === 'ai' && (
+                            {getCadetFlag(s.id) !== 'none' && getCadetAiNote(s.id).trim().length > 0 && (
                               <View style={styles.aiReasonRow}>
+                                <Text style={styles.aiReasonPipe}>|</Text>
                                 <View style={styles.aiFlagBadge}>
                                   <Ionicons name="sparkles" size={10} color="#636E72" />
                                   <Text style={styles.aiFlagBadgeText}>AI</Text>
                                 </View>
                                 <Text style={styles.aiFlagReasonText} numberOfLines={2}>
-                                  {getCadetFlagReason(s.id) || 'Auto-flagged'}
+                                  {getCadetAiNote(s.id)}
+                                </Text>
+                              </View>
+                            )}
+
+                            {getCadetFlag(s.id) !== 'none' && getCadetNote(s.id).trim().length > 0 && (
+                              <View style={styles.aiReasonRow}>
+                                <Text style={styles.aiReasonPipe}>|</Text>
+                                <View style={styles.aiFlagBadge}>
+                                  <Ionicons name="create-outline" size={10} color="#636E72" />
+                                  <Text style={styles.aiFlagBadgeText}>Note</Text>
+                                </View>
+                                <Text style={styles.aiFlagReasonText} numberOfLines={2}>
+                                  {getCadetNote(s.id)}
                                 </Text>
                               </View>
                             )}
@@ -1320,6 +1470,10 @@ export default function InstructorDashboard() {
                 rangeDays={selectedRangeDays}
                 flag={getCadetFlag((item as any).id)}
                 flagSource={getCadetFlagSource((item as any).id)}
+                aiNote={getCadetAiNote((item as any).id)}
+                note={getCadetNote((item as any).id)}
+                noteSource={getCadetNoteSource((item as any).id) as StudentCardCadetNoteSource}
+                onChangeNote={(nextNote) => setCadetNote((item as any).id, nextNote, 'manual')}
                 onChangeFlag={(nextFlag) => setCadetFlag((item as any).id, nextFlag, 'manual')}
               />
             )

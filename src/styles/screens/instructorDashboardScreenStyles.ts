@@ -487,6 +487,12 @@ export const instructorDashboardScreenStyles = StyleSheet.create({
     gap: 6,
     flexShrink: 1,
   },
+  aiReasonPipe: {
+    color: '#636E72',
+    fontSize: 12,
+    fontWeight: '700',
+    lineHeight: 16,
+  },
   aiFlagReasonText: {
     color: '#636E72',
     fontSize: 12,
