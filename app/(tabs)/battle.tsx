@@ -168,6 +168,9 @@ export default function BattleScreen() {
   const cooldownAnim = useRef(new Animated.Value(0)).current; 
 
   const battlePress = () => {
+
+    if (healths[userSelectedCreature] <= 0 || healths[opponentSelectedCreature] <= 0) return;
+
     setClickNum(prev => prev + 1);
     console.log(`Click num: ${clickNum}, Required: ${clicks[userSelectedCreature]}`);
     if (clickNum < clicks[userSelectedCreature]) return;
@@ -188,6 +191,8 @@ export default function BattleScreen() {
   };
 
   const specialPress = () => {
+
+    if (healths[userSelectedCreature] <= 0 || healths[opponentSelectedCreature] <= 0) return;
     if (charges[userSelectedCreature] < chargeMaxes[userSelectedCreature]) return;
 
     setHealths(prev => {
@@ -228,6 +233,72 @@ export default function BattleScreen() {
     outputRange: [0, 60],
   });
 
+  function getNextAliveOpponent(
+    healths: number[],
+    start: 3 | 4 | 5
+  ): 3 | 4 | 5 | null {
+    for (let i = start; i <= 5; i++) {
+      if (healths[i] > 0) return i as 3 | 4 | 5;
+    }
+    return null;
+  }
+
+  useEffect(() => { // opponent attacks
+    const interval = setInterval(() => {
+
+      if (healths[userSelectedCreature] <= 0 || healths[opponentSelectedCreature] <= 0) return;
+      
+      if (charges[opponentSelectedCreature] < chargeMaxes[opponentSelectedCreature]) {
+        setHealths(prev => {
+          const next = [...prev];
+          next[userSelectedCreature] = Math.max(next[userSelectedCreature]-calcDamage(creatures[opponentSelectedCreature], creatures[userSelectedCreature]), 0);
+          return next;
+        });
+
+        setCharges(prev => {
+          const next = [...prev];
+          next[opponentSelectedCreature] += 1;
+          return next;
+        });
+      } else {
+        setHealths(prev => {
+          const next = [...prev];
+          next[userSelectedCreature] = Math.max(next[userSelectedCreature]-calcDamage(creatures[opponentSelectedCreature], creatures[userSelectedCreature])*5, 0);
+          return next;
+        });
+
+        setCharges(prev => {
+          const next = [...prev];
+          next[opponentSelectedCreature] = 0;
+          return next;
+        });
+      }
+    }, clicks[opponentSelectedCreature]*100);
+
+    return () => clearInterval(interval);
+  }, [opponentSelectedCreature, userSelectedCreature, healths]);
+
+  useEffect(() => { // if user creature dies
+    if (healths[userSelectedCreature] > 0) return;
+
+    cooldownAnim.stopAnimation();
+    cooldownAnim.setValue(0);
+    setCanSwitch(true);
+  }, [healths[userSelectedCreature]]);
+
+  useEffect(() => { // if opponent creature dies
+    if (healths[opponentSelectedCreature] > 0) return;
+
+    const next = getNextAliveOpponent(
+      healths,
+      (opponentSelectedCreature + 1) as 3 | 4 | 5
+    );
+
+    if (next !== null) {
+      setOpponentSelectedCreature(next);
+    }
+  }, [healths[opponentSelectedCreature]]);
+
   return (
     <View style={styles.container}>
       <View style={styles.header}>
@@ -237,9 +308,13 @@ export default function BattleScreen() {
       <View style={[styles.header, {borderBottomWidth: 1, borderBottomColor: '#E5E7EB'}]}>
         <View style={styles.creatureHeader}>
           <Pressable
-            disabled={!canSwitch}
+            disabled={!canSwitch || healths[0] <= 0}
             onPress={() => switchCreature(0)}
-            style={[styles.creatureIconContainer, {borderColor: '#3B82F6'}]}
+            style={[
+              styles.creatureIconContainer,
+              { borderColor: healths[0] > 0 ? '#3B82F6' : '#6B7280' },
+              healths[0] <= 0 && { opacity: 0.4 }
+            ]}
           >
             <Animated.View
               pointerEvents="none"
@@ -254,14 +329,21 @@ export default function BattleScreen() {
               source={getCreatureImage(creatures[0].id)}
               style={[
                 styles.creatureIcon,
-                { opacity: canSwitch ? 1 : 0.5 },
+                {
+                  opacity: canSwitch && healths[0] > 0 ? 1 : 0.4,
+                  tintColor: healths[0] <= 0 ? '#6B7280' : undefined,
+                },
               ]}
             />
           </Pressable>
           <Pressable
-            disabled={!canSwitch}
+            disabled={!canSwitch || healths[1] <= 0}
             onPress={() => switchCreature(1)}
-            style={[styles.creatureIconContainer, {borderColor: '#3B82F6'}]}
+            style={[
+              styles.creatureIconContainer,
+              { borderColor: healths[1] > 0 ? '#3B82F6' : '#6B7280' },
+              healths[1] <= 0 && { opacity: 0.4 }
+            ]}
           >
             <Animated.View
               pointerEvents="none"
@@ -276,14 +358,21 @@ export default function BattleScreen() {
               source={getCreatureImage(creatures[1].id)}
               style={[
                 styles.creatureIcon,
-                { opacity: canSwitch ? 1 : 0.5 },
+                {
+                  opacity: canSwitch && healths[1] > 0 ? 1 : 0.4,
+                  tintColor: healths[1] <= 0 ? '#6B7280' : undefined,
+                },
               ]}
             />
           </Pressable>
           <Pressable
-            disabled={!canSwitch}
+            disabled={!canSwitch || healths[2] <= 0}
             onPress={() => switchCreature(2)}
-            style={[styles.creatureIconContainer, {borderColor: '#3B82F6'}]}
+            style={[
+              styles.creatureIconContainer,
+              { borderColor: healths[2] > 0 ? '#3B82F6' : '#6B7280' },
+              healths[2] <= 0 && { opacity: 0.4 }
+            ]}
           >
             <Animated.View
               pointerEvents="none"
@@ -298,28 +387,67 @@ export default function BattleScreen() {
               source={getCreatureImage(creatures[2].id)}
               style={[
                 styles.creatureIcon,
-                { opacity: canSwitch ? 1 : 0.5 },
+                {
+                  opacity: canSwitch && healths[2] > 0 ? 1 : 0.4,
+                  tintColor: healths[2] <= 0 ? '#6B7280' : undefined,
+                },
               ]}
             />
           </Pressable>
         </View>
         <View style={styles.creatureHeader}>
-          <View style={[styles.creatureIconContainer, {borderColor: '#EF4444'}]}>
-            <Image 
+          <View
+            style={[
+              styles.creatureIconContainer,
+              { borderColor: healths[3] > 0 ? '#EF4444' : '#6B7280' },
+              healths[3] <= 0 && { opacity: 0.4 }
+            ]}
+          >
+            <Image
               source={getCreatureImage(creatures[3].id)}
-              style={styles.creatureIcon} 
+              style={[
+                styles.creatureIcon,
+                {
+                  opacity: healths[3] > 0 ? 1 : 0.4,
+                  tintColor: healths[3] <= 0 ? '#6B7280' : undefined,
+                },
+              ]}
             />
           </View>
-          <View style={[styles.creatureIconContainer, {borderColor: '#EF4444'}]}>
-            <Image 
+          <View
+            style={[
+              styles.creatureIconContainer,
+              { borderColor: healths[4] > 0 ? '#EF4444' : '#6B7280' },
+              healths[4] <= 0 && { opacity: 0.4 }
+            ]}
+          >
+            <Image
               source={getCreatureImage(creatures[4].id)}
-              style={styles.creatureIcon} 
+              style={[
+                styles.creatureIcon,
+                {
+                  opacity: healths[4] > 0 ? 1 : 0.4,
+                  tintColor: healths[4] <= 0 ? '#6B7280' : undefined,
+                },
+              ]}
             />
           </View>
-          <View style={[styles.creatureIconContainer, {borderColor: '#EF4444'}]}>
-            <Image 
+          <View
+            style={[
+              styles.creatureIconContainer,
+              { borderColor: healths[5] > 0 ? '#EF4444' : '#6B7280' },
+              healths[5] <= 0 && { opacity: 0.4 }
+            ]}
+          >
+            <Image
               source={getCreatureImage(creatures[5].id)}
-              style={styles.creatureIcon} 
+              style={[
+                styles.creatureIcon,
+                {
+                  opacity: healths[5] > 0 ? 1 : 0.4,
+                  tintColor: healths[5] <= 0 ? '#6B7280' : undefined,
+                },
+              ]}
             />
           </View>
         </View>
