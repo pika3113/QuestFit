@@ -174,6 +174,7 @@ export default function InstructorDashboard() {
   const [cadetNotes, setCadetNotes] = useState<Record<string, string>>({});
   const [cadetNoteSources, setCadetNoteSources] = useState<Record<string, CadetNoteSource>>({});
   const [cadetAiNotes, setCadetAiNotes] = useState<Record<string, string>>({});
+  const [cadetLightDuty, setCadetLightDuty] = useState<Record<string, boolean>>({});
 
   const [autoFlagState, setAutoFlagState] = useState<'idle' | 'loading' | 'success_ai' | 'success_fallback' | 'error'>('idle');
   const [autoFlagTooltipText, setAutoFlagTooltipText] = useState<string | null>(null);
@@ -265,6 +266,7 @@ export default function InstructorDashboard() {
         const rawNotes = (data as any)?.cadetNotes;
         const rawNoteSources = (data as any)?.cadetNoteSources;
         const rawAiNotes = (data as any)?.cadetAiNotes;
+        const rawLightDuty = (data as any)?.cadetLightDuty;
         const rawLegacyReasons = data?.cadetFlagReasons;
         if (raw && typeof raw === 'object') {
           setCadetFlags(raw as Record<string, CadetFlag>);
@@ -336,6 +338,16 @@ export default function InstructorDashboard() {
         setCadetNoteSources(nextManualSources);
         setCadetAiNotes(nextAiNotes);
 
+        if (rawLightDuty && typeof rawLightDuty === 'object') {
+          const nextLd: Record<string, boolean> = {};
+          Object.keys(rawLightDuty as Record<string, any>).forEach((cadetId) => {
+            nextLd[cadetId] = Boolean((rawLightDuty as any)[cadetId]);
+          });
+          setCadetLightDuty(nextLd);
+        } else {
+          setCadetLightDuty({});
+        }
+
         const rawNextAllowed = (data as any)?.autoFlagNextAllowedAtMs;
         if (typeof rawNextAllowed === 'number' && Number.isFinite(rawNextAllowed)) {
           setAutoFlagNextAllowedAtMs(rawNextAllowed);
@@ -369,6 +381,31 @@ export default function InstructorDashboard() {
   const getCadetNote = (cadetId: string): string => cadetNotes[cadetId] ?? '';
   const getCadetNoteSource = (cadetId: string): CadetNoteSource => cadetNoteSources[cadetId] ?? 'none';
   const getCadetAiNote = (cadetId: string): string => cadetAiNotes[cadetId] ?? '';
+
+  const isCadetLightDuty = useCallback(
+    (cadetId: string) => Boolean(cadetLightDuty[cadetId]),
+    [cadetLightDuty]
+  );
+
+  const setCadetLightDutyStatus = useCallback(
+    async (cadetId: string, isLd: boolean) => {
+      if (!user?.uid) return;
+      setCadetLightDuty((prev) => ({ ...prev, [cadetId]: Boolean(isLd) }));
+      try {
+        await setDoc(
+          doc(db, 'instructors', user.uid),
+          {
+            cadetLightDuty: { [cadetId]: Boolean(isLd) },
+            updatedAt: new Date().toISOString(),
+          },
+          { merge: true }
+        );
+      } catch (e) {
+        console.error('Failed to save cadet light duty', e);
+      }
+    },
+    [user?.uid]
+  );
 
   const setCadetFlag = useCallback(
     async (cadetId: string, flag: CadetFlag, source: CadetFlagSource = 'manual') => {
