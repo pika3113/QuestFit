@@ -33,31 +33,55 @@ interface IconProps {
   onFaintEnd?: () => void;
 };
 
-function IdleIcon ({ creature }: IconProps) {
-
-  const translateY = useRef(new Animated.Value(0)).current;
+function IdleIcon({ creature }: IconProps) {
   const delay = 800/(1+Math.exp(0.03*(creature.stats.speed-50)))+100;
+  const entranceAnim = useRef(new Animated.Value(0)).current; // scale 0 → 1
+  const idleAnim = useRef(new Animated.Value(0)).current;     // bobbing
 
+  // Entrance animation
   useEffect(() => {
-    Animated.loop(
-      Animated.sequence([
-        Animated.timing(translateY, {
-          toValue: -10,
-          duration: 0,
-          easing: Easing.linear,
-          useNativeDriver: true,
-        }),
-        Animated.delay(delay),
-        Animated.timing(translateY, {
-          toValue: 0,
-          duration: 0,
-          easing: Easing.linear,
-          useNativeDriver: true,
-        }),
-        Animated.delay(delay)
-      ])
-    ).start();
-  }, []);
+    entranceAnim.setValue(0);
+    idleAnim.setValue(0);
+    Animated.timing(entranceAnim, {
+      toValue: 1,
+      duration: 400,
+      easing: Easing.out(Easing.cubic),
+      useNativeDriver: true,
+    }).start(() => {
+      // Start idle animation after entrance
+      Animated.loop(
+        Animated.sequence([
+          Animated.timing(idleAnim, {
+            toValue: -10,
+            duration: 0,
+            easing: Easing.linear,
+            useNativeDriver: true,
+          }),
+          Animated.delay(delay),
+          Animated.timing(idleAnim, {
+            toValue: 0,
+            duration: 0,
+            easing: Easing.linear,
+            useNativeDriver: true,
+          }),
+          Animated.delay(delay)
+        ])
+      ).start();
+    });
+  }, [creature.id]);
+
+  // Scale interpolation for entrance
+  const scale = entranceAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [0, 1], 
+  });
+
+  // Transform stack to anchor to bottom
+  const transform = [
+    { translateY: 75 },
+    { scale },
+    { translateY: Animated.add(-75, idleAnim) }, // combine entrance + idle
+  ];
 
   return (
     <Animated.Image
@@ -65,10 +89,10 @@ function IdleIcon ({ creature }: IconProps) {
       style={[
         styles.creatureIcon,
         {
-        width: 150,
-        height: 150,
-        transform: [ {translateY} ],
-        }
+          width: 150,
+          height: 150,
+          transform,
+        },
       ]}
       resizeMode="contain"
     />
