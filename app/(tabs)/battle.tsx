@@ -30,13 +30,15 @@ function getCreatureImage(id: string) {
 
 interface IconProps {
   creature: Creature;
+  attackTrigger?: (trigger: () => void) => void
   onFaintEnd?: () => void;
 };
 
-function IdleIcon({ creature }: IconProps) {
+function IdleIcon({ creature, attackTrigger }: IconProps) {
   const delay = 800/(1+Math.exp(0.03*(creature.stats.speed-50)))+100;
-  const entranceAnim = useRef(new Animated.Value(0)).current; // scale 0 → 1
-  const idleAnim = useRef(new Animated.Value(0)).current;     // bobbing
+  const entranceAnim = useRef(new Animated.Value(0)).current;
+  const idleAnim = useRef(new Animated.Value(0)).current;
+  const attackAnim = useRef(new Animated.Value(0)).current;
 
   // Entrance animation
   useEffect(() => {
@@ -76,11 +78,35 @@ function IdleIcon({ creature }: IconProps) {
     outputRange: [0, 1], 
   });
 
+   // Attack animation trigger
+  const triggerAttack = () => {
+    Animated.sequence([
+      Animated.timing(attackAnim, {
+        toValue: -50,
+        duration: delay/2,
+        easing: Easing.out(Easing.quad),
+        useNativeDriver: true,
+      }),
+      Animated.delay(delay),
+      Animated.timing(attackAnim, {
+        toValue: 0,
+        duration: delay/2,
+        easing: Easing.in(Easing.quad),
+        useNativeDriver: true,
+      }),
+    ]).start();
+  };
+
+  useEffect(() => {
+    attackTrigger?.(triggerAttack);
+  }, [attackTrigger]);
+
   // Transform stack to anchor to bottom
   const transform = [
     { translateY: 75 },
     { scale },
     { translateY: Animated.add(-75, idleAnim) }, // combine entrance + idle
+    { translateX: attackAnim } // attack
   ];
 
   return (
@@ -262,13 +288,19 @@ export default function BattleScreen() {
   const [canSwitch, setCanSwitch] = useState(true);
   const cooldownAnim = useRef(new Animated.Value(0)).current;
 
+  const attackRefs = useRef<{ [key: string]: () => void }>({});
+  const onCreatureAttack = (creatureId: string) => {
+    attackRefs.current[creatureId]?.();
+  };
+
   const battlePress = () => {
 
     if (healths[userSelectedCreature] <= 0 || healths[opponentSelectedCreature] <= 0) return;
 
     setClickNum(prev => prev + 1);
-    console.log(`Click num: ${clickNum}, Required: ${clicks[userSelectedCreature]}`);
     if (clickNum < clicks[userSelectedCreature]) return;
+
+    onCreatureAttack(creatures[userSelectedCreature].id);
 
     setHealths(prev => {
       const next = [...prev];
@@ -289,6 +321,8 @@ export default function BattleScreen() {
 
     if (healths[userSelectedCreature] <= 0 || healths[opponentSelectedCreature] <= 0) return;
     if (charges[userSelectedCreature] < chargeMaxes[userSelectedCreature]) return;
+
+    onCreatureAttack(creatures[userSelectedCreature].id);
 
     setHealths(prev => {
       const next = [...prev];
@@ -355,6 +389,8 @@ export default function BattleScreen() {
     const interval = setInterval(() => {
 
       if (healths[userSelectedCreature] <= 0 || healths[opponentSelectedCreature] <= 0) return;
+
+      onCreatureAttack(creatures[opponentSelectedCreature].id);
       
       if (charges[opponentSelectedCreature] < chargeMaxes[opponentSelectedCreature]) {
         setHealths(prev => {
@@ -381,12 +417,12 @@ export default function BattleScreen() {
           return next;
         });
       }
-    }, clicks[opponentSelectedCreature]*100);
+    }, clicks[opponentSelectedCreature]*200);
 
     return () => clearInterval(interval);
   }, [opponentSelectedCreature, userSelectedCreature, healths]);
 
-  useEffect(() => { // if user creature dies
+  useEffect(() => { // if user creature faints
     if (healths[userSelectedCreature] > 0) return;
 
     cooldownAnim.stopAnimation();
@@ -592,7 +628,10 @@ export default function BattleScreen() {
             {healths[userSelectedCreature] == 0 ? (
               <FaintedIcon creature={creatures[userSelectedCreature]} />
             ) : (
-              <IdleIcon creature={creatures[userSelectedCreature]} />
+              <IdleIcon 
+                creature={creatures[userSelectedCreature]}
+                attackTrigger={(trigger) => (attackRefs.current[creatures[userSelectedCreature].id] = trigger)}
+              />
             )}
           </View>
           <View style={styles.creature}>
@@ -638,7 +677,10 @@ export default function BattleScreen() {
             {healths[opponentSelectedCreature] == 0 ? (
               <FaintedIcon creature={creatures[opponentSelectedCreature]} onFaintEnd={handleOpponentFaintEnd} />
             ) : (
-              <IdleIcon creature={creatures[opponentSelectedCreature]} />
+              <IdleIcon 
+                creature={creatures[opponentSelectedCreature]}
+                attackTrigger={(trigger) => (attackRefs.current[creatures[opponentSelectedCreature].id] = trigger)}
+              />
             )}
           </View>
         </View>
