@@ -36,8 +36,7 @@ export const SPORT_PRIMARY_COLORS: Record<string, string> = {
   HIKING: '#13780E',
   FITNESS: '#FB008A',
   CYCLING: '#F59E0B',
-  CIRCUIT: '#BB00FF',
-  FLYING: '#0EA5E9',
+  CIRCUIT: '#BB00FF'
 } as const;
 
 function getReadableTextColor(hexColor: string): string {

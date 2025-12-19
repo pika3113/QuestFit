@@ -3,7 +3,7 @@ import { battleStyles as styles, getRarityColor, getSportColor, LEGENDARY_BADGE_
 import creatureService from '@/src/services/creatureService';
 import { Image } from 'expo-image';
 import React, { useEffect, useRef, useState } from 'react';
-import { Animated, Easing, Pressable } from 'react-native';
+import { Animated, Easing, Pressable, StyleSheet } from 'react-native';
 import { Creature } from '@/src/types/polar';
 import {  } from '@/src/styles';
 import Svg, { G, Path, Defs, ClipPath, Rect } from 'react-native-svg';
@@ -30,6 +30,7 @@ function getCreatureImage(id: string) {
 
 interface IconProps {
   creature: Creature;
+  onFaintEnd?: () => void;
 };
 
 function IdleIcon ({ creature }: IconProps) {
@@ -71,6 +72,76 @@ function IdleIcon ({ creature }: IconProps) {
       ]}
       resizeMode="contain"
     />
+  );
+}
+
+function FaintedIcon ({ creature, onFaintEnd }: IconProps) {
+  const anim = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    Animated.timing(anim, {
+      toValue: 1,
+      duration: 750,
+      easing: Easing.out(Easing.cubic),
+      useNativeDriver: true,
+    }).start(({ finished }) => {
+      if (finished) {
+        onFaintEnd?.();
+      }
+    });
+  }, []);
+
+  const scaleY = anim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [1, 0.85],
+  });
+
+  const colorOpacity = anim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [1, 0],
+  });
+
+  const greyOpacity = anim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [0, 1],
+  });
+
+  return (
+    <Animated.View
+      style={{
+        transform: [ 
+          { translateY: 75 },
+          { scaleY },
+          { translateY: -75 } ]
+      }}
+    >
+      <Animated.Image
+        source={getCreatureImage(creature.id)}
+        style={[
+          styles.creatureIcon,
+          {
+          width: 150,
+          height: 150,
+          opacity: colorOpacity
+          }
+        ]}
+        resizeMode="contain"
+      />
+      <Animated.Image
+        source={getCreatureImage(creature.id)}
+        style={[
+          styles.creatureIcon,
+          {
+          width: 150,
+          height: 150,
+          opacity: greyOpacity,
+          ...StyleSheet.absoluteFillObject,
+          filter: "grayscale(40%)"
+          }
+        ]}
+        resizeMode="contain"
+      />
+    </Animated.View>
   );
 }
 
@@ -165,7 +236,7 @@ export default function BattleScreen() {
   const [opponentSelectedCreature, setOpponentSelectedCreature] = useState<3 | 4 | 5>(3);
 
   const [canSwitch, setCanSwitch] = useState(true);
-  const cooldownAnim = useRef(new Animated.Value(0)).current; 
+  const cooldownAnim = useRef(new Animated.Value(0)).current;
 
   const battlePress = () => {
 
@@ -243,6 +314,19 @@ export default function BattleScreen() {
     return null;
   }
 
+  const handleOpponentFaintEnd = () => {
+    setTimeout(() => {
+      const next = getNextAliveOpponent(
+        healths,
+        (opponentSelectedCreature + 1) as 3 | 4 | 5
+      );
+
+      if (next !== null) {
+        setOpponentSelectedCreature(next);
+      }
+    }, 2500);
+  };
+
   useEffect(() => { // opponent attacks
     const interval = setInterval(() => {
 
@@ -285,19 +369,6 @@ export default function BattleScreen() {
     cooldownAnim.setValue(0);
     setCanSwitch(true);
   }, [healths[userSelectedCreature]]);
-
-  useEffect(() => { // if opponent creature dies
-    if (healths[opponentSelectedCreature] > 0) return;
-
-    const next = getNextAliveOpponent(
-      healths,
-      (opponentSelectedCreature + 1) as 3 | 4 | 5
-    );
-
-    if (next !== null) {
-      setOpponentSelectedCreature(next);
-    }
-  }, [healths[opponentSelectedCreature]]);
 
   return (
     <View style={styles.container}>
@@ -494,9 +565,11 @@ export default function BattleScreen() {
               health={healths[userSelectedCreature]} 
               maxHealth={creatures[userSelectedCreature].stats.endurance} 
             />
-            <IdleIcon 
-                creature={creatures[userSelectedCreature]}
-            /> 
+            {healths[userSelectedCreature] == 0 ? (
+              <FaintedIcon creature={creatures[userSelectedCreature]} />
+            ) : (
+              <IdleIcon creature={creatures[userSelectedCreature]} />
+            )}
           </View>
           <View style={styles.creature}>
             <View style={[styles.creatureStats, {justifyContent: 'flex-end', marginTop: 12}]}>
@@ -538,9 +611,11 @@ export default function BattleScreen() {
               health={healths[opponentSelectedCreature]} 
               maxHealth={creatures[opponentSelectedCreature].stats.endurance} 
             />
-            <IdleIcon 
-                creature={creatures[opponentSelectedCreature]}
-            /> 
+            {healths[opponentSelectedCreature] == 0 ? (
+              <FaintedIcon creature={creatures[opponentSelectedCreature]} onFaintEnd={handleOpponentFaintEnd} />
+            ) : (
+              <IdleIcon creature={creatures[opponentSelectedCreature]} />
+            )}
           </View>
         </View>
           <View style={styles.specialContainer}>
