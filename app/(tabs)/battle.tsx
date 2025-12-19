@@ -195,6 +195,158 @@ function FaintedIcon ({ creature, onFaintEnd }: IconProps) {
   );
 }
 
+interface DamageNumberProps {
+  damage: number;
+  isUser: boolean;
+  effectiveness?: String;
+  isSpecial: boolean;
+  onComplete?: () => void;
+}
+
+export function DamageNumber({ damage, isUser, effectiveness, isSpecial, onComplete }: DamageNumberProps) {
+  const translateY = useRef(new Animated.Value(0)).current;
+  const opacity = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    Animated.parallel([
+      Animated.timing(opacity, {
+        toValue: 1,
+        duration: 100, // fade in quickly
+        useNativeDriver: true,
+      }),
+      Animated.timing(translateY, {
+        toValue: -20, // initial upward move
+        duration: 300,
+        useNativeDriver: true,
+      }),
+    ]).start(() => {
+      // continue moving up and fading out
+      Animated.parallel([
+        Animated.timing(opacity, {
+          toValue: 0,
+          duration: 400,
+          useNativeDriver: true,
+        }),
+        Animated.timing(translateY, {
+          toValue: -50,
+          duration: 400,
+          useNativeDriver: true,
+        }),
+      ]).start(() => {
+        onComplete?.();
+      });
+    });
+  }, []);
+
+  return (
+    <Animated.Text
+      style={[
+        {
+          color: (effectiveness === 'WEAK') ? '#10B981' : (effectiveness === 'RESIST') ? '#EF4444' : '#6B7280',
+          position: 'absolute',
+          textAlign: 'center',
+          fontSize: isSpecial ? 30 : 24,
+          fontWeight: isSpecial ? 'bold' : 'normal',
+          bottom: 100, 
+          left: 50, 
+          opacity,
+          transform: [{ translateY }, {scaleX: isUser ? -1 : 1 }],
+        },
+      ]}
+    >
+      -{damage}
+      {effectiveness && 
+      <>
+        <br/>
+        <Text style={[
+          {
+            color: (effectiveness === 'WEAK') ? '#10B981' : (effectiveness === 'RESIST') ? '#EF4444' : '#6B7280',
+            fontSize: isSpecial ? 22 : 16
+          }]}>
+          {effectiveness}
+        </Text>
+      </>}
+    </Animated.Text>
+  );
+}
+
+interface FloatingDamage {
+  id: string; // unique key
+  creatureIndex: number; // which creature receives damage
+  effectiveness?: String; // type effectiveness message
+  isSpecial: boolean; // if the attack is special or normal
+  amount: number;
+}
+
+interface ImpactEffectProps {
+  onComplete?: () => void;
+  sport: "GENERAL" | "RUNNING" | "SWIMMING" | "HIKING" | "FITNESS" | "CYCLING" | "CIRCUIT";
+}
+
+export function ImpactEffect({ onComplete, sport }: ImpactEffectProps) {
+  const scale = useRef(new Animated.Value(0)).current;
+  const opacity = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    // Animate scale + opacity in
+    Animated.parallel([
+      Animated.timing(scale, {
+        toValue: 1,
+        duration: 300,
+        useNativeDriver: true,
+      }),
+      Animated.timing(opacity, {
+        toValue: 0.6,
+        duration: 300,
+        useNativeDriver: true,
+      }),
+    ]).start(() => {
+      // Animate fade out + slight scale up
+      Animated.parallel([
+        Animated.timing(opacity, {
+          toValue: 0,
+          duration: 600,
+          useNativeDriver: true,
+        }),
+        Animated.timing(scale, {
+          toValue: 1.2,
+          duration: 600,
+          useNativeDriver: true,
+        }),
+      ]).start(() => {
+        onComplete?.();
+      });
+    });
+  }, []);
+
+  return (
+    <Animated.View
+      style={{
+          position: 'absolute',
+          top: 0,
+          left: 0,
+          width: '100%',
+          height: '100%',
+          alignItems: 'center',
+          justifyContent: 'center',
+          opacity,
+          transform: [{ scale }],
+        }}
+    >
+      <Svg viewBox="-10 -10 50 50" fill={getSportColor(sport)[0]}>
+        <path
+          d="M 31.578019,19.672316 C 28.510455,18.393603 25.469,15.853 24.862,13.866 c -0.498,-1.631 1.004,-3.801 3.836,-6.416 -2.958,1.621 -5.135,2.722 -5.997,1.185 -0.774,-1.38 0.093,-3.966 1.464,-7.357 0,0 -2.269267,3.7757324 -3.515861,4.0146035 C 19.447545,4.3341582 19.578881,0.20754497 19.578881,0.20754497 18.240881,3.204545 15.865,5.972 13.81,6.263 12.054,6.512 9.781,4.449 7.22,1.521 8.678,4.415 9.214,6.736 8.231,7.309 7.069,7.987 4.9651484,6.8502774 1.5171484,5.4022774 c 0,0 3.994129,2.6801191 3.9238516,4.5217226 -0.358,0.48 -2.9870249,0.397 -5.14402488,0.105 0,0 5.80702488,4.902 5.80702488,6.416 0,1.302 -3.7950299,5.632642 -6.00602985,7.738642 0,0 5.63702985,-1.568642 6.45902985,-0.102642 0.839,1.495 0.276,3.611 -0.802,6.695 0,0 5.667,-4.766 6.66,-4.672 0.703,0.066 0.453,4.672 0.453,4.672 1.743,-4.845 3.892,-7.814 7.078,-7.706 2.796,0.096 5.449,2.91 8.368,4.916 -1.526,-1.867 -5.650433,-5.441423 -4.208612,-5.578214 1.194214,-0.202592 5.769189,0.915209 5.769189,0.915209 -1.863,-1.271 -2.294711,-1.779375 -2.222577,-2.729995 0.450287,-1.406168 3.926019,-0.920684 3.926019,-0.920684 z M 21.948,18.081 c -0.335,0.334 1.759,1.577 2.956,2.438 -1.81,-0.632 -4.092,-1.582 -4.518,-1.234 -0.308,0.252 1.12,1.603 1.897,2.553 -1.485,-1.021 -2.845,-2.448 -4.267,-2.496 -2.092,-0.071 -3.29,2.442 -4.323,6.282 0.272,-1.823 1.089,-4.679 0.502,-4.733 -0.833,-0.078 -2.846,2.892 -4.351,5.106 1.051,-3.185 2.006,-5 1.367,-6.139 -0.577,-1.029 -2.744,-0.403 -3.682,0.143 1.105,-1.043 3.447,-3.141 3.447,-4.025 0,-1.286 -2.32,-2.733 -6.599,-3.951 2.572,0.405 5.888,1.149 6.275,0.631 0.303,-0.405 -2.192,-1.813 -3.71,-2.811 2.672,1.146 4.365,1.92 5.122,1.479 0.5,-0.292 0.222,-1.47 -0.52,-2.942 1.303,1.489 2.471,2.538 3.364,2.411 1.884,-0.267 2.698,-2.76 4.166,-7.518 v 0 C 18.729,5.923 18.03,9.24 18.46,9.644 18.782,9.947 20.096,7.5 21.11,5.943 c -1.144,2.886 -2.245,5.056 -1.69,6.045 0.439,0.782 1.552,0.23 3.056,-0.594 -1.44,1.33 -2.214,2.433 -1.961,3.263 0.503,1.647 2.857,2.292 7.065,3.766 -2.161,-0.28 -5.135,-0.842 -5.634,-0.344 z"
+        />
+      </Svg>
+    </Animated.View>
+  );
+}
+
+interface FloatingImpact {
+  id: string;
+  creatureIndex: number;
+}
+
 interface SpecialProps {
   max: number;
   current: number;
@@ -251,9 +403,17 @@ function HealthBar ({ health, maxHealth }: HealthBarProps) {
   );
 }
 
-function calcDamage(attacker: Creature, defender: Creature): number {
+function calcDamage(attacker: Creature, defender: Creature): { amount: number, effectiveness?: String} {
   const typeDict = {'GENERAL': 0, 'RUNNING': 1, 'SWIMMING': 2, 'HIKING': 3, 'FITNESS': 4, 'CYCLING': 5, 'CIRCUIT': 6};
-  return Math.floor((attacker.stats.power/defender.stats.endurance*4+1)*typeMatchups[typeDict[attacker.sport]][typeDict[defender.sport]]);
+  const mult = typeMatchups[typeDict[attacker.sport]][typeDict[defender.sport]];
+  const amount = Math.floor((attacker.stats.power/defender.stats.endurance*4+1)*mult);
+  if (mult == 2) {
+    return {amount, effectiveness: 'WEAK'};
+  } else if (mult == 0.5) {
+    return {amount, effectiveness: 'RESIST'};
+  } else {
+    return {amount};
+  };
 }
 
 function calcClicks(creature: Creature): number {
@@ -293,6 +453,10 @@ export default function BattleScreen() {
     attackRefs.current[creatureId]?.();
   };
 
+  const [floatingDamages, setFloatingDamages] = useState<FloatingDamage[]>([]);
+
+  const [floatingImpacts, setFloatingImpacts] = useState<FloatingImpact[]>([]);
+
   const battlePress = () => {
 
     if (healths[userSelectedCreature] <= 0 || healths[opponentSelectedCreature] <= 0) return;
@@ -301,12 +465,29 @@ export default function BattleScreen() {
     if (clickNum < clicks[userSelectedCreature]) return;
 
     onCreatureAttack(creatures[userSelectedCreature].id);
+    const damage = calcDamage(creatures[userSelectedCreature], creatures[opponentSelectedCreature]);
 
     setHealths(prev => {
       const next = [...prev];
-      next[opponentSelectedCreature] = Math.max(next[opponentSelectedCreature]-calcDamage(creatures[userSelectedCreature], creatures[opponentSelectedCreature]), 0);
+      next[opponentSelectedCreature] = Math.max(next[opponentSelectedCreature]-damage.amount, 0);
       return next;
     });
+
+    setFloatingDamages(prevDamages => [
+      ...prevDamages,
+      {
+        id: Math.random().toString(),
+        creatureIndex: opponentSelectedCreature,
+        amount: damage.amount,
+        effectiveness: damage.effectiveness,
+        isSpecial: false
+      }
+    ]);
+
+    setFloatingImpacts(prevImpacts => [
+      ...prevImpacts,
+      { id: Math.random().toString(), creatureIndex: opponentSelectedCreature }
+    ]);
 
     setCharges(prev => {
       const next = [...prev];
@@ -323,12 +504,29 @@ export default function BattleScreen() {
     if (charges[userSelectedCreature] < chargeMaxes[userSelectedCreature]) return;
 
     onCreatureAttack(creatures[userSelectedCreature].id);
+    const damage = calcDamage(creatures[userSelectedCreature], creatures[opponentSelectedCreature]);
 
     setHealths(prev => {
       const next = [...prev];
-      next[opponentSelectedCreature] = Math.max(next[opponentSelectedCreature]-calcDamage(creatures[userSelectedCreature], creatures[opponentSelectedCreature])*5, 0);
+      next[opponentSelectedCreature] = Math.max(next[opponentSelectedCreature]-damage.amount*5, 0);
       return next;
     });
+
+    setFloatingDamages(prevDamages => [
+      ...prevDamages,
+      {
+        id: Math.random().toString(),
+        creatureIndex: opponentSelectedCreature,
+        amount: damage.amount*5,
+        effectiveness: damage.effectiveness,
+        isSpecial: true
+      }
+    ]);
+
+    setFloatingImpacts(prevImpacts => [
+      ...prevImpacts,
+      { id: Math.random().toString(), creatureIndex: opponentSelectedCreature }
+    ]);
 
     setCharges(prev => {
       const next = [...prev];
@@ -391,13 +589,30 @@ export default function BattleScreen() {
       if (healths[userSelectedCreature] <= 0 || healths[opponentSelectedCreature] <= 0) return;
 
       onCreatureAttack(creatures[opponentSelectedCreature].id);
+      const damage = calcDamage(creatures[opponentSelectedCreature], creatures[userSelectedCreature]);
       
       if (charges[opponentSelectedCreature] < chargeMaxes[opponentSelectedCreature]) {
         setHealths(prev => {
           const next = [...prev];
-          next[userSelectedCreature] = Math.max(next[userSelectedCreature]-calcDamage(creatures[opponentSelectedCreature], creatures[userSelectedCreature]), 0);
+          next[userSelectedCreature] = Math.max(next[userSelectedCreature]-damage.amount, 0);
           return next;
         });
+
+        setFloatingDamages(prevDamages => [
+          ...prevDamages,
+          {
+            id: Math.random().toString(),
+            creatureIndex: userSelectedCreature,
+            amount: damage.amount,
+            effectiveness: damage.effectiveness,
+            isSpecial: false
+          }
+        ]);
+        
+        setFloatingImpacts(prevImpacts => [
+          ...prevImpacts,
+          { id: Math.random().toString(), creatureIndex: userSelectedCreature }
+        ]);
 
         setCharges(prev => {
           const next = [...prev];
@@ -407,9 +622,25 @@ export default function BattleScreen() {
       } else {
         setHealths(prev => {
           const next = [...prev];
-          next[userSelectedCreature] = Math.max(next[userSelectedCreature]-calcDamage(creatures[opponentSelectedCreature], creatures[userSelectedCreature])*5, 0);
+          next[userSelectedCreature] = Math.max(next[userSelectedCreature]-damage.amount*5, 0);
           return next;
         });
+
+        setFloatingDamages(prevDamages => [
+          ...prevDamages,
+          {
+            id: Math.random().toString(),
+            creatureIndex: userSelectedCreature,
+            amount: damage.amount*5,
+            effectiveness: damage.effectiveness,
+            isSpecial: true
+          }
+        ]);
+
+        setFloatingImpacts(prevImpacts => [
+          ...prevImpacts,
+          { id: Math.random().toString(), creatureIndex: userSelectedCreature }
+        ]);
 
         setCharges(prev => {
           const next = [...prev];
@@ -625,14 +856,40 @@ export default function BattleScreen() {
               health={healths[userSelectedCreature]} 
               maxHealth={creatures[userSelectedCreature].stats.endurance} 
             />
-            {healths[userSelectedCreature] == 0 ? (
-              <FaintedIcon creature={creatures[userSelectedCreature]} />
-            ) : (
-              <IdleIcon 
-                creature={creatures[userSelectedCreature]}
-                attackTrigger={(trigger) => (attackRefs.current[creatures[userSelectedCreature].id] = trigger)}
-              />
-            )}
+            <View style={{ marginTop: 8 }}>
+              {healths[userSelectedCreature] == 0 ? (
+                <FaintedIcon creature={creatures[userSelectedCreature]} />
+              ) : (
+                <IdleIcon 
+                  creature={creatures[userSelectedCreature]}
+                  attackTrigger={(trigger) => (attackRefs.current[creatures[userSelectedCreature].id] = trigger)}
+                />
+              )}
+              {floatingDamages
+                .filter(d => d.creatureIndex === userSelectedCreature)
+                .map(d => (
+                  <DamageNumber
+                    damage={d.amount}
+                    isUser={true}
+                    effectiveness={d.effectiveness}
+                    isSpecial={d.isSpecial}
+                    onComplete={() => {
+                      setFloatingDamages(prev => prev.filter(f => f.id !== d.id));
+                    }}
+                  />
+                ))}
+              {floatingImpacts
+                  .filter(f => f.creatureIndex === userSelectedCreature)
+                  .map(f => (
+                    <ImpactEffect
+                      key={f.id}
+                      onComplete={() => {
+                        setFloatingImpacts(prev => prev.filter(x => x.id !== f.id));
+                      }}
+                      sport={creatures[opponentSelectedCreature].sport}
+                    />
+                  ))}
+            </View>
           </View>
           <View style={styles.creature}>
             <View style={[styles.creatureStats, {justifyContent: 'flex-end', marginTop: 12}]}>
@@ -674,14 +931,40 @@ export default function BattleScreen() {
               health={healths[opponentSelectedCreature]} 
               maxHealth={creatures[opponentSelectedCreature].stats.endurance} 
             />
-            {healths[opponentSelectedCreature] == 0 ? (
-              <FaintedIcon creature={creatures[opponentSelectedCreature]} onFaintEnd={handleOpponentFaintEnd} />
-            ) : (
-              <IdleIcon 
-                creature={creatures[opponentSelectedCreature]}
-                attackTrigger={(trigger) => (attackRefs.current[creatures[opponentSelectedCreature].id] = trigger)}
-              />
-            )}
+            <View style={{ marginTop: 8 }}>
+              {healths[opponentSelectedCreature] == 0 ? (
+                <FaintedIcon creature={creatures[opponentSelectedCreature]} onFaintEnd={handleOpponentFaintEnd} />
+              ) : (
+                <IdleIcon 
+                  creature={creatures[opponentSelectedCreature]}
+                  attackTrigger={(trigger) => (attackRefs.current[creatures[opponentSelectedCreature].id] = trigger)}
+                />
+              )}
+              {floatingDamages
+                .filter(d => d.creatureIndex === opponentSelectedCreature)
+                .map(d => (
+                  <DamageNumber
+                    damage={d.amount}
+                    isUser={false}
+                    effectiveness={d.effectiveness}
+                    isSpecial={d.isSpecial}
+                    onComplete={() => {
+                      setFloatingDamages(prev => prev.filter(f => f.id !== d.id));
+                    }}
+                  />
+                ))}
+              {floatingImpacts
+                .filter(f => f.creatureIndex === opponentSelectedCreature)
+                .map(f => (
+                  <ImpactEffect
+                    key={f.id}
+                    onComplete={() => {
+                      setFloatingImpacts(prev => prev.filter(x => x.id !== f.id));
+                    }}
+                    sport={creatures[userSelectedCreature].sport}
+                  />
+                ))}
+            </View>
           </View>
         </View>
           <View style={styles.specialContainer}>
