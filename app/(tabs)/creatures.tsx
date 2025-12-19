@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { ScrollView, TextInput, Pressable, Modal, StyleSheet, TouchableOpacity } from 'react-native';
+import { ScrollView, TextInput, Modal, StyleSheet, TouchableOpacity } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Text, View } from '@/components/Themed';
 import { CreatureDetailsModal, CreatureCardGrid, CreatureCardGridSkeleton } from '@/components/game/CreatureCard';

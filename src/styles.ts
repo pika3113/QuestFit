@@ -8,13 +8,25 @@ type ColorPair = readonly [background: string, foreground: string];
 //Creature styles
 
 // Rarity
-export const RARITY_COLORS: Record<Creature['rarity'], string> = {
+export const RARITY_COLORS: Record<'common' | 'rare' | 'epic', string> = {
   common: '#3BA8F6',
   rare: '#43C073',
   epic: '#8B5CF6',
   // Used for badges/borders/text; legendary use gradient elsewhere.
-  legendary: '#A855F7', // esentially a fallbackplaceholder
 } as const;
+
+export const LEGENDARY_BADGE_GRADIENT_COLORS = ['#FF5A5F', '#00D084', '#A855F7'] as const;
+
+export const LEGENDARY_SPECTRUM_GRADIENT_COLORS = [
+  '#FF3B30',
+  '#FF9500',
+  '#FFCC00',
+  '#34C759',
+  '#5AC8FA',
+  '#007AFF',
+  '#5856D6',
+  '#AF52DE',
+] as const;
 
 // Type of exercise 
 export const SPORT_PRIMARY_COLORS: Record<string, string> = {
@@ -24,8 +36,7 @@ export const SPORT_PRIMARY_COLORS: Record<string, string> = {
   HIKING: '#13780E',
   FITNESS: '#FB008A',
   CYCLING: '#F59E0B',
-  CIRCUIT: '#BB00FF',
-  FLYING: '#0EA5E9',
+  CIRCUIT: '#BB00FF'
 } as const;
 
 function getReadableTextColor(hexColor: string): string {
@@ -41,7 +52,7 @@ function getReadableTextColor(hexColor: string): string {
   return luminance > 0.7 ? '#111827' : '#FFFFFF';
 }
 
-export function getRarityColor(rarity: Creature['rarity']): string {
+export function getRarityColor(rarity: 'common' | 'rare' | 'epic'): string {
   return RARITY_COLORS[rarity] ?? RARITY_COLORS.common;
 }
 
@@ -179,7 +190,16 @@ export const battleStyles = StyleSheet.create({
     backgroundColor: '#FFFFFF',
     margin: 2,
     borderRadius: 12,
-    borderWidth: 2
+    borderWidth: 2,
+    overflow: 'hidden',
+  },
+  cooldownFill: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    backgroundColor: 'rgba(59, 130, 246, 0.35)', // blue fill
+    zIndex: 1,
   },
   battleArea: {
     flexDirection: 'row',
@@ -206,7 +226,7 @@ export const battleStyles = StyleSheet.create({
     borderRadius: 4,
     backgroundColor: '#6B7280',
     height: '100%',
-    width: '80%',
+    width: '100%',
     maxWidth: 300,
     marginTop: 4,
   },
@@ -214,7 +234,6 @@ export const battleStyles = StyleSheet.create({
     borderRadius: 4,
     backgroundColor: '#10B981',
     height: '100%',
-    width: '75%',
   },
   creatureStats: {
     width: '100%',
@@ -230,23 +249,38 @@ export const battleStyles = StyleSheet.create({
     color: black,
     marginBottom: 4,
   },
-  creatureRarity: {
-    fontSize: 11,
+  creatureSport: {
+    fontSize: 12,
     fontWeight: '600',
     textTransform: 'uppercase',
   },
-  creatureSportBadge: {
-    fontSize: 11,
+  creatureRarityBadge: {
+    fontSize: 12,
     paddingHorizontal: 12,
     paddingVertical: 4,
     borderRadius: 12,
     marginTop: -4,
     marginLeft: 8,
   },
+  legendaryBadgeText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#FFFFFF',
+  },
   creatureStat: {
     fontSize: 11,
     color: '#6B7280',
     fontWeight: '600',
+  },
+  specialContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 12,
+  },
+  specialButton: {
+    width: 175,
+    aspectRatio: 1,
   },
 });
 

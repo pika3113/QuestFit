@@ -1,17 +1,5 @@
 import { StyleSheet } from 'react-native';
 
-export const LEGENDARY_BADGE_GRADIENT_COLORS = ['#FF5A5F', '#00D084', '#A855F7'] as const;
-
-export const LEGENDARY_SPECTRUM_GRADIENT_COLORS = [
-  '#FF3B30',
-  '#FF9500',
-  '#FFCC00',
-  '#34C759',
-  '#5AC8FA',
-  '#007AFF',
-  '#5856D6',
-  '#AF52DE',
-] as const;
 
 export const creatureCardStyles = StyleSheet.create({
   container: {
@@ -56,12 +44,6 @@ export const creatureCardStyles = StyleSheet.create({
   },
   rarityBadge: {
     fontSize: 12,
-    paddingHorizontal: 12,
-    paddingVertical: 4,
-    borderRadius: 12,
-    marginLeft: 8,
-  },
-  legendaryBadge: {
     paddingHorizontal: 12,
     paddingVertical: 4,
     borderRadius: 12,
