@@ -969,14 +969,17 @@ export default function BattleScreen() {
           </View>
         </Modal>
 
-        <CreatureDetailsModal
-          visible={showCreatureDetails}
-          creature={detailsCreature}
-          captured={detailsCaptured}
-          onClose={() => setShowCreatureDetails(false)}
-        />
       </SafeAreaView>
     </Modal>
+  );
+
+  const creatureDetailsModal = (
+    <CreatureDetailsModal
+      visible={showCreatureDetails}
+      creature={detailsCreature}
+      captured={detailsCaptured}
+      onClose={() => setShowCreatureDetails(false)}
+    />
   );
 
   const xpBalance = profile?.xp ?? 0;
@@ -2399,6 +2402,7 @@ export default function BattleScreen() {
           </Pressable>
         </View>
         {creaturesModal}
+        {creatureDetailsModal}
       </View>
     );
   }
@@ -2855,6 +2859,7 @@ export default function BattleScreen() {
       )}
 
       {creaturesModal}
+      {creatureDetailsModal}
 
       {phase === 'battle' && !isBattleOver && isPaused && !isCreaturesModalOpen && (pauseReason === 'restored' || pauseReason === 'manual') && (
         <View
@@ -3283,6 +3288,7 @@ export default function BattleScreen() {
       )}
 
       {creaturesModal}
+      {creatureDetailsModal}
 
       {phase === 'battle' && !isBattleOver && isPaused && !isCreaturesModalOpen && (pauseReason === 'restored' || pauseReason === 'manual') && (
         <View

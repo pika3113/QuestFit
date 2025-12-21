@@ -171,7 +171,7 @@ export const creatureCardStyles = StyleSheet.create({
     backgroundColor: '#3B82F6',
     paddingHorizontal: 24,
     paddingVertical: 8,
-    marginBottom: -8,
+    marginBottom: 0,
     marginTop: 8,
     borderRadius: 24,
   },
@@ -195,7 +195,9 @@ export const creatureCardStyles = StyleSheet.create({
     padding: 24,
     width: '100%',
     maxWidth: 400,
+    maxHeight: '85%',
     alignItems: 'center',
+    overflow: 'hidden',
     shadowColor: '#000',
     shadowOffset: {
       width: 0,
@@ -211,6 +213,7 @@ export const creatureCardStyles = StyleSheet.create({
     padding: 3,
     width: '100%',
     maxWidth: 400,
+    maxHeight: '85%',
   },
   legendaryModalInner: {
     borderRadius: 17,
@@ -218,6 +221,7 @@ export const creatureCardStyles = StyleSheet.create({
     backgroundColor: '#FFFFFF',
     padding: 24,
     width: '100%',
+    maxHeight: '100%',
     alignItems: 'center',
     shadowColor: '#000',
     shadowOffset: {
