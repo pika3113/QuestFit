@@ -91,12 +91,19 @@ export interface UserGameProfile {
   userId: string;
   level: number;
   xp: number;
+  // Track daily battle wins for diminishing-returns victory rewards.
+  // Stored as a local-date key (YYYY-MM-DD) and a count for that day.
+  battleWinDay?: string;
+  battleWinsToday?: number;
   totalWorkouts: number;
   totalCalories: number;
   totalDistance: number;
   totalDuration: number; // in minutes
   totalAvgHeartRate: number; // average of all workouts
   capturedCreatures: string[]; // Just store creature IDs
+  // Epoch millis timestamps for when a fainted creature becomes usable again.
+  // Example: { "12": 1734800000000 }
+  creatureCooldowns?: Record<string, number>;
   achievements: Achievement[];
   redeemedRewards?: RedeemedReward[];
   currentQuest?: Quest;

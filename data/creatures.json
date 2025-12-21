@@ -1337,9 +1337,9 @@
       "description": "Fragile, but sharp and deadly.",
       "sport": "RUNNING",
       "stats": {
-        "power": 300,
+        "power": 3000,
         "speed": 200,
-        "endurance": 25
+        "endurance": 1000
       },
       "unlockRequirements": {
         "minCalories": 1882,
