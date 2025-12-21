@@ -1339,7 +1339,7 @@
       "stats": {
         "power": 300,
         "speed": 200,
-        "endurance": 25
+        "endurance": 100
       },
       "unlockRequirements": {
         "minCalories": 1882,

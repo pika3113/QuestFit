@@ -2,12 +2,18 @@ import { View, Text } from '@/components/Themed';
 import { battleStyles as styles, getRarityColor, getSportColor, LEGENDARY_BADGE_GRADIENT_COLORS } from '@/src/styles';
 import creatureService from '@/src/services/creatureService';
 import { Image } from 'expo-image';
-import React, { useEffect, useRef, useState } from 'react';
-import { Animated, Easing, Pressable, StyleSheet } from 'react-native';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { Alert, Animated, Easing, InteractionManager, Modal, Platform, Pressable, ScrollView, StyleSheet } from 'react-native';
 import { Creature } from '@/src/types/polar';
-import {  } from '@/src/styles';
 import Svg, { G, Path, Defs, ClipPath, Rect } from 'react-native-svg';
 import { LinearGradient } from 'expo-linear-gradient';
+import { useAuth } from '@/src/hooks/useAuth';
+import { useGameProfile } from '@/src/hooks/useGameProfile';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { creatureCardStyles } from '@/src/styles/components/creatureCardStyles';
+import { LEGENDARY_SPECTRUM_GRADIENT_COLORS } from '@/src/styles';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { CreatureCardGrid, CreatureCardGridSkeleton, CreatureDetailsModal } from '@/components/game/CreatureCard';
 
 const creatureImages = require.context(
   '../../assets/images/creatures',
@@ -426,21 +432,57 @@ function calcChargeMax(creature: Creature): number {
 
 export default function BattleScreen() {
 
-  const user = 'PlaceholderUser'; // Placeholder for user
-  const opponent = 'PlaceholderOpponent'; // Placeholder for opponent
+  const { user: authUser } = useAuth();
+  const { profile, loading: profileLoading, updateProfile } = useGameProfile(authUser?.uid || null);
 
-  const allCreatures = creatureService.getAllCreatures(); // This is just for the placeholders lol
+  const userName = authUser?.displayName || 'User';
+  const opponentName = 'Opponent';
 
-  const creatures = [allCreatures[0], allCreatures[3], allCreatures[5], allCreatures[6], allCreatures[21], allCreatures[22]]; // Placeholder for creatures, first 3 is user, last 3 is opponent
-  const clicks = [calcClicks(creatures[0]), calcClicks(creatures[1]), calcClicks(creatures[2]), calcClicks(creatures[3]), calcClicks(creatures[4]), calcClicks(creatures[5])];
+  const allCreatures = useMemo(() => creatureService.getAllCreatures(), []);
+  const capturedCreatureIds = profile?.capturedCreatures || [];
+  const capturedCreatures = useMemo(() => {
+    return creatureService.getUnlockedCreatures(capturedCreatureIds);
+  }, [capturedCreatureIds.join('|')]);
+
+  const [phase, setPhase] = useState<'select' | 'battle'>('select');
+  const [nowMs, setNowMs] = useState(() => Date.now());
+  const [isPaused, setIsPaused] = useState(false);
+  const [activeSlot, setActiveSlot] = useState<0 | 1 | 2>(0);
+  const [selectedUserCreatures, setSelectedUserCreatures] = useState<Array<Creature | null>>([
+    null,
+    null,
+    null,
+  ]);
+  const [battleCreatures, setBattleCreatures] = useState<Creature[] | null>(null);
+
+  const [creatureCooldowns, setCreatureCooldowns] = useState<Record<string, number>>({});
+  const prevUserHealthsRef = useRef<number[]>([]);
+  const cooldownsAppliedForBattleRef = useRef(false);
+
+  const creatures = battleCreatures ?? [];
+  const clicks = useMemo(() => creatures.map(calcClicks), [creatures]);
+  const chargeMaxes = useMemo(() => creatures.map(calcChargeMax), [creatures]);
+
   const [clickNum, setClickNum] = useState(0);
-  const [healths, setHealths] = useState<number[]>(
-    creatures.map(c => c.stats.endurance)
-  );
-  const [charges, setCharges] = useState<number[]>(
-    Array(creatures.length).fill(0)
-  );
-  const chargeMaxes = [calcChargeMax(creatures[0]), calcChargeMax(creatures[1]), calcChargeMax(creatures[2]), calcChargeMax(creatures[3]), calcChargeMax(creatures[4]), calcChargeMax(creatures[5])];
+  const [healths, setHealths] = useState<number[]>([]);
+  const [charges, setCharges] = useState<number[]>([]);
+
+  const [switchCooldownUntilMs, setSwitchCooldownUntilMs] = useState<number | null>(null);
+
+  const didHydrateBattleSessionRef = useRef(false);
+
+  // Refs for stable opponent attack scheduling (avoids resetting timers on every state update).
+  const phaseRef = useRef<'select' | 'battle'>(phase);
+  const battleCreaturesRef = useRef<Creature[] | null>(battleCreatures);
+  const healthsRef = useRef<number[]>(healths);
+  const chargesRef = useRef<number[]>(charges);
+  const userSelectedCreatureRef = useRef<0 | 1 | 2>(0);
+  const opponentSelectedCreatureRef = useRef<3 | 4 | 5>(3);
+  const isBattleOverRef = useRef<boolean>(false);
+  const isPausedRef = useRef<boolean>(false);
+  const clicksRef = useRef<number[]>(clicks);
+  const chargeMaxesRef = useRef<number[]>(chargeMaxes);
+  const opponentAttackTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const [userSelectedCreature, setUserSelectedCreature] = useState<0 | 1 | 2>(0);
   const [opponentSelectedCreature, setOpponentSelectedCreature] = useState<3 | 4 | 5>(3);
@@ -457,12 +499,773 @@ export default function BattleScreen() {
 
   const [floatingImpacts, setFloatingImpacts] = useState<FloatingImpact[]>([]);
 
+  const [battleResult, setBattleResult] = useState<'active' | 'victory' | 'defeat'>('active');
+  const isBattleOver = battleResult !== 'active';
+  const [defeatReason, setDefeatReason] = useState<'normal' | 'leftAfterReload'>('normal');
+  const [pauseReason, setPauseReason] = useState<'restored' | 'manual' | 'creatures' | null>(null);
+
+  const [isCreaturesModalOpen, setIsCreaturesModalOpen] = useState(false);
+  const [isCreaturesModalContentReady, setIsCreaturesModalContentReady] = useState(false);
+  const pauseSnapshotBeforeCreaturesRef = useRef<{
+    isPaused: boolean;
+    pauseReason: 'restored' | 'manual' | 'creatures' | null;
+  } | null>(null);
+  const [showCreatureDetails, setShowCreatureDetails] = useState(false);
+  const [detailsCreature, setDetailsCreature] = useState<Creature>(() => creatureService.getAllCreatures()[0]!);
+  const [detailsCaptured, setDetailsCaptured] = useState(false);
+
+  const victoryRewardAppliedRef = useRef(false);
+  const [victoryRewardEarned, setVictoryRewardEarned] = useState<number>(0);
+
+  const getLocalDayKey = (d: Date) => {
+    const yyyy = d.getFullYear();
+    const mm = String(d.getMonth() + 1).padStart(2, '0');
+    const dd = String(d.getDate()).padStart(2, '0');
+    return `${yyyy}-${mm}-${dd}`;
+  };
+
+  const getOpponentRarityBonus = (rarity: Creature['rarity']) => {
+    // Reward beating higher rarity opponents more.
+    switch (rarity) {
+      case 'common':
+        return 0;
+      case 'rare':
+        return 25;
+      case 'epic':
+        return 75;
+      case 'legendary':
+        return 150;
+      default:
+        return 0;
+    }
+  };
+
+  const getDailyWinMultiplier = (winsSoFarToday: number) => {
+    // Diminishing returns:
+    // 0-4 wins: 100%
+    // 5-14 wins: 75%
+    // 15+ wins: 50%
+    if (winsSoFarToday >= 15) return 0.5;
+    if (winsSoFarToday >= 5) return 0.75;
+    return 1;
+  };
+
+  const cooldownStorageKey = authUser?.uid ? `CREATURE_COOLDOWNS_${authUser.uid}` : null;
+  const battleSessionStorageKey = authUser?.uid ? `BATTLE_SESSION_${authUser.uid}` : null;
+
+  const formatCooldown = (untilMs: number) => {
+    const remainingMs = Math.max(untilMs - nowMs, 0);
+    const totalSeconds = Math.ceil(remainingMs / 1000);
+    const minutes = Math.floor(totalSeconds / 60);
+    const hours = Math.floor(minutes / 60);
+    const mins = minutes % 60;
+
+    if (hours <= 0) return `${mins}m`;
+    if (mins === 0) return `${hours}h`;
+    return `${hours}h ${mins}m`;
+  };
+
+  const isCreatureOnCooldown = (creatureId: string) => {
+    const until = creatureCooldowns[creatureId];
+    return typeof until === 'number' && until > nowMs;
+  };
+
+  const creatureCards = useMemo(() => {
+    const capturedSet = new Set(capturedCreatureIds);
+    return allCreatures.map(creature => ({
+      creature,
+      captured: capturedSet.has(creature.id),
+    }));
+  }, [allCreatures, capturedCreatureIds.join('|')]);
+
+  const openCreaturesModal = () => {
+    pauseSnapshotBeforeCreaturesRef.current = {
+      isPaused,
+      pauseReason,
+    };
+
+    setIsCreaturesModalContentReady(false);
+    setIsCreaturesModalOpen(true);
+
+    if (phase === 'battle' && !isPaused) {
+      setPauseReason('creatures');
+      setIsPaused(true);
+    }
+
+    // Defer heavy grid rendering until after the modal transition starts.
+    InteractionManager.runAfterInteractions(() => {
+      setIsCreaturesModalContentReady(true);
+    });
+  };
+
+  const closeCreaturesModal = () => {
+    setIsCreaturesModalContentReady(false);
+    setIsCreaturesModalOpen(false);
+    setShowCreatureDetails(false);
+
+    const snapshot = pauseSnapshotBeforeCreaturesRef.current;
+    pauseSnapshotBeforeCreaturesRef.current = null;
+
+    if (!snapshot) {
+      if (pauseReason === 'creatures') {
+        setPauseReason(null);
+        setIsPaused(false);
+      }
+      return;
+    }
+
+    setPauseReason(snapshot.pauseReason);
+    setIsPaused(snapshot.isPaused);
+  };
+
+  const creaturesModal = (
+    <Modal
+      visible={isCreaturesModalOpen}
+      animationType="slide"
+      onRequestClose={closeCreaturesModal}
+    >
+      <SafeAreaView style={uiStyles.creaturesModalSafeArea}>
+        <View
+          style={uiStyles.creaturesModalHeader}
+        >
+          <Text style={uiStyles.creaturesModalTitle}>Creatures</Text>
+          <Pressable
+            onPress={closeCreaturesModal}
+            style={({ pressed }) => [uiStyles.creaturesModalCloseButton, pressed && uiStyles.buttonPressed085]}
+          >
+            <Text style={uiStyles.creaturesModalCloseText}>Close</Text>
+          </Pressable>
+        </View>
+
+        <ScrollView style={uiStyles.flex1} showsVerticalScrollIndicator={false} showsHorizontalScrollIndicator={false}>
+          <View style={uiStyles.creaturesModalCountRow}>
+            <Text style={uiStyles.creaturesModalCountText}>
+              {capturedCreatureIds.length} captured, {allCreatures.length - capturedCreatureIds.length} remaining
+            </Text>
+          </View>
+
+          {!isCreaturesModalContentReady ? (
+            <CreatureCardGridSkeleton count={6} />
+          ) : profileLoading ? (
+            <CreatureCardGridSkeleton count={12} />
+          ) : (
+            <CreatureCardGrid
+              cards={creatureCards}
+              onPress={(id) => {
+                const card = creatureCards.find(c => parseInt(c.creature.id) === id);
+                if (!card) return;
+                setDetailsCreature(card.creature);
+                setDetailsCaptured(card.captured);
+                setShowCreatureDetails(true);
+              }}
+            />
+          )}
+        </ScrollView>
+
+        <CreatureDetailsModal
+          visible={showCreatureDetails}
+          creature={detailsCreature}
+          captured={detailsCaptured}
+          onClose={() => setShowCreatureDetails(false)}
+        />
+      </SafeAreaView>
+    </Modal>
+  );
+
+  const xpBalance = profile?.xp ?? 0;
+
+  const getCooldownClearCapCost = (rarity: Creature['rarity']) => {
+    // Max cost when the cooldown has ~1h remaining.
+    // Common -> Legendary
+    switch (rarity) {
+      case 'common':
+        return 500;
+      case 'rare':
+        return 800;
+      case 'epic':
+        return 1200;
+      case 'legendary':
+        return 2500;
+      default:
+        return 800;
+    }
+  };
+
+  const getCooldownClearBaseCost = (rarity: Creature['rarity']) => {
+    // Minimum cost when the cooldown is almost finished.
+    // Keep this meaningfully lower than the cap.
+    switch (rarity) {
+      case 'common':
+        return 100;
+      case 'rare':
+        return 150;
+      case 'epic':
+        return 250;
+      case 'legendary':
+        return 500;
+      default:
+        return 150;
+    }
+  };
+
+  const getCooldownClearCost = (creature: Creature) => {
+    // QuestPoints are stored as XP.
+    // Cost scales with remaining cooldown time up to a rarity-based cap.
+    const untilMs = creatureCooldowns[creature.id];
+    const cap = getCooldownClearCapCost(creature.rarity);
+    const base = Math.min(getCooldownClearBaseCost(creature.rarity), cap);
+    const rampStartMs = 15 * 60 * 1000;
+    const rampFullMs = 50 * 60 * 1000;
+
+    if (typeof untilMs !== 'number' || untilMs <= nowMs) return base;
+
+    const remaining = Math.max(untilMs - nowMs, 0);
+    // remaining<=15m => base, remaining>=50m => cap
+    const t = Math.min(
+      1,
+      Math.max(0, (remaining - rampStartMs) / Math.max(1, rampFullMs - rampStartMs))
+    );
+    const raw = base + t * (cap - base);
+    // Round to a friendly number.
+    const rounded = cap <= 1200 ? Math.round(raw / 10) * 10 : Math.round(raw / 25) * 25;
+    return Math.max(base, Math.min(cap, rounded));
+  };
+
+  const persistCooldownsAndXp = async (nextCooldowns: Record<string, number>, nextXp: number) => {
+    setCreatureCooldowns(nextCooldowns);
+
+    if (cooldownStorageKey) {
+      try {
+        await AsyncStorage.setItem(cooldownStorageKey, JSON.stringify(nextCooldowns));
+      } catch {
+        // best-effort
+      }
+    }
+
+    try {
+      await updateProfile({ creatureCooldowns: nextCooldowns, xp: nextXp });
+    } catch {
+      // best-effort
+    }
+  };
+
+  const clearCreatureCooldownWithXp = (creature: Creature) => {
+    const until = creatureCooldowns[creature.id];
+    const onCooldown = typeof until === 'number' && until > nowMs;
+    if (!onCooldown) return;
+
+    const cost = getCooldownClearCost(creature);
+    const currentXp = profile?.xp ?? 0;
+
+    if (currentXp < cost) {
+      Alert.alert('Not enough XP', `You need ${cost} XP to remove this cooldown.`);
+      return;
+    }
+
+    const doClear = () => {
+      const nextCooldowns = { ...creatureCooldowns };
+      delete nextCooldowns[creature.id];
+      persistCooldownsAndXp(nextCooldowns, currentXp - cost);
+    };
+
+    // Expo Web often doesn't surface Alert.alert reliably; use window.confirm there.
+    if (Platform.OS === 'web') {
+      const confirmed = typeof window !== 'undefined'
+        ? window.confirm(`Spend ${cost} XP to remove cooldown for ${creature.name}?`)
+        : true;
+      if (confirmed) doClear();
+      return;
+    }
+
+    Alert.alert('Remove cooldown?', `Spend ${cost} XP to remove cooldown for ${creature.name}?`, [
+      { text: 'Cancel', style: 'cancel' },
+      { text: 'Confirm', style: 'destructive', onPress: doClear },
+    ]);
+  };
+
+  const persistCooldowns = async (next: Record<string, number>) => {
+    setCreatureCooldowns(next);
+
+    if (cooldownStorageKey) {
+      try {
+        await AsyncStorage.setItem(cooldownStorageKey, JSON.stringify(next));
+      } catch {
+        // best-effort
+      }
+    }
+
+    // Best-effort Firestore persistence.
+    try {
+      await updateProfile({ creatureCooldowns: next });
+    } catch {
+      // best-effort
+    }
+  };
+
+  const markCreatureCooldown = async (creatureId: string) => {
+    const oneHourMs = 60 * 60 * 1000;
+    const until = Date.now() + oneHourMs;
+
+    const next: Record<string, number> = {
+      ...creatureCooldowns,
+      [creatureId]: Math.max(creatureCooldowns[creatureId] ?? 0, until),
+    };
+
+    await persistCooldowns(next);
+  };
+
+  const resetBattle = () => {
+    setClickNum(0);
+    setHealths([]);
+    setCharges([]);
+    setUserSelectedCreature(0);
+    setOpponentSelectedCreature(3);
+    setFloatingDamages([]);
+    setFloatingImpacts([]);
+    setCanSwitch(true);
+    cooldownAnim.stopAnimation();
+    cooldownAnim.setValue(0);
+    setSwitchCooldownUntilMs(null);
+    setBattleResult('active');
+    setDefeatReason('normal');
+    setPauseReason(null);
+    victoryRewardAppliedRef.current = false;
+    setVictoryRewardEarned(0);
+    setBattleCreatures(null);
+    setPhase('select');
+    setIsPaused(false);
+
+    didHydrateBattleSessionRef.current = false;
+
+    if (battleSessionStorageKey) {
+      AsyncStorage.removeItem(battleSessionStorageKey).catch(() => undefined);
+    }
+  };
+
+  const openPause = () => {
+    if (phase !== 'battle') return;
+    if (isBattleOver) return;
+    setPauseReason('manual');
+    setIsPaused(true);
+  };
+
+  const forfeitBattle = () => {
+    // Counts as a loss. Keeps the battle state (including HP) so cooldown-on-end logic stays consistent.
+    if (pauseReason === 'restored') {
+      setDefeatReason('leftAfterReload');
+
+      // Leaving after a reload counts as all 3 creatures fainting.
+      // This ensures cooldowns are applied to the whole team.
+      setHealths(prev => {
+        const next = [...prev];
+        for (let i = 0; i < 3; i++) next[i] = 0;
+        return next;
+      });
+    } else {
+      setDefeatReason('normal');
+    }
+    setBattleResult('defeat');
+    setIsPaused(false);
+  };
+
+  type PersistedBattleSessionV1 = {
+    version: 1;
+    savedAtMs: number;
+    battleCreatureIds: string[]; // length 6
+    healths: number[];
+    charges: number[];
+    userSelectedCreature: 0 | 1 | 2;
+    opponentSelectedCreature: 3 | 4 | 5;
+    clickNum: number;
+    battleResult: 'active' | 'victory' | 'defeat';
+    switchCooldownUntilMs: number | null;
+  };
+
+  const hydrateBattleFromSession = (session: PersistedBattleSessionV1) => {
+    if (!session.battleCreatureIds || session.battleCreatureIds.length !== 6) return false;
+    const hydrated = session.battleCreatureIds
+      .map(id => creatureService.getCreatureById(id))
+      .filter(Boolean) as Creature[];
+    if (hydrated.length !== 6) return false;
+
+    setBattleCreatures(hydrated);
+    setPhase('battle');
+    setBattleResult(session.battleResult ?? 'active');
+    setHealths(Array.isArray(session.healths) ? session.healths : hydrated.map(c => c.stats.endurance));
+    setCharges(Array.isArray(session.charges) ? session.charges : Array(6).fill(0));
+    setUserSelectedCreature(session.userSelectedCreature ?? 0);
+    setOpponentSelectedCreature(session.opponentSelectedCreature ?? 3);
+    setClickNum(session.clickNum ?? 0);
+
+    didHydrateBattleSessionRef.current = true;
+
+    // Track transitions for death cooldowns.
+    prevUserHealthsRef.current = Array.isArray(session.healths)
+      ? session.healths
+      : hydrated.map(c => c.stats.endurance);
+    cooldownsAppliedForBattleRef.current = false;
+
+    // Restore switch cooldown.
+    setSwitchCooldownUntilMs(session.switchCooldownUntilMs ?? null);
+    const until = session.switchCooldownUntilMs;
+    if (typeof until === 'number' && until > Date.now()) {
+      const remaining = until - Date.now();
+      setCanSwitch(false);
+      const total = 10000;
+      cooldownAnim.stopAnimation();
+      cooldownAnim.setValue(Math.min(Math.max(remaining / total, 0), 1));
+      Animated.timing(cooldownAnim, {
+        toValue: 0,
+        duration: remaining,
+        easing: Easing.linear,
+        useNativeDriver: false,
+      }).start(() => {
+        setCanSwitch(true);
+        setSwitchCooldownUntilMs(null);
+      });
+    } else {
+      setCanSwitch(true);
+      cooldownAnim.stopAnimation();
+      cooldownAnim.setValue(0);
+    }
+
+    // Always resume into a paused overlay so reload can't be used to dodge outcomes.
+    if ((session.battleResult ?? 'active') === 'active') {
+      setPauseReason('restored');
+      setIsPaused(true);
+    }
+    return true;
+  };
+  useEffect(() => {
+    isPausedRef.current = isPaused;
+  }, [isPaused]);
+  useEffect(() => {
+    // Restore persisted battle session (if any) when opening battle screen.
+    if (!battleSessionStorageKey) return;
+    if (phase !== 'select') return;
+
+    let cancelled = false;
+    (async () => {
+      try {
+        const raw = await AsyncStorage.getItem(battleSessionStorageKey);
+        if (!raw) return;
+        const parsed = JSON.parse(raw) as PersistedBattleSessionV1;
+        if (cancelled) return;
+        if (!parsed || parsed.version !== 1) return;
+
+        // Only restore active battles. If it already ended, drop the session.
+        if (parsed.battleResult && parsed.battleResult !== 'active') {
+          await AsyncStorage.removeItem(battleSessionStorageKey);
+          return;
+        }
+
+        hydrateBattleFromSession(parsed);
+      } catch {
+        // ignore
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [battleSessionStorageKey, phase]);
+
+  useEffect(() => {
+    // Persist active battle state so reload/navigation can't reset it.
+    if (!battleSessionStorageKey) return;
+    if (phase !== 'battle') {
+      AsyncStorage.removeItem(battleSessionStorageKey).catch(() => undefined);
+      return;
+    }
+    if (!battleCreatures || battleCreatures.length !== 6) return;
+
+    // Clear session after battle ends.
+    if (battleResult !== 'active') {
+      AsyncStorage.removeItem(battleSessionStorageKey).catch(() => undefined);
+      return;
+    }
+
+    const session: PersistedBattleSessionV1 = {
+      version: 1,
+      savedAtMs: Date.now(),
+      battleCreatureIds: battleCreatures.map(c => c.id),
+      healths,
+      charges,
+      userSelectedCreature,
+      opponentSelectedCreature,
+      clickNum,
+      battleResult,
+      switchCooldownUntilMs,
+    };
+
+    AsyncStorage.setItem(battleSessionStorageKey, JSON.stringify(session)).catch(() => undefined);
+  }, [
+    battleSessionStorageKey,
+    phase,
+    battleCreatures,
+    healths,
+    charges,
+    userSelectedCreature,
+    opponentSelectedCreature,
+    clickNum,
+    battleResult,
+    switchCooldownUntilMs,
+  ]);
+
+  const buildOpponentTeam = (pool: Creature[]): Creature[] => {
+    const shuffled = [...pool].sort(() => Math.random() - 0.5);
+    const picks: Creature[] = [];
+    let highRarityCount = 0;
+
+    for (const c of shuffled) {
+      if (picks.some(p => p.id === c.id)) continue;
+
+      const isHigh = c.rarity === 'epic' || c.rarity === 'legendary';
+      if (isHigh && highRarityCount >= 1) continue;
+
+      picks.push(c);
+      if (isHigh) highRarityCount += 1;
+
+      if (picks.length === 3) break;
+    }
+
+    // Fallback: if pool is tiny for some reason.
+    if (picks.length < 3) {
+      for (const c of shuffled) {
+        if (picks.length === 3) break;
+        if (picks.some(p => p.id === c.id)) continue;
+        picks.push(c);
+      }
+    }
+
+    return picks.slice(0, 3);
+  };
+
+  const startBattle = () => {
+    const team = selectedUserCreatures.filter(Boolean) as Creature[];
+    if (team.length !== 3) return;
+
+    // Block starting if any selected creature is on cooldown.
+    if (team.some(c => isCreatureOnCooldown(c.id))) return;
+
+    const opponentTeam = buildOpponentTeam(allCreatures);
+    const nextCreatures = [...team, ...opponentTeam];
+
+    didHydrateBattleSessionRef.current = false;
+    setPauseReason(null);
+    setDefeatReason('normal');
+    victoryRewardAppliedRef.current = false;
+    setVictoryRewardEarned(0);
+    setBattleCreatures(nextCreatures);
+    setPhase('battle');
+    setIsPaused(false);
+  };
+
+  useEffect(() => {
+    // Apply victory reward once per battle (combined A + D).
+    if (phase !== 'battle') return;
+    if (battleResult !== 'victory') return;
+    if (victoryRewardAppliedRef.current) return;
+    if (!profile) return;
+    if (!battleCreatures || battleCreatures.length !== 6) return;
+
+    victoryRewardAppliedRef.current = true;
+
+    const base = 150;
+    const opponentTeam = battleCreatures.slice(3, 6);
+    const rarityBonus = opponentTeam.reduce((sum, c) => sum + getOpponentRarityBonus(c.rarity), 0);
+    const rawReward = base + rarityBonus;
+
+    const today = getLocalDayKey(new Date());
+    const winsSoFarToday = profile.battleWinDay === today ? (profile.battleWinsToday ?? 0) : 0;
+    const mult = getDailyWinMultiplier(winsSoFarToday);
+    const reward = Math.max(0, Math.round(rawReward * mult));
+
+    setVictoryRewardEarned(reward);
+
+    const nextXp = (profile.xp ?? 0) + reward;
+    const nextWinsToday = winsSoFarToday + 1;
+
+    // Best-effort write; UI doesn't block.
+    updateProfile({
+      xp: nextXp,
+      battleWinDay: today,
+      battleWinsToday: nextWinsToday,
+    });
+  }, [battleResult, phase, profile, battleCreatures, updateProfile]);
+
+  const selectCreatureForActiveSlot = (creature: Creature) => {
+    if (isCreatureOnCooldown(creature.id)) return;
+
+    setSelectedUserCreatures(prev => {
+      const next = [...prev];
+
+      const existingIndex = next.findIndex(c => c?.id === creature.id);
+      if (existingIndex === activeSlot) {
+        // Toggle off if tapping the same creature in the same slot.
+        next[activeSlot] = null;
+        return next;
+      }
+
+      if (existingIndex !== -1) {
+        // Swap to preserve order.
+        const tmp = next[activeSlot];
+        next[activeSlot] = creature;
+        next[existingIndex] = tmp;
+        return next;
+      }
+
+      next[activeSlot] = creature;
+      return next;
+    });
+
+    // Advance to next empty slot if possible.
+    setActiveSlot(prev => {
+      for (let i = 0; i < 3; i++) {
+        const idx = ((prev + 1 + i) % 3) as 0 | 1 | 2;
+        if (!selectedUserCreatures[idx]) return idx;
+      }
+      return prev;
+    });
+  };
+
+  useEffect(() => {
+    phaseRef.current = phase;
+  }, [phase]);
+
+  useEffect(() => {
+    battleCreaturesRef.current = battleCreatures;
+  }, [battleCreatures]);
+
+  useEffect(() => {
+    healthsRef.current = healths;
+  }, [healths]);
+
+  useEffect(() => {
+    chargesRef.current = charges;
+  }, [charges]);
+
+  useEffect(() => {
+    userSelectedCreatureRef.current = userSelectedCreature;
+  }, [userSelectedCreature]);
+
+  useEffect(() => {
+    opponentSelectedCreatureRef.current = opponentSelectedCreature;
+  }, [opponentSelectedCreature]);
+
+  useEffect(() => {
+    isBattleOverRef.current = isBattleOver;
+  }, [isBattleOver]);
+
+  useEffect(() => {
+    clicksRef.current = clicks;
+  }, [clicks]);
+
+  useEffect(() => {
+    chargeMaxesRef.current = chargeMaxes;
+  }, [chargeMaxes]);
+
+  useEffect(() => {
+    // Update live clock for cooldown countdowns (picker + end-of-battle overlay).
+    if (!(phase === 'select' || (phase === 'battle' && isBattleOver))) return;
+    const t = setInterval(() => setNowMs(Date.now()), 1000);
+    return () => clearInterval(t);
+  }, [phase, isBattleOver]);
+
+  useEffect(() => {
+    // Load cooldowns from AsyncStorage (fallback) when user changes.
+    if (!cooldownStorageKey) return;
+    let cancelled = false;
+
+    (async () => {
+      try {
+        const raw = await AsyncStorage.getItem(cooldownStorageKey);
+        if (!raw) return;
+        const parsed = JSON.parse(raw);
+        if (!cancelled && parsed && typeof parsed === 'object') {
+          setCreatureCooldowns(parsed as Record<string, number>);
+        }
+      } catch {
+        // ignore
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [cooldownStorageKey]);
+
+  useEffect(() => {
+    // Merge Firestore cooldowns (source of truth when available) into local state.
+    if (!profile?.creatureCooldowns) return;
+    setCreatureCooldowns(prev => ({ ...prev, ...profile.creatureCooldowns }));
+  }, [profile?.creatureCooldowns]);
+
+  useEffect(() => {
+    if (phase !== 'battle') return;
+    if (!battleCreatures || battleCreatures.length !== 6) return;
+
+    // If we hydrated from persisted session, keep the restored HP/charge/etc.
+    if (didHydrateBattleSessionRef.current) {
+      return;
+    }
+
+    setClickNum(0);
+    setHealths(battleCreatures.map(c => c.stats.endurance));
+    setCharges(Array(battleCreatures.length).fill(0));
+    setUserSelectedCreature(0);
+    setOpponentSelectedCreature(3);
+    setFloatingDamages([]);
+    setFloatingImpacts([]);
+    setCanSwitch(true);
+    cooldownAnim.stopAnimation();
+    cooldownAnim.setValue(0);
+    setSwitchCooldownUntilMs(null);
+    setBattleResult('active');
+
+    // Track transitions for death cooldowns.
+    prevUserHealthsRef.current = battleCreatures.map(c => c.stats.endurance);
+    cooldownsAppliedForBattleRef.current = false;
+  }, [phase, battleCreatures]);
+
+  useEffect(() => {
+    // Apply cooldowns once, when the battle ends.
+    if (phase !== 'battle') return;
+    if (!battleCreatures || battleCreatures.length !== 6) return;
+    if (!isBattleOver) return;
+    if (cooldownsAppliedForBattleRef.current) return;
+
+    cooldownsAppliedForBattleRef.current = true;
+
+    const deadUserCreatureIds = [0, 1, 2]
+      .filter(i => (healths[i] ?? 0) === 0)
+      .map(i => battleCreatures[i]?.id)
+      .filter((id): id is string => !!id);
+
+    if (deadUserCreatureIds.length === 0) return;
+
+    // Set all cooldowns in a single persist to avoid multiple writes.
+    const oneHourMs = 60 * 60 * 1000;
+    const baseUntil = Date.now() + oneHourMs;
+    const next: Record<string, number> = { ...creatureCooldowns };
+    for (const id of deadUserCreatureIds) {
+      next[id] = Math.max(next[id] ?? 0, baseUntil);
+    }
+
+    // Fire-and-forget; no UI blocking.
+    persistCooldowns(next);
+  }, [phase, battleCreatures, isBattleOver, healths, creatureCooldowns]);
+
   const battlePress = () => {
 
+    if (phase !== 'battle') return;
+    if (!battleCreatures || battleCreatures.length !== 6) return;
+    if (isBattleOver) return;
+    if (isPaused) return;
     if (healths[userSelectedCreature] <= 0 || healths[opponentSelectedCreature] <= 0) return;
 
     setClickNum(prev => prev + 1);
-    if (clickNum < clicks[userSelectedCreature]) return;
+    if (clickNum < (clicks[userSelectedCreature] ?? 0)) return;
 
     onCreatureAttack(creatures[userSelectedCreature].id);
     const damage = calcDamage(creatures[userSelectedCreature], creatures[opponentSelectedCreature]);
@@ -500,8 +1303,12 @@ export default function BattleScreen() {
 
   const specialPress = () => {
 
+    if (phase !== 'battle') return;
+    if (!battleCreatures || battleCreatures.length !== 6) return;
+    if (isBattleOver) return;
+    if (isPaused) return;
     if (healths[userSelectedCreature] <= 0 || healths[opponentSelectedCreature] <= 0) return;
-    if (charges[userSelectedCreature] < chargeMaxes[userSelectedCreature]) return;
+    if ((charges[userSelectedCreature] ?? 0) < (chargeMaxes[userSelectedCreature] ?? 0)) return;
 
     onCreatureAttack(creatures[userSelectedCreature].id);
     const damage = calcDamage(creatures[userSelectedCreature], creatures[opponentSelectedCreature]);
@@ -536,8 +1343,12 @@ export default function BattleScreen() {
   };
 
   const switchCreature = (index: 0 | 1 | 2) => {
+    if (phase !== 'battle') return;
+    if (isBattleOver) return;
+    if (isPaused) return;
     if (!canSwitch) return;
     if (userSelectedCreature === index) return;
+    if ((healths[index] ?? 0) <= 0) return;
 
     setUserSelectedCreature(index);
     setClickNum(0);
@@ -545,13 +1356,18 @@ export default function BattleScreen() {
     setCanSwitch(false);
     cooldownAnim.setValue(1);
 
+    const cooldownMs = 10000;
+    const until = Date.now() + cooldownMs;
+    setSwitchCooldownUntilMs(until);
+
     Animated.timing(cooldownAnim, {
       toValue: 0,
-      duration: 10000, // 10 seconds cooldown
+      duration: cooldownMs, // 10 seconds cooldown
       easing: Easing.linear,
       useNativeDriver: false, // height animation
     }).start(() => {
       setCanSwitch(true);
+      setSwitchCooldownUntilMs(null);
     });
   };
 
@@ -559,6 +1375,40 @@ export default function BattleScreen() {
     inputRange: [0, 1],
     outputRange: [0, 60],
   });
+
+  const wrapHeaderSlot = (creature: Creature, child: React.ReactNode) => {
+    if (creature.rarity === 'legendary') {
+      return (
+        <LinearGradient
+          colors={[...LEGENDARY_SPECTRUM_GRADIENT_COLORS]}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={[
+            creatureCardStyles.legendaryCardBorderWrap,
+            { borderRadius: 12, padding: 2, margin: 2 },
+          ]}
+        >
+          {child}
+        </LinearGradient>
+      );
+    }
+
+    return (
+      <View
+        style={[
+          creatureCardStyles.legendaryCardBorderWrap,
+          {
+            borderRadius: 12,
+            padding: 2,
+            margin: 2,
+            backgroundColor: getRarityColor(creature.rarity),
+          },
+        ]}
+      >
+        {child}
+      </View>
+    );
+  };
 
   function getNextAliveOpponent(
     healths: number[],
@@ -570,6 +1420,33 @@ export default function BattleScreen() {
     return null;
   }
 
+  function getNextAliveUser(
+    healths: number[],
+    start: 0 | 1 | 2
+  ): 0 | 1 | 2 | null {
+    // Follow the user-defined order but wrap if needed (e.g. if they manually switched).
+    for (let offset = 1; offset <= 3; offset++) {
+      const idx = ((start + offset) % 3) as 0 | 1 | 2;
+      if ((healths[idx] ?? 0) > 0) return idx;
+    }
+    return null;
+  }
+
+  const handleUserFaintEnd = () => {
+    // If the currently-selected creature isn't actually fainted anymore (e.g. switched quickly), do nothing.
+    if (healths[userSelectedCreature] > 0) return;
+
+    const next = getNextAliveUser(healths, userSelectedCreature);
+    if (next !== null) {
+      setUserSelectedCreature(next);
+      setClickNum(0);
+      return;
+    }
+
+    setDefeatReason('normal');
+    setBattleResult('defeat');
+  };
+
   const handleOpponentFaintEnd = () => {
     setTimeout(() => {
       const next = getNextAliveOpponent(
@@ -579,22 +1456,66 @@ export default function BattleScreen() {
 
       if (next !== null) {
         setOpponentSelectedCreature(next);
+      } else {
+        setBattleResult('victory');
       }
     }, 2500);
   };
 
-  useEffect(() => { // opponent attacks
-    const interval = setInterval(() => {
+  useEffect(() => {
+    // Opponent attacks loop.
+    // Important: do NOT depend on `healths`/`charges` here, otherwise spamming clicks resets the timer.
+    if (opponentAttackTimeoutRef.current) {
+      clearTimeout(opponentAttackTimeoutRef.current);
+      opponentAttackTimeoutRef.current = null;
+    }
 
-      if (healths[userSelectedCreature] <= 0 || healths[opponentSelectedCreature] <= 0) return;
+    if (phase !== 'battle') return;
+    if (!battleCreatures || battleCreatures.length !== 6) return;
 
-      onCreatureAttack(creatures[opponentSelectedCreature].id);
-      const damage = calcDamage(creatures[opponentSelectedCreature], creatures[userSelectedCreature]);
-      
-      if (charges[opponentSelectedCreature] < chargeMaxes[opponentSelectedCreature]) {
+    const scheduleNext = () => {
+      const opponentIdx = opponentSelectedCreatureRef.current;
+      const delay = (clicksRef.current[opponentIdx] ?? 5) * 200;
+
+      opponentAttackTimeoutRef.current = setTimeout(() => {
+        if (phaseRef.current !== 'battle') {
+          scheduleNext();
+          return;
+        }
+        if (!battleCreaturesRef.current || battleCreaturesRef.current.length !== 6) {
+          scheduleNext();
+          return;
+        }
+        if (isBattleOverRef.current) {
+          scheduleNext();
+          return;
+        }
+
+        if (isPausedRef.current) {
+          scheduleNext();
+          return;
+        }
+
+        const currentHealths = healthsRef.current;
+        const currentCharges = chargesRef.current;
+        const userIdx = userSelectedCreatureRef.current;
+        const oppIdx = opponentSelectedCreatureRef.current;
+
+        if ((currentHealths[userIdx] ?? 0) <= 0 || (currentHealths[oppIdx] ?? 0) <= 0) {
+          scheduleNext();
+          return;
+        }
+
+        const currentCreatures = battleCreaturesRef.current;
+        onCreatureAttack(currentCreatures[oppIdx].id);
+        const damage = calcDamage(currentCreatures[oppIdx], currentCreatures[userIdx]);
+
+        const canSpecial = (currentCharges[oppIdx] ?? 0) >= (chargeMaxesRef.current[oppIdx] ?? 0);
+        const damageAmount = canSpecial ? damage.amount * 5 : damage.amount;
+
         setHealths(prev => {
           const next = [...prev];
-          next[userSelectedCreature] = Math.max(next[userSelectedCreature]-damage.amount, 0);
+          next[userIdx] = Math.max((next[userIdx] ?? 0) - damageAmount, 0);
           return next;
         });
 
@@ -602,56 +1523,37 @@ export default function BattleScreen() {
           ...prevDamages,
           {
             id: Math.random().toString(),
-            creatureIndex: userSelectedCreature,
-            amount: damage.amount,
+            creatureIndex: userIdx,
+            amount: damageAmount,
             effectiveness: damage.effectiveness,
-            isSpecial: false
-          }
-        ]);
-        
-        setFloatingImpacts(prevImpacts => [
-          ...prevImpacts,
-          { id: Math.random().toString(), creatureIndex: userSelectedCreature }
-        ]);
-
-        setCharges(prev => {
-          const next = [...prev];
-          next[opponentSelectedCreature] += 1;
-          return next;
-        });
-      } else {
-        setHealths(prev => {
-          const next = [...prev];
-          next[userSelectedCreature] = Math.max(next[userSelectedCreature]-damage.amount*5, 0);
-          return next;
-        });
-
-        setFloatingDamages(prevDamages => [
-          ...prevDamages,
-          {
-            id: Math.random().toString(),
-            creatureIndex: userSelectedCreature,
-            amount: damage.amount*5,
-            effectiveness: damage.effectiveness,
-            isSpecial: true
-          }
+            isSpecial: canSpecial,
+          },
         ]);
 
         setFloatingImpacts(prevImpacts => [
           ...prevImpacts,
-          { id: Math.random().toString(), creatureIndex: userSelectedCreature }
+          { id: Math.random().toString(), creatureIndex: userIdx },
         ]);
 
         setCharges(prev => {
           const next = [...prev];
-          next[opponentSelectedCreature] = 0;
+          next[oppIdx] = canSpecial ? 0 : (next[oppIdx] ?? 0) + 1;
           return next;
         });
+
+        scheduleNext();
+      }, delay);
+    };
+
+    scheduleNext();
+
+    return () => {
+      if (opponentAttackTimeoutRef.current) {
+        clearTimeout(opponentAttackTimeoutRef.current);
+        opponentAttackTimeoutRef.current = null;
       }
-    }, clicks[opponentSelectedCreature]*200);
-
-    return () => clearInterval(interval);
-  }, [opponentSelectedCreature, userSelectedCreature, healths]);
+    };
+  }, [phase, battleCreatures]);
 
   useEffect(() => { // if user creature faints
     if (healths[userSelectedCreature] > 0) return;
@@ -661,160 +1563,505 @@ export default function BattleScreen() {
     setCanSwitch(true);
   }, [healths[userSelectedCreature]]);
 
+  useEffect(() => {
+    if (phase !== 'battle') return;
+    if (battleResult !== 'active') return;
+
+    const anyUserAlive = healths.slice(0, 3).some(h => h > 0);
+    const anyOpponentAlive = healths.slice(3, 6).some(h => h > 0);
+
+    if (!anyUserAlive) {
+      setDefeatReason(prev => (prev === 'leftAfterReload' ? prev : 'normal'));
+      setBattleResult('defeat');
+    }
+    else if (!anyOpponentAlive) setBattleResult('victory');
+  }, [battleResult, healths]);
+
+  if (phase === 'select') {
+    const hasEnoughCreatures = capturedCreatures.length >= 3;
+    const allSlotsFilled = selectedUserCreatures.every(Boolean);
+
+    return (
+      <View style={styles.container}>
+        <View style={styles.header}>
+          <Text style={[styles.username, { color: '#3B82F6' }]}>{userName}</Text>
+          <Pressable
+            onPress={openCreaturesModal}
+            style={({ pressed }) => [uiStyles.selectHeaderButton, pressed && uiStyles.buttonPressed085]}
+          >
+            <Text style={uiStyles.selectHeaderButtonText}>Creatures</Text>
+          </Pressable>
+          <Text style={[styles.username, { color: '#EF4444' }]}>{opponentName}</Text>
+        </View>
+
+        <View style={{ paddingHorizontal: 16, paddingTop: 12, paddingBottom: 8 }}>
+          <Text style={{ fontSize: 18, fontWeight: '700' }}>Select your 3 creatures</Text>
+          <Text style={{ color: '#6B7280', marginTop: 4 }}>
+            Tap a slot to set order, then tap a captured creature to assign it.
+          </Text>
+          <Text style={{ color: '#6B7280', marginTop: 4 }}>
+            If a creature faints in battle, it goes on a 1h cooldown.
+          </Text>
+        </View>
+
+        <View style={{ flexDirection: 'row', justifyContent: 'space-around', paddingHorizontal: 16, paddingVertical: 8 }}>
+          {[0, 1, 2].map((i) => {
+            const idx = i as 0 | 1 | 2;
+            const selected = selectedUserCreatures[idx];
+            const isActive = activeSlot === idx;
+
+            return (
+              <Pressable
+                key={idx}
+                onPress={() => {
+                  if (activeSlot === idx && selectedUserCreatures[idx]) {
+                    setSelectedUserCreatures(prev => {
+                      const next = [...prev];
+                      next[idx] = null;
+                      return next;
+                    });
+                    return;
+                  }
+                  setActiveSlot(idx);
+                }}
+                style={{
+                  width: 96,
+                  borderWidth: 2,
+                  borderColor: isActive ? '#3B82F6' : '#E5E7EB',
+                  borderRadius: 12,
+                  padding: 8,
+                  alignItems: 'center',
+                  backgroundColor: '#FFFFFF',
+                }}
+              >
+                <Text style={{ fontWeight: '700', marginBottom: 6 }}>#{idx + 1}</Text>
+                {selected ? (
+                  <>
+                    <Image
+                      source={getCreatureImage(selected.id)}
+                      style={{ width: 64, height: 64, opacity: 1 }}
+                      contentFit="contain"
+                    />
+                    <Text style={{ marginTop: 6, fontSize: 12, textAlign: 'center' }} numberOfLines={2}>
+                      {selected.name}
+                    </Text>
+                  </>
+                ) : (
+                  <View style={{ width: 64, height: 64, alignItems: 'center', justifyContent: 'center' }}>
+                    <Text style={{ color: '#6B7280' }}>Pick</Text>
+                  </View>
+                )}
+                <Text style={{ marginTop: 6, fontSize: 11, color: '#6B7280' }}>
+                  {isActive ? 'Active' : 'Tap'}
+                </Text>
+              </Pressable>
+            );
+          })}
+        </View>
+
+        {profileLoading ? (
+          <View style={{ padding: 16 }}>
+            <Text style={{ color: '#6B7280' }}>Loading your creatures...</Text>
+          </View>
+        ) : !hasEnoughCreatures ? (
+          <View style={{ padding: 16 }}>
+            <Text style={{ color: '#6B7280' }}>You need at least 3 captured creatures to battle.</Text>
+          </View>
+        ) : (
+          <ScrollView contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 16 }}>
+            <View style={{ flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between' }}>
+              {capturedCreatures.map((c) => {
+                const isSelected = selectedUserCreatures.some(s => s?.id === c.id);
+                const cooldownUntil = creatureCooldowns[c.id];
+                const onCooldown = typeof cooldownUntil === 'number' && cooldownUntil > nowMs;
+                const clearCost = getCooldownClearCost(c);
+                const canAffordClear = xpBalance >= clearCost;
+
+                const selectionBorderColor = onCooldown
+                  ? '#6B7280'
+                  : isSelected
+                    ? '#10B981'
+                    : 'transparent';
+
+                const cardInner = (
+                  <View
+                    style={[
+                      creatureCardStyles.card,
+                      creatureCardStyles.legendaryCardInner,
+                      {
+                        width: '100%',
+                        margin: 0,
+                        padding: 8,
+                        borderWidth: 2,
+                        borderColor: selectionBorderColor,
+                        backgroundColor: '#FFFFFF',
+                      },
+                    ]}
+                  >
+                    <Pressable onPress={() => selectCreatureForActiveSlot(c)} style={{ width: '100%' }}>
+                      <View style={[creatureCardStyles.header, { marginBottom: 8 }]}
+                      >
+                        <View style={{ flex: 1, paddingRight: 6 }}>
+                          <Text style={[creatureCardStyles.name, { fontSize: 13 }]} numberOfLines={2}>
+                            {c.name}
+                          </Text>
+                          <Text style={[creatureCardStyles.id, { fontSize: 10 }]} numberOfLines={1}>
+                            #{c.id}
+                          </Text>
+                        </View>
+                        <View style={[creatureCardStyles.header, { alignItems: 'center' }]}>
+                          <Text
+                            style={[
+                              creatureCardStyles.sport,
+                              { color: getSportColor(c.sport)[0], fontSize: 10, marginLeft: 0 },
+                            ]}
+                            numberOfLines={1}
+                          >
+                            {c.sport}
+                          </Text>
+                          {c.rarity === 'legendary' ? (
+                            <LinearGradient
+                              colors={[...LEGENDARY_BADGE_GRADIENT_COLORS]}
+                              start={{ x: 0, y: 0 }}
+                              end={{ x: 1, y: 1 }}
+                              style={[creatureCardStyles.rarityBadge, { paddingHorizontal: 8, paddingVertical: 2 }]}
+                            >
+                              <Text style={[creatureCardStyles.legendaryBadgeText, { fontSize: 10 }]}>
+                                {c.rarity.toUpperCase()}
+                              </Text>
+                            </LinearGradient>
+                          ) : (
+                            <Text
+                              style={[
+                                creatureCardStyles.rarityBadge,
+                                {
+                                  backgroundColor: getRarityColor(c.rarity),
+                                  color: '#FFFFFF',
+                                  fontSize: 10,
+                                  paddingHorizontal: 8,
+                                  paddingVertical: 2,
+                                  overflow: 'hidden',
+                                },
+                              ]}
+                            >
+                              {c.rarity.toUpperCase()}
+                            </Text>
+                          )}
+                        </View>
+                      </View>
+
+                      <Image
+                        source={getCreatureImage(c.id)}
+                        style={{ width: '100%', height: 60, opacity: onCooldown ? 0.55 : 1 }}
+                        contentFit="contain"
+                      />
+
+                      <View style={[creatureCardStyles.stats, { marginBottom: 0, marginTop: 8 }]}
+                      >
+                        <View style={creatureCardStyles.stat}>
+                          <Text style={[creatureCardStyles.statLabel, { fontSize: 10 }]}>⚔️ Power</Text>
+                          <Text style={[creatureCardStyles.statValue, { fontSize: 13 }]}>{c.stats.power}</Text>
+                        </View>
+                        <View style={creatureCardStyles.stat}>
+                          <Text style={[creatureCardStyles.statLabel, { fontSize: 10 }]}>⚡ Speed</Text>
+                          <Text style={[creatureCardStyles.statValue, { fontSize: 13 }]}>{c.stats.speed}</Text>
+                        </View>
+                        <View style={creatureCardStyles.stat}>
+                          <Text style={[creatureCardStyles.statLabel, { fontSize: 10 }]}>🛡️ Endurance</Text>
+                          <Text style={[creatureCardStyles.statValue, { fontSize: 13 }]}>{c.stats.endurance}</Text>
+                        </View>
+                      </View>
+                    </Pressable>
+
+                    {onCooldown && (
+                      <>
+                        <Text style={{ marginTop: 8, fontSize: 11, color: '#6B7280', textAlign: 'center' }}>
+                          Cooldown: {formatCooldown(cooldownUntil!)}
+                        </Text>
+                        <Pressable
+                          onPress={() => clearCreatureCooldownWithXp(c)}
+                          disabled={!canAffordClear}
+                          style={({ pressed }) => [
+                            {
+                              marginTop: 6,
+                              paddingVertical: 6,
+                              paddingHorizontal: 8,
+                              borderRadius: 10,
+                              backgroundColor: '#3B82F6',
+                              opacity: !canAffordClear ? 0.35 : pressed ? 0.85 : 1,
+                              width: '100%',
+                              alignItems: 'center',
+                            },
+                          ]}
+                        >
+                          <Text style={{ color: '#FFFFFF', fontSize: 10, fontWeight: '700' }}>
+                            Clear ({clearCost} XP)
+                          </Text>
+                        </Pressable>
+                      </>
+                    )}
+                  </View>
+                );
+
+                return (
+                  <View key={c.id} style={{ width: '31%', marginBottom: 12 }}>
+                    {c.rarity === 'legendary' ? (
+                      <LinearGradient
+                        colors={[...LEGENDARY_SPECTRUM_GRADIENT_COLORS]}
+                        start={{ x: 0, y: 0 }}
+                        end={{ x: 1, y: 1 }}
+                        style={[creatureCardStyles.legendaryCardBorderWrap, { width: '100%' }]}
+                      >
+                        {cardInner}
+                      </LinearGradient>
+                    ) : (
+                      <View
+                        style={[
+                          creatureCardStyles.legendaryCardBorderWrap,
+                          {
+                            width: '100%',
+                            backgroundColor: getRarityColor(c.rarity),
+                          },
+                        ]}
+                      >
+                        {cardInner}
+                      </View>
+                    )}
+                  </View>
+                );
+              })}
+            </View>
+          </ScrollView>
+        )}
+
+        <View style={{ padding: 16, borderTopWidth: 1, borderTopColor: '#E5E7EB' }}>
+          <Text style={{ fontSize: 12, color: '#6B7280', textAlign: 'center', marginBottom: 10 }}>
+            QuestPoints (XP): {xpBalance}
+          </Text>
+          <Pressable
+            onPress={startBattle}
+            disabled={!hasEnoughCreatures || !allSlotsFilled || selectedUserCreatures.some(c => (c ? isCreatureOnCooldown(c.id) : false))}
+            style={({ pressed }) => [
+              {
+                backgroundColor: '#3B82F6',
+                paddingVertical: 12,
+                borderRadius: 12,
+                alignItems: 'center',
+                opacity: !hasEnoughCreatures || !allSlotsFilled || selectedUserCreatures.some(c => (c ? isCreatureOnCooldown(c.id) : false)) ? 0.4 : pressed ? 0.85 : 1,
+              },
+            ]}
+          >
+            <Text style={{ color: '#FFFFFF', fontWeight: '700' }}>Start Battle</Text>
+          </Pressable>
+        </View>
+        {creaturesModal}
+      </View>
+    );
+  }
+
   return (
     <View style={styles.container}>
       <View style={styles.header}>
-        <Text style={[styles.username, {color: '#3B82F6'}]}>{user}</Text>
-        <Text style={[styles.username, {color: '#EF4444'}]}>{opponent}</Text>
+        <Text style={[styles.username, {color: '#3B82F6'}]}>{userName}</Text>
+        {phase === 'battle' && (
+          <View style={uiStyles.battleHeaderActionsRow}>
+            {!isBattleOver && (
+              <Pressable
+                onPress={openPause}
+                style={({ pressed }) => [
+                  uiStyles.battleHeaderSecondaryButton,
+                  uiStyles.battleHeaderActionButtonWithMargin,
+                  pressed && uiStyles.buttonPressed07,
+                ]}
+              >
+                <Text style={uiStyles.battleHeaderSecondaryText}>Pause</Text>
+              </Pressable>
+            )}
+            <Pressable
+              onPress={openCreaturesModal}
+              style={({ pressed }) => [
+                uiStyles.battleHeaderPrimaryButton,
+                pressed && uiStyles.buttonPressed085,
+              ]}
+            >
+              <Text style={uiStyles.battleHeaderPrimaryText}>Creatures</Text>
+            </Pressable>
+          </View>
+        )}
+        <Text style={[styles.username, {color: '#EF4444'}]}>{opponentName}</Text>
       </View>
       <View style={[styles.header, {borderBottomWidth: 1, borderBottomColor: '#E5E7EB'}]}>
         <View style={styles.creatureHeader}>
-          <Pressable
-            disabled={!canSwitch || healths[0] <= 0}
-            onPress={() => switchCreature(0)}
-            style={[
-              styles.creatureIconContainer,
-              { borderColor: healths[0] > 0 ? '#3B82F6' : '#6B7280' },
-              healths[0] <= 0 && { opacity: 0.4 }
-            ]}
-          >
-            <Animated.View
-              pointerEvents="none"
-              style={[
-                styles.cooldownFill,
-                {
-                  height: fillHeight,
-                },
-              ]}
-            />
-            <Image
-              source={getCreatureImage(creatures[0].id)}
-              style={[
-                styles.creatureIcon,
-                {
-                  opacity: canSwitch && healths[0] > 0 ? 1 : 0.4,
-                  tintColor: healths[0] <= 0 ? '#6B7280' : undefined,
-                },
-              ]}
-            />
-          </Pressable>
-          <Pressable
-            disabled={!canSwitch || healths[1] <= 0}
-            onPress={() => switchCreature(1)}
-            style={[
-              styles.creatureIconContainer,
-              { borderColor: healths[1] > 0 ? '#3B82F6' : '#6B7280' },
-              healths[1] <= 0 && { opacity: 0.4 }
-            ]}
-          >
-            <Animated.View
-              pointerEvents="none"
-              style={[
-                styles.cooldownFill,
-                {
-                  height: fillHeight,
-                },
-              ]}
-            />
-            <Image
-              source={getCreatureImage(creatures[1].id)}
-              style={[
-                styles.creatureIcon,
-                {
-                  opacity: canSwitch && healths[1] > 0 ? 1 : 0.4,
-                  tintColor: healths[1] <= 0 ? '#6B7280' : undefined,
-                },
-              ]}
-            />
-          </Pressable>
-          <Pressable
-            disabled={!canSwitch || healths[2] <= 0}
-            onPress={() => switchCreature(2)}
-            style={[
-              styles.creatureIconContainer,
-              { borderColor: healths[2] > 0 ? '#3B82F6' : '#6B7280' },
-              healths[2] <= 0 && { opacity: 0.4 }
-            ]}
-          >
-            <Animated.View
-              pointerEvents="none"
-              style={[
-                styles.cooldownFill,
-                {
-                  height: fillHeight,
-                },
-              ]}
-            />
-            <Image
-              source={getCreatureImage(creatures[2].id)}
-              style={[
-                styles.creatureIcon,
-                {
-                  opacity: canSwitch && healths[2] > 0 ? 1 : 0.4,
-                  tintColor: healths[2] <= 0 ? '#6B7280' : undefined,
-                },
-              ]}
-            />
-          </Pressable>
+          {wrapHeaderSlot(
+            creatures[0],
+            <Pressable
+              disabled={isBattleOver || !canSwitch || healths[0] <= 0}
+              onPress={() => switchCreature(0)}
+              style={{
+                backgroundColor: '#FFFFFF',
+                borderRadius: 10,
+                overflow: 'hidden',
+                opacity: healths[0] <= 0 ? 0.4 : 1,
+              }}
+            >
+              <Animated.View
+                pointerEvents="none"
+                style={[
+                  styles.cooldownFill,
+                  {
+                    height: fillHeight,
+                  },
+                ]}
+              />
+              <Image
+                source={getCreatureImage(creatures[0].id)}
+                style={[
+                  styles.creatureIcon,
+                  {
+                    opacity: canSwitch && healths[0] > 0 ? 1 : 0.4,
+                    tintColor: healths[0] <= 0 ? '#6B7280' : undefined,
+                  },
+                ]}
+              />
+            </Pressable>
+          )}
+          {wrapHeaderSlot(
+            creatures[1],
+            <Pressable
+              disabled={isBattleOver || !canSwitch || healths[1] <= 0}
+              onPress={() => switchCreature(1)}
+              style={{
+                backgroundColor: '#FFFFFF',
+                borderRadius: 10,
+                overflow: 'hidden',
+                opacity: healths[1] <= 0 ? 0.4 : 1,
+              }}
+            >
+              <Animated.View
+                pointerEvents="none"
+                style={[
+                  styles.cooldownFill,
+                  {
+                    height: fillHeight,
+                  },
+                ]}
+              />
+              <Image
+                source={getCreatureImage(creatures[1].id)}
+                style={[
+                  styles.creatureIcon,
+                  {
+                    opacity: canSwitch && healths[1] > 0 ? 1 : 0.4,
+                    tintColor: healths[1] <= 0 ? '#6B7280' : undefined,
+                  },
+                ]}
+              />
+            </Pressable>
+          )}
+          {wrapHeaderSlot(
+            creatures[2],
+            <Pressable
+              disabled={isBattleOver || !canSwitch || healths[2] <= 0}
+              onPress={() => switchCreature(2)}
+              style={{
+                backgroundColor: '#FFFFFF',
+                borderRadius: 10,
+                overflow: 'hidden',
+                opacity: healths[2] <= 0 ? 0.4 : 1,
+              }}
+            >
+              <Animated.View
+                pointerEvents="none"
+                style={[
+                  styles.cooldownFill,
+                  {
+                    height: fillHeight,
+                  },
+                ]}
+              />
+              <Image
+                source={getCreatureImage(creatures[2].id)}
+                style={[
+                  styles.creatureIcon,
+                  {
+                    opacity: canSwitch && healths[2] > 0 ? 1 : 0.4,
+                    tintColor: healths[2] <= 0 ? '#6B7280' : undefined,
+                  },
+                ]}
+              />
+            </Pressable>
+          )}
         </View>
         <View style={styles.creatureHeader}>
-          <View
-            style={[
-              styles.creatureIconContainer,
-              { borderColor: healths[3] > 0 ? '#EF4444' : '#6B7280' },
-              healths[3] <= 0 && { opacity: 0.4 }
-            ]}
-          >
-            <Image
-              source={getCreatureImage(creatures[3].id)}
-              style={[
-                styles.creatureIcon,
-                {
-                  opacity: healths[3] > 0 ? 1 : 0.4,
-                  tintColor: healths[3] <= 0 ? '#6B7280' : undefined,
-                },
-              ]}
-            />
-          </View>
-          <View
-            style={[
-              styles.creatureIconContainer,
-              { borderColor: healths[4] > 0 ? '#EF4444' : '#6B7280' },
-              healths[4] <= 0 && { opacity: 0.4 }
-            ]}
-          >
-            <Image
-              source={getCreatureImage(creatures[4].id)}
-              style={[
-                styles.creatureIcon,
-                {
-                  opacity: healths[4] > 0 ? 1 : 0.4,
-                  tintColor: healths[4] <= 0 ? '#6B7280' : undefined,
-                },
-              ]}
-            />
-          </View>
-          <View
-            style={[
-              styles.creatureIconContainer,
-              { borderColor: healths[5] > 0 ? '#EF4444' : '#6B7280' },
-              healths[5] <= 0 && { opacity: 0.4 }
-            ]}
-          >
-            <Image
-              source={getCreatureImage(creatures[5].id)}
-              style={[
-                styles.creatureIcon,
-                {
-                  opacity: healths[5] > 0 ? 1 : 0.4,
-                  tintColor: healths[5] <= 0 ? '#6B7280' : undefined,
-                },
-              ]}
-            />
-          </View>
+          {wrapHeaderSlot(
+            creatures[3],
+            <View
+              style={{
+                backgroundColor: '#FFFFFF',
+                borderRadius: 10,
+                overflow: 'hidden',
+                opacity: healths[3] <= 0 ? 0.4 : 1,
+              }}
+            >
+              <Image
+                source={getCreatureImage(creatures[3].id)}
+                style={[
+                  styles.creatureIcon,
+                  {
+                    opacity: healths[3] > 0 ? 1 : 0.4,
+                    tintColor: healths[3] <= 0 ? '#6B7280' : undefined,
+                  },
+                ]}
+              />
+            </View>
+          )}
+          {wrapHeaderSlot(
+            creatures[4],
+            <View
+              style={{
+                backgroundColor: '#FFFFFF',
+                borderRadius: 10,
+                overflow: 'hidden',
+                opacity: healths[4] <= 0 ? 0.4 : 1,
+              }}
+            >
+              <Image
+                source={getCreatureImage(creatures[4].id)}
+                style={[
+                  styles.creatureIcon,
+                  {
+                    opacity: healths[4] > 0 ? 1 : 0.4,
+                    tintColor: healths[4] <= 0 ? '#6B7280' : undefined,
+                  },
+                ]}
+              />
+            </View>
+          )}
+          {wrapHeaderSlot(
+            creatures[5],
+            <View
+              style={{
+                backgroundColor: '#FFFFFF',
+                borderRadius: 10,
+                overflow: 'hidden',
+                opacity: healths[5] <= 0 ? 0.4 : 1,
+              }}
+            >
+              <Image
+                source={getCreatureImage(creatures[5].id)}
+                style={[
+                  styles.creatureIcon,
+                  {
+                    opacity: healths[5] > 0 ? 1 : 0.4,
+                    tintColor: healths[5] <= 0 ? '#6B7280' : undefined,
+                  },
+                ]}
+              />
+            </View>
+          )}
         </View>
       </View>
-      <Pressable style={{flex: 1}} onPress={() => { battlePress(); }}>
+      <Pressable style={{flex: 1}} onPress={() => { battlePress(); }} disabled={isBattleOver || isPaused}>
         <View style={styles.battleArea}> 
           <View style={[styles.creature, {transform: [ {scaleX: -1} ]}]}>
             <View style={[styles.creatureStats, {transform: [ {scaleX: -1} ], marginTop: 12}]}>
@@ -858,7 +2105,7 @@ export default function BattleScreen() {
             />
             <View style={{ marginTop: 8 }}>
               {healths[userSelectedCreature] == 0 ? (
-                <FaintedIcon creature={creatures[userSelectedCreature]} />
+                <FaintedIcon creature={creatures[userSelectedCreature]} onFaintEnd={handleUserFaintEnd} />
               ) : (
                 <IdleIcon 
                   creature={creatures[userSelectedCreature]}
@@ -971,7 +2218,7 @@ export default function BattleScreen() {
             <Pressable
               onPress={specialPress}
               hitSlop={10}
-              disabled={charges[userSelectedCreature] < chargeMaxes[userSelectedCreature]}
+              disabled={isBattleOver || charges[userSelectedCreature] < chargeMaxes[userSelectedCreature]}
               style={({ pressed }) => [
                 styles.specialButton,
                 pressed && { opacity: 0.6 },
@@ -986,6 +2233,219 @@ export default function BattleScreen() {
             </Pressable>
           </View>
       </Pressable>
+
+      {isBattleOver && (
+        <View
+          style={{
+            ...StyleSheet.absoluteFillObject,
+            backgroundColor: 'rgba(107,114,128,0.65)',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: 24,
+          }}
+          pointerEvents="auto"
+        >
+          <View
+            style={uiStyles.overlayCard}
+            pointerEvents="auto"
+          >
+            <Text
+              style={{
+                fontSize: 22,
+                fontWeight: '700',
+                color: battleResult === 'victory' ? '#10B981' : '#EF4444',
+                marginBottom: 8,
+              }}
+            >
+              {battleResult === 'victory' ? 'Victory' : 'Defeat'}
+            </Text>
+            <Text style={{ fontSize: 14, color: '#6B7280', textAlign: 'center', marginBottom: 16 }}>
+              {battleResult === 'victory'
+                ? `Your opponent has no creatures left. You earned ${victoryRewardEarned} QP.`
+                : defeatReason === 'leftAfterReload'
+                  ? 'You left the battle after reloading. This counts as a loss.'
+                  : 'Your active creature ran out of health.'}
+            </Text>
+
+            {battleCreatures && battleCreatures.length === 6 && (
+              (() => {
+                const cooldownItems = [0, 1, 2]
+                  .map(i => {
+                    const c = battleCreatures[i];
+                    const until = c ? creatureCooldowns[c.id] : undefined;
+                    if (!c || typeof until !== 'number' || until <= nowMs) return null;
+                    return { id: c.id, name: c.name, until };
+                  })
+                  .filter(Boolean) as Array<{ id: string; name: string; until: number }>;
+
+                if (cooldownItems.length === 0) return null;
+
+                return (
+                  <View style={{ width: '100%', marginBottom: 12 }}>
+                    <Text style={{ fontSize: 12, color: '#6B7280', marginBottom: 6, textAlign: 'center' }}>
+                      Creature cooldowns (time left)
+                    </Text>
+                    {cooldownItems.map(item => (
+                      <View key={item.id} style={{ marginBottom: 10, alignItems: 'center' }}>
+                        <Text style={{ fontSize: 13, color: '#6B7280', textAlign: 'center' }}>
+                          {item.name}: {formatCooldown(item.until)}
+                        </Text>
+                      </View>
+                    ))}
+                  </View>
+                );
+              })()
+            )}
+            <Pressable
+              onPress={resetBattle}
+              style={({ pressed }) => [
+                uiStyles.primaryButton,
+                pressed && uiStyles.buttonPressed085,
+              ]}
+            >
+              <Text style={uiStyles.primaryButtonText}>Restart</Text>
+            </Pressable>
+          </View>
+        </View>
+      )}
+
+      {creaturesModal}
+
+      {phase === 'battle' && !isBattleOver && isPaused && !isCreaturesModalOpen && (pauseReason === 'restored' || pauseReason === 'manual') && (
+        <View
+          style={{
+            ...StyleSheet.absoluteFillObject,
+            backgroundColor: 'rgba(107,114,128,0.65)',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: 24,
+          }}
+          pointerEvents="auto"
+        >
+          <View
+            style={uiStyles.overlayCard}
+          >
+            <Text style={uiStyles.overlayTitleMuted}>
+              Paused
+            </Text>
+            <Text style={uiStyles.overlayBodyMuted}>
+              {pauseReason === 'restored'
+                ? 'Battle was restored after reloading. Resume to continue.'
+                : 'Battle paused. Resume to continue.'}
+            </Text>
+            <Pressable
+              onPress={() => setIsPaused(false)}
+              style={({ pressed }) => [
+                uiStyles.primaryButton,
+                uiStyles.fullWidth,
+                uiStyles.buttonWithBottomMargin,
+                pressed && uiStyles.buttonPressed085,
+              ]}
+            >
+              <Text style={uiStyles.primaryButtonText}>Resume</Text>
+            </Pressable>
+            <Pressable
+              onPress={forfeitBattle}
+              style={({ pressed }) => [
+                uiStyles.dangerButton,
+                uiStyles.fullWidth,
+                pressed && uiStyles.buttonPressed085,
+              ]}
+            >
+              <Text style={uiStyles.primaryButtonText}>Leave (Counts as loss)</Text>
+            </Pressable>
+          </View>
+        </View>
+      )}
     </View>
   );
 }
+
+const uiStyles = StyleSheet.create({
+  flex1: { flex: 1 },
+
+  // Header actions
+  battleHeaderActionsRow: { flexDirection: 'row', alignItems: 'center' },
+  battleHeaderPrimaryButton: {
+    paddingVertical: 8,
+    paddingHorizontal: 14,
+    borderRadius: 14,
+    backgroundColor: '#2563EB',
+  },
+  battleHeaderPrimaryText: { color: '#FFFFFF', fontWeight: '800', fontSize: 13 },
+  battleHeaderSecondaryButton: {
+    paddingVertical: 8,
+    paddingHorizontal: 14,
+    borderRadius: 14,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+  },
+  battleHeaderSecondaryText: { color: '#6B7280', fontWeight: '800', fontSize: 13 },
+  battleHeaderActionButtonWithMargin: { marginRight: 8 },
+
+  // Select header creatures button
+  selectHeaderButton: {
+    paddingVertical: 8,
+    paddingHorizontal: 14,
+    borderRadius: 14,
+    backgroundColor: '#2563EB',
+  },
+  selectHeaderButtonText: { color: '#FFFFFF', fontWeight: '800', fontSize: 13 },
+
+  // Creatures modal chrome
+  creaturesModalSafeArea: { flex: 1, backgroundColor: '#FFFFFF' },
+  creaturesModalHeader: {
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#E5E7EB',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  creaturesModalTitle: { fontSize: 18, fontWeight: '700' },
+  creaturesModalCloseButton: {
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+    borderRadius: 10,
+    backgroundColor: '#6B7280',
+  },
+  creaturesModalCloseText: { color: '#FFFFFF', fontWeight: '700', fontSize: 12 },
+  creaturesModalCountRow: { paddingHorizontal: 16, paddingTop: 12, paddingBottom: 4 },
+  creaturesModalCountText: { fontSize: 12, color: '#6B7280' },
+
+  // Overlay cards / buttons
+  overlayCard: {
+    width: '100%',
+    maxWidth: 360,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
+    padding: 16,
+    alignItems: 'center',
+  },
+  overlayTitleMuted: { fontSize: 22, fontWeight: '700', color: '#6B7280', marginBottom: 8 },
+  overlayBodyMuted: { fontSize: 14, color: '#6B7280', textAlign: 'center', marginBottom: 16 },
+
+  primaryButton: {
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    borderRadius: 10,
+    backgroundColor: '#2563EB',
+    alignItems: 'center',
+  },
+  dangerButton: {
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    borderRadius: 10,
+    backgroundColor: '#EF4444',
+    alignItems: 'center',
+  },
+  primaryButtonText: { color: '#FFFFFF', fontWeight: '700' },
+  fullWidth: { width: '100%' },
+  buttonWithBottomMargin: { marginBottom: 10 },
+
+  // Common pressed states
+  buttonPressed085: { opacity: 0.85 },
+  buttonPressed07: { opacity: 0.7 },
+});

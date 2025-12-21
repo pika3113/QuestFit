@@ -203,7 +203,7 @@ export default function TabLayout() {
           fontSize: 11,
           fontWeight: '600',
         },
-        // Hide the QuestFit header globally; we only show it on the Home tab.
+        // Hide the QuestFit header globally; we only show it on the Home tab tbh
         headerShown: false,
         headerTitleAlign: 'center',
         headerStyle: {
@@ -291,7 +291,7 @@ export default function TabLayout() {
       <Tabs.Screen
         name="creatures"
         options={{
-          // href: null,
+          href: null,
           title: 'Creatures',
           headerTitle: 'QuestFit',
           tabBarIcon: ({ color }) => <TabBarIcon name="gitlab" color={color} />,
