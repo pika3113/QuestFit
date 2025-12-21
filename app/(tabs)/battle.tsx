@@ -3,7 +3,7 @@ import { battleStyles as styles, getRarityColor, getSportColor, LEGENDARY_BADGE_
 import creatureService from '@/src/services/creatureService';
 import { Image } from 'expo-image';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { Alert, Animated, Easing, InteractionManager, Modal, Platform, Pressable, ScrollView, StyleSheet } from 'react-native';
+import { Alert, Animated, Easing, InteractionManager, Modal, Platform, Pressable, ScrollView, StyleSheet, TextInput, TouchableOpacity } from 'react-native';
 import { Creature } from '@/src/types/polar';
 import Svg, { G, Path, Defs, ClipPath, Rect } from 'react-native-svg';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -14,6 +14,13 @@ import { creatureCardStyles } from '@/src/styles/components/creatureCardStyles';
 import { LEGENDARY_SPECTRUM_GRADIENT_COLORS } from '@/src/styles';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { CreatureCardGrid, CreatureCardGridSkeleton, CreatureDetailsModal } from '@/components/game/CreatureCard';
+import { Ionicons } from '@expo/vector-icons';
+
+const RARITIES = ['common', 'rare', 'epic', 'legendary'];
+const SPORTS = ['GENERAL', 'RUNNING', 'SWIMMING', 'HIKING', 'FITNESS', 'CYCLING', 'CIRCUIT'];
+
+type SortField = 'none' | 'rarity' | 'sport';
+type SortDirection = 'asc' | 'desc';
 
 const creatureImages = require.context(
   '../../assets/images/creatures',
@@ -514,6 +521,23 @@ export default function BattleScreen() {
   const [detailsCreature, setDetailsCreature] = useState<Creature>(() => creatureService.getAllCreatures()[0]!);
   const [detailsCaptured, setDetailsCaptured] = useState(false);
 
+  // Creatures tab style: search/filter/sort state (all creatures modal)
+  const [allCreaturesSearchQuery, setAllCreaturesSearchQuery] = useState('');
+  const [allCreaturesStatusFilter, setAllCreaturesStatusFilter] = useState<'all' | 'captured' | 'locked'>('all');
+  const [allCreaturesSelectedRarities, setAllCreaturesSelectedRarities] = useState<string[]>([]);
+  const [allCreaturesSelectedSports, setAllCreaturesSelectedSports] = useState<string[]>([]);
+  const [allCreaturesSortField, setAllCreaturesSortField] = useState<SortField>('none');
+  const [allCreaturesSortDirection, setAllCreaturesSortDirection] = useState<SortDirection>('asc');
+  const [showAllCreaturesFilterModal, setShowAllCreaturesFilterModal] = useState(false);
+
+  // Creatures tab style: search/filter/sort state (captured creatures picker)
+  const [pickCreaturesSearchQuery, setPickCreaturesSearchQuery] = useState('');
+  const [pickCreaturesSelectedRarities, setPickCreaturesSelectedRarities] = useState<string[]>([]);
+  const [pickCreaturesSelectedSports, setPickCreaturesSelectedSports] = useState<string[]>([]);
+  const [pickCreaturesSortField, setPickCreaturesSortField] = useState<SortField>('none');
+  const [pickCreaturesSortDirection, setPickCreaturesSortDirection] = useState<SortDirection>('asc');
+  const [showPickCreaturesFilterModal, setShowPickCreaturesFilterModal] = useState(false);
+
   const victoryRewardAppliedRef = useRef(false);
   const [victoryRewardEarned, setVictoryRewardEarned] = useState<number>(0);
 
@@ -578,6 +602,101 @@ export default function BattleScreen() {
     }));
   }, [allCreatures, capturedCreatureIds.join('|')]);
 
+  const toggleSelection = (current: string[], value: string) => {
+    if (current.includes(value)) return current.filter(v => v !== value);
+    return [...current, value];
+  };
+
+  const rarityOrder: Record<string, number> = { common: 0, rare: 1, epic: 2, legendary: 3 };
+  const sportOrder = Object.fromEntries(SPORTS.map((s, idx) => [s, idx])) as Record<string, number>;
+
+  const allCreaturesActiveFiltersCount =
+    (allCreaturesStatusFilter !== 'all' ? 1 : 0) +
+    (allCreaturesSelectedRarities.length > 0 ? 1 : 0) +
+    (allCreaturesSelectedSports.length > 0 ? 1 : 0) +
+    (allCreaturesSortField !== 'none' ? 1 : 0);
+
+  const pickCreaturesActiveFiltersCount =
+    (pickCreaturesSelectedRarities.length > 0 ? 1 : 0) +
+    (pickCreaturesSelectedSports.length > 0 ? 1 : 0) +
+    (pickCreaturesSortField !== 'none' ? 1 : 0);
+
+  const filteredAndSortedAllCreatureCards = useMemo(() => {
+    const q = allCreaturesSearchQuery.trim().toLowerCase();
+    const filtered = creatureCards.filter(card => {
+      const matchesSearch = q.length === 0 ? true : card.creature.name.toLowerCase().includes(q);
+      const matchesStatus = allCreaturesStatusFilter === 'all'
+        ? true
+        : allCreaturesStatusFilter === 'captured' ? card.captured : !card.captured;
+      const matchesRarity = allCreaturesSelectedRarities.length === 0 ? true : allCreaturesSelectedRarities.includes(card.creature.rarity);
+      const matchesSport = allCreaturesSelectedSports.length === 0 ? true : allCreaturesSelectedSports.includes(card.creature.sport);
+      return matchesSearch && matchesStatus && matchesRarity && matchesSport;
+    });
+
+    const sorted = [...filtered].sort((a, b) => {
+      if (allCreaturesSortField === 'none') return 0;
+
+      let cmp = 0;
+      if (allCreaturesSortField === 'rarity') {
+        cmp = (rarityOrder[a.creature.rarity] ?? 999) - (rarityOrder[b.creature.rarity] ?? 999);
+      } else if (allCreaturesSortField === 'sport') {
+        cmp = (sportOrder[a.creature.sport] ?? 999) - (sportOrder[b.creature.sport] ?? 999);
+      }
+
+      if (cmp === 0) {
+        cmp = a.creature.name.localeCompare(b.creature.name);
+      }
+
+      return allCreaturesSortDirection === 'desc' ? -cmp : cmp;
+    });
+
+    return { filteredCount: filtered.length, cards: sorted };
+  }, [
+    creatureCards,
+    allCreaturesSearchQuery,
+    allCreaturesStatusFilter,
+    allCreaturesSelectedRarities,
+    allCreaturesSelectedSports,
+    allCreaturesSortField,
+    allCreaturesSortDirection,
+  ]);
+
+  const filteredAndSortedPickCreatures = useMemo(() => {
+    const q = pickCreaturesSearchQuery.trim().toLowerCase();
+    const filtered = capturedCreatures.filter(c => {
+      const matchesSearch = q.length === 0 ? true : c.name.toLowerCase().includes(q);
+      const matchesRarity = pickCreaturesSelectedRarities.length === 0 ? true : pickCreaturesSelectedRarities.includes(c.rarity);
+      const matchesSport = pickCreaturesSelectedSports.length === 0 ? true : pickCreaturesSelectedSports.includes(c.sport);
+      return matchesSearch && matchesRarity && matchesSport;
+    });
+
+    const sorted = [...filtered].sort((a, b) => {
+      if (pickCreaturesSortField === 'none') return 0;
+
+      let cmp = 0;
+      if (pickCreaturesSortField === 'rarity') {
+        cmp = (rarityOrder[a.rarity] ?? 999) - (rarityOrder[b.rarity] ?? 999);
+      } else if (pickCreaturesSortField === 'sport') {
+        cmp = (sportOrder[a.sport] ?? 999) - (sportOrder[b.sport] ?? 999);
+      }
+
+      if (cmp === 0) {
+        cmp = a.name.localeCompare(b.name);
+      }
+
+      return pickCreaturesSortDirection === 'desc' ? -cmp : cmp;
+    });
+
+    return { filteredCount: filtered.length, creatures: sorted };
+  }, [
+    capturedCreatures,
+    pickCreaturesSearchQuery,
+    pickCreaturesSelectedRarities,
+    pickCreaturesSelectedSports,
+    pickCreaturesSortField,
+    pickCreaturesSortDirection,
+  ]);
+
   const openCreaturesModal = () => {
     pauseSnapshotBeforeCreaturesRef.current = {
       isPaused,
@@ -641,7 +760,37 @@ export default function BattleScreen() {
           <View style={uiStyles.creaturesModalCountRow}>
             <Text style={uiStyles.creaturesModalCountText}>
               {capturedCreatureIds.length} captured, {allCreatures.length - capturedCreatureIds.length} remaining
+              {(allCreaturesActiveFiltersCount > 0 || allCreaturesSearchQuery.length > 0) && ` • Showing ${filteredAndSortedAllCreatureCards.filteredCount} filtered`}
             </Text>
+          </View>
+
+          <View style={uiStyles.searchContainer}>
+            <View style={uiStyles.searchBar}>
+              <Ionicons name="search" size={20} color="#666" style={{ marginRight: 8 }} />
+              <TextInput
+                style={uiStyles.searchInput}
+                placeholder="Search creatures..."
+                value={allCreaturesSearchQuery}
+                onChangeText={setAllCreaturesSearchQuery}
+                placeholderTextColor="#999"
+              />
+              {allCreaturesSearchQuery.length > 0 && (
+                <TouchableOpacity onPress={() => setAllCreaturesSearchQuery('')}>
+                  <Ionicons name="close-circle" size={18} color="#999" />
+                </TouchableOpacity>
+              )}
+            </View>
+            <TouchableOpacity
+              style={[uiStyles.filterButton, allCreaturesActiveFiltersCount > 0 && uiStyles.filterButtonActive]}
+              onPress={() => setShowAllCreaturesFilterModal(true)}
+            >
+              <Ionicons name="options" size={20} color={allCreaturesActiveFiltersCount > 0 ? '#FFF' : '#666'} />
+              {allCreaturesActiveFiltersCount > 0 && (
+                <View style={uiStyles.badge}>
+                  <Text style={uiStyles.badgeText}>{allCreaturesActiveFiltersCount}</Text>
+                </View>
+              )}
+            </TouchableOpacity>
           </View>
 
           {!isCreaturesModalContentReady ? (
@@ -650,7 +799,7 @@ export default function BattleScreen() {
             <CreatureCardGridSkeleton count={12} />
           ) : (
             <CreatureCardGrid
-              cards={creatureCards}
+              cards={filteredAndSortedAllCreatureCards.cards}
               onPress={(id) => {
                 const card = creatureCards.find(c => parseInt(c.creature.id) === id);
                 if (!card) return;
@@ -660,7 +809,165 @@ export default function BattleScreen() {
               }}
             />
           )}
+
+          {isCreaturesModalContentReady && !profileLoading && filteredAndSortedAllCreatureCards.cards.length === 0 && (
+            <View style={uiStyles.emptyState}>
+              <Text style={uiStyles.emptyStateText}>No creatures found matching your filters.</Text>
+              <TouchableOpacity
+                onPress={() => {
+                  setAllCreaturesSearchQuery('');
+                  setAllCreaturesStatusFilter('all');
+                  setAllCreaturesSelectedRarities([]);
+                  setAllCreaturesSelectedSports([]);
+                  setAllCreaturesSortField('none');
+                  setAllCreaturesSortDirection('asc');
+                }}
+              >
+                <Text style={uiStyles.clearFiltersText}>Clear all filters</Text>
+              </TouchableOpacity>
+            </View>
+          )}
         </ScrollView>
+
+        {/* Filter Modal (All Creatures) */}
+        <Modal
+          visible={showAllCreaturesFilterModal}
+          animationType="slide"
+          transparent={true}
+          onRequestClose={() => setShowAllCreaturesFilterModal(false)}
+        >
+          <View style={uiStyles.modalOverlay}>
+            <View style={uiStyles.modalContent}>
+              <View style={uiStyles.modalHeader}>
+                <Text style={uiStyles.modalTitle}>Filter Creatures</Text>
+                <TouchableOpacity onPress={() => setShowAllCreaturesFilterModal(false)}>
+                  <Ionicons name="close" size={24} color="#000" />
+                </TouchableOpacity>
+              </View>
+
+              <ScrollView style={uiStyles.modalBody} showsVerticalScrollIndicator={false}>
+                <Text style={uiStyles.filterLabel}>Status</Text>
+                <View style={uiStyles.chipContainer}>
+                  {(['all', 'captured', 'locked'] as const).map((status) => (
+                    <TouchableOpacity
+                      key={status}
+                      style={[uiStyles.chip, allCreaturesStatusFilter === status && uiStyles.chipActive]}
+                      onPress={() => setAllCreaturesStatusFilter(status)}
+                    >
+                      <Text style={[uiStyles.chipText, allCreaturesStatusFilter === status && uiStyles.chipTextActive]}>
+                        {status.charAt(0).toUpperCase() + status.slice(1)}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+
+                <Text style={uiStyles.filterLabel}>Rarity</Text>
+                <View style={uiStyles.chipContainer}>
+                  <TouchableOpacity
+                    style={[uiStyles.chip, allCreaturesSelectedRarities.length === 0 && uiStyles.chipActive]}
+                    onPress={() => setAllCreaturesSelectedRarities([])}
+                  >
+                    <Text style={[uiStyles.chipText, allCreaturesSelectedRarities.length === 0 && uiStyles.chipTextActive]}>All</Text>
+                  </TouchableOpacity>
+                  {RARITIES.map((rarity) => (
+                    <TouchableOpacity
+                      key={rarity}
+                      style={[uiStyles.chip, allCreaturesSelectedRarities.includes(rarity) && uiStyles.chipActive]}
+                      onPress={() => setAllCreaturesSelectedRarities((prev) => toggleSelection(prev, rarity))}
+                    >
+                      <Text style={[uiStyles.chipText, allCreaturesSelectedRarities.includes(rarity) && uiStyles.chipTextActive]}>
+                        {rarity.charAt(0).toUpperCase() + rarity.slice(1)}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+
+                <Text style={uiStyles.filterLabel}>Exercise Type</Text>
+                <View style={uiStyles.chipContainer}>
+                  <TouchableOpacity
+                    style={[uiStyles.chip, allCreaturesSelectedSports.length === 0 && uiStyles.chipActive]}
+                    onPress={() => setAllCreaturesSelectedSports([])}
+                  >
+                    <Text style={[uiStyles.chipText, allCreaturesSelectedSports.length === 0 && uiStyles.chipTextActive]}>All</Text>
+                  </TouchableOpacity>
+                  {SPORTS.map((sport) => (
+                    <TouchableOpacity
+                      key={sport}
+                      style={[uiStyles.chip, allCreaturesSelectedSports.includes(sport) && uiStyles.chipActive]}
+                      onPress={() => setAllCreaturesSelectedSports((prev) => toggleSelection(prev, sport))}
+                    >
+                      <Text style={[uiStyles.chipText, allCreaturesSelectedSports.includes(sport) && uiStyles.chipTextActive]}>
+                        {sport.charAt(0) + sport.slice(1).toLowerCase()}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+
+                <Text style={uiStyles.filterLabel}>Sort</Text>
+                <View style={uiStyles.chipContainer}>
+                  {(
+                    [
+                      { key: 'none' as const, label: 'None' },
+                      { key: 'rarity' as const, label: 'Rarity' },
+                      { key: 'sport' as const, label: 'Exercise Type' },
+                    ]
+                  ).map((opt) => (
+                    <TouchableOpacity
+                      key={opt.key}
+                      style={[uiStyles.chip, allCreaturesSortField === opt.key && uiStyles.chipActive]}
+                      onPress={() => setAllCreaturesSortField(opt.key)}
+                    >
+                      <Text style={[uiStyles.chipText, allCreaturesSortField === opt.key && uiStyles.chipTextActive]}>
+                        {opt.label}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+
+                <Text style={uiStyles.filterLabel}>Sort Order</Text>
+                <View style={uiStyles.chipContainer}>
+                  {(
+                    [
+                      { key: 'asc' as const, label: 'Asc' },
+                      { key: 'desc' as const, label: 'Desc' },
+                    ]
+                  ).map((opt) => (
+                    <TouchableOpacity
+                      key={opt.key}
+                      style={[uiStyles.chip, allCreaturesSortDirection === opt.key && uiStyles.chipActive]}
+                      onPress={() => setAllCreaturesSortDirection(opt.key)}
+                    >
+                      <Text style={[uiStyles.chipText, allCreaturesSortDirection === opt.key && uiStyles.chipTextActive]}>
+                        {opt.label}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              </ScrollView>
+
+              <View style={uiStyles.modalFooter}>
+                <TouchableOpacity
+                  style={uiStyles.resetButton}
+                  onPress={() => {
+                    setAllCreaturesStatusFilter('all');
+                    setAllCreaturesSelectedRarities([]);
+                    setAllCreaturesSelectedSports([]);
+                    setAllCreaturesSortField('none');
+                    setAllCreaturesSortDirection('asc');
+                  }}
+                >
+                  <Text style={uiStyles.resetButtonText}>Reset</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={uiStyles.applyButton}
+                  onPress={() => setShowAllCreaturesFilterModal(false)}
+                >
+                  <Text style={uiStyles.applyButtonText}>Show Results</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+        </Modal>
 
         <CreatureDetailsModal
           visible={showCreatureDetails}
@@ -1604,13 +1911,13 @@ export default function BattleScreen() {
           </Text>
         </View>
 
-        <View style={{ flexDirection: 'row', justifyContent: 'space-around', paddingHorizontal: 16, paddingVertical: 8 }}>
+        <View style={{ flexDirection: 'row', justifyContent: 'space-around', paddingHorizontal: 16, paddingVertical: 8, alignItems: 'flex-start' }}>
           {[0, 1, 2].map((i) => {
             const idx = i as 0 | 1 | 2;
             const selected = selectedUserCreatures[idx];
             const isActive = activeSlot === idx;
 
-            return (
+            const innerSlot = (
               <Pressable
                 key={idx}
                 onPress={() => {
@@ -1626,12 +1933,14 @@ export default function BattleScreen() {
                 }}
                 style={{
                   width: 96,
-                  borderWidth: 2,
-                  borderColor: isActive ? '#3B82F6' : '#E5E7EB',
                   borderRadius: 12,
                   padding: 8,
                   alignItems: 'center',
+                  justifyContent: 'flex-start',
+                  minHeight: 156,
                   backgroundColor: '#FFFFFF',
+                  borderWidth: 2,
+                  borderColor: isActive ? '#3B82F6' : 'transparent',
                 }}
               >
                 <Text style={{ fontWeight: '700', marginBottom: 6 }}>#{idx + 1}</Text>
@@ -1656,6 +1965,64 @@ export default function BattleScreen() {
                 </Text>
               </Pressable>
             );
+
+            if (!selected) {
+              return (
+                <View
+                  key={idx}
+                  style={{
+                    borderWidth: 2,
+                    borderColor: isActive ? '#3B82F6' : '#E5E7EB',
+                    borderRadius: 14,
+                    padding: 2,
+                    backgroundColor: 'transparent',
+                  }}
+                >
+                  <Pressable
+                    onPress={() => {
+                      setActiveSlot(idx);
+                    }}
+                    style={{
+                      width: 96,
+                      borderRadius: 12,
+                      padding: 8,
+                      alignItems: 'center',
+                      justifyContent: 'flex-start',
+                      minHeight: 156,
+                      backgroundColor: '#FFFFFF',
+                    }}
+                  >
+                    <Text style={{ fontWeight: '700', marginBottom: 6 }}>#{idx + 1}</Text>
+                    <View style={{ width: 64, height: 64, alignItems: 'center', justifyContent: 'center' }}>
+                      <Text style={{ color: '#6B7280' }}>Pick</Text>
+                    </View>
+                    <Text style={{ marginTop: 6, fontSize: 11, color: '#6B7280' }}>
+                      {isActive ? 'Active' : 'Tap'}
+                    </Text>
+                  </Pressable>
+                </View>
+              );
+            }
+
+            if (selected.rarity === 'legendary') {
+              return (
+                <LinearGradient
+                  key={idx}
+                  colors={[...LEGENDARY_SPECTRUM_GRADIENT_COLORS]}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 1 }}
+                  style={{ borderRadius: 14, padding: 2 }}
+                >
+                  {innerSlot}
+                </LinearGradient>
+              );
+            }
+
+            return (
+              <View key={idx} style={{ borderRadius: 14, padding: 2, backgroundColor: getRarityColor(selected.rarity) }}>
+                {innerSlot}
+              </View>
+            );
           })}
         </View>
 
@@ -1668,9 +2035,45 @@ export default function BattleScreen() {
             <Text style={{ color: '#6B7280' }}>You need at least 3 captured creatures to battle.</Text>
           </View>
         ) : (
-          <ScrollView contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 16 }}>
+          <>
+            <View style={[uiStyles.searchContainer, { paddingHorizontal: 16, marginTop: 6 }]}>
+              <View style={uiStyles.searchBar}>
+                <Ionicons name="search" size={20} color="#666" style={{ marginRight: 8 }} />
+                <TextInput
+                  style={uiStyles.searchInput}
+                  placeholder="Search creatures..."
+                  value={pickCreaturesSearchQuery}
+                  onChangeText={setPickCreaturesSearchQuery}
+                  placeholderTextColor="#999"
+                />
+                {pickCreaturesSearchQuery.length > 0 && (
+                  <TouchableOpacity onPress={() => setPickCreaturesSearchQuery('')}>
+                    <Ionicons name="close-circle" size={18} color="#999" />
+                  </TouchableOpacity>
+                )}
+              </View>
+              <TouchableOpacity
+                style={[uiStyles.filterButton, pickCreaturesActiveFiltersCount > 0 && uiStyles.filterButtonActive]}
+                onPress={() => setShowPickCreaturesFilterModal(true)}
+              >
+                <Ionicons name="options" size={20} color={pickCreaturesActiveFiltersCount > 0 ? '#FFF' : '#666'} />
+                {pickCreaturesActiveFiltersCount > 0 && (
+                  <View style={uiStyles.badge}>
+                    <Text style={uiStyles.badgeText}>{pickCreaturesActiveFiltersCount}</Text>
+                  </View>
+                )}
+              </TouchableOpacity>
+            </View>
+
+            <View style={{ paddingHorizontal: 16, paddingTop: 6, paddingBottom: 6 }}>
+              <Text style={{ fontSize: 12, color: '#6B7280' }}>
+                Showing {filteredAndSortedPickCreatures.filteredCount} of {capturedCreatures.length}
+              </Text>
+            </View>
+
+            <ScrollView contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 16 }}>
             <View style={{ flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between' }}>
-              {capturedCreatures.map((c) => {
+              {filteredAndSortedPickCreatures.creatures.map((c) => {
                 const isSelected = selectedUserCreatures.some(s => s?.id === c.id);
                 const cooldownUntil = creatureCooldowns[c.id];
                 const onCooldown = typeof cooldownUntil === 'number' && cooldownUntil > nowMs;
@@ -1831,7 +2234,148 @@ export default function BattleScreen() {
                 );
               })}
             </View>
-          </ScrollView>
+            {filteredAndSortedPickCreatures.creatures.length === 0 && (
+              <View style={[uiStyles.emptyState, { paddingHorizontal: 16 }]}>
+                <Text style={uiStyles.emptyStateText}>No creatures found matching your filters.</Text>
+                <TouchableOpacity
+                  onPress={() => {
+                    setPickCreaturesSearchQuery('');
+                    setPickCreaturesSelectedRarities([]);
+                    setPickCreaturesSelectedSports([]);
+                    setPickCreaturesSortField('none');
+                    setPickCreaturesSortDirection('asc');
+                  }}
+                >
+                  <Text style={uiStyles.clearFiltersText}>Clear all filters</Text>
+                </TouchableOpacity>
+              </View>
+            )}
+            </ScrollView>
+
+            {/* Filter Modal (Picker) */}
+            <Modal
+              visible={showPickCreaturesFilterModal}
+              animationType="slide"
+              transparent={true}
+              onRequestClose={() => setShowPickCreaturesFilterModal(false)}
+            >
+              <View style={uiStyles.modalOverlay}>
+                <View style={uiStyles.modalContent}>
+                  <View style={uiStyles.modalHeader}>
+                    <Text style={uiStyles.modalTitle}>Filter Creatures</Text>
+                    <TouchableOpacity onPress={() => setShowPickCreaturesFilterModal(false)}>
+                      <Ionicons name="close" size={24} color="#000" />
+                    </TouchableOpacity>
+                  </View>
+
+                  <ScrollView style={uiStyles.modalBody} showsVerticalScrollIndicator={false}>
+                    <Text style={uiStyles.filterLabel}>Rarity</Text>
+                    <View style={uiStyles.chipContainer}>
+                      <TouchableOpacity
+                        style={[uiStyles.chip, pickCreaturesSelectedRarities.length === 0 && uiStyles.chipActive]}
+                        onPress={() => setPickCreaturesSelectedRarities([])}
+                      >
+                        <Text style={[uiStyles.chipText, pickCreaturesSelectedRarities.length === 0 && uiStyles.chipTextActive]}>All</Text>
+                      </TouchableOpacity>
+                      {RARITIES.map((rarity) => (
+                        <TouchableOpacity
+                          key={rarity}
+                          style={[uiStyles.chip, pickCreaturesSelectedRarities.includes(rarity) && uiStyles.chipActive]}
+                          onPress={() => setPickCreaturesSelectedRarities((prev) => toggleSelection(prev, rarity))}
+                        >
+                          <Text style={[uiStyles.chipText, pickCreaturesSelectedRarities.includes(rarity) && uiStyles.chipTextActive]}>
+                            {rarity.charAt(0).toUpperCase() + rarity.slice(1)}
+                          </Text>
+                        </TouchableOpacity>
+                      ))}
+                    </View>
+
+                    <Text style={uiStyles.filterLabel}>Exercise Type</Text>
+                    <View style={uiStyles.chipContainer}>
+                      <TouchableOpacity
+                        style={[uiStyles.chip, pickCreaturesSelectedSports.length === 0 && uiStyles.chipActive]}
+                        onPress={() => setPickCreaturesSelectedSports([])}
+                      >
+                        <Text style={[uiStyles.chipText, pickCreaturesSelectedSports.length === 0 && uiStyles.chipTextActive]}>All</Text>
+                      </TouchableOpacity>
+                      {SPORTS.map((sport) => (
+                        <TouchableOpacity
+                          key={sport}
+                          style={[uiStyles.chip, pickCreaturesSelectedSports.includes(sport) && uiStyles.chipActive]}
+                          onPress={() => setPickCreaturesSelectedSports((prev) => toggleSelection(prev, sport))}
+                        >
+                          <Text style={[uiStyles.chipText, pickCreaturesSelectedSports.includes(sport) && uiStyles.chipTextActive]}>
+                            {sport.charAt(0) + sport.slice(1).toLowerCase()}
+                          </Text>
+                        </TouchableOpacity>
+                      ))}
+                    </View>
+
+                    <Text style={uiStyles.filterLabel}>Sort</Text>
+                    <View style={uiStyles.chipContainer}>
+                      {(
+                        [
+                          { key: 'none' as const, label: 'None' },
+                          { key: 'rarity' as const, label: 'Rarity' },
+                          { key: 'sport' as const, label: 'Exercise Type' },
+                        ]
+                      ).map((opt) => (
+                        <TouchableOpacity
+                          key={opt.key}
+                          style={[uiStyles.chip, pickCreaturesSortField === opt.key && uiStyles.chipActive]}
+                          onPress={() => setPickCreaturesSortField(opt.key)}
+                        >
+                          <Text style={[uiStyles.chipText, pickCreaturesSortField === opt.key && uiStyles.chipTextActive]}>
+                            {opt.label}
+                          </Text>
+                        </TouchableOpacity>
+                      ))}
+                    </View>
+
+                    <Text style={uiStyles.filterLabel}>Sort Order</Text>
+                    <View style={uiStyles.chipContainer}>
+                      {(
+                        [
+                          { key: 'asc' as const, label: 'Asc' },
+                          { key: 'desc' as const, label: 'Desc' },
+                        ]
+                      ).map((opt) => (
+                        <TouchableOpacity
+                          key={opt.key}
+                          style={[uiStyles.chip, pickCreaturesSortDirection === opt.key && uiStyles.chipActive]}
+                          onPress={() => setPickCreaturesSortDirection(opt.key)}
+                        >
+                          <Text style={[uiStyles.chipText, pickCreaturesSortDirection === opt.key && uiStyles.chipTextActive]}>
+                            {opt.label}
+                          </Text>
+                        </TouchableOpacity>
+                      ))}
+                    </View>
+                  </ScrollView>
+
+                  <View style={uiStyles.modalFooter}>
+                    <TouchableOpacity
+                      style={uiStyles.resetButton}
+                      onPress={() => {
+                        setPickCreaturesSelectedRarities([]);
+                        setPickCreaturesSelectedSports([]);
+                        setPickCreaturesSortField('none');
+                        setPickCreaturesSortDirection('asc');
+                      }}
+                    >
+                      <Text style={uiStyles.resetButtonText}>Reset</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={uiStyles.applyButton}
+                      onPress={() => setShowPickCreaturesFilterModal(false)}
+                    >
+                      <Text style={uiStyles.applyButtonText}>Show Results</Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              </View>
+            </Modal>
+          </>
         )}
 
         <View style={{ padding: 16, borderTopWidth: 1, borderTopColor: '#E5E7EB' }}>
@@ -2363,6 +2907,167 @@ export default function BattleScreen() {
 
 const uiStyles = StyleSheet.create({
   flex1: { flex: 1 },
+
+  // Search / filter bar (same UI as Creatures tab)
+  searchContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 12,
+    gap: 10,
+    backgroundColor: 'transparent',
+    paddingHorizontal: 16,
+  },
+  searchBar: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F3F4F6',
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    height: 40,
+  },
+  searchInput: {
+    flex: 1,
+    fontSize: 16,
+    color: '#000',
+  },
+  filterButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 8,
+    backgroundColor: '#F3F4F6',
+    justifyContent: 'center',
+    alignItems: 'center',
+    position: 'relative',
+  },
+  filterButtonActive: {
+    backgroundColor: '#FF6B35',
+  },
+  badge: {
+    position: 'absolute',
+    top: -5,
+    right: -5,
+    backgroundColor: '#EF4444',
+    borderRadius: 10,
+    width: 20,
+    height: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 2,
+    borderColor: '#FFF',
+  },
+  badgeText: {
+    color: '#FFF',
+    fontSize: 10,
+    fontWeight: 'bold',
+  },
+  emptyState: {
+    padding: 40,
+    alignItems: 'center',
+    backgroundColor: 'transparent',
+  },
+  emptyStateText: {
+    fontSize: 16,
+    color: '#666',
+    marginBottom: 12,
+    textAlign: 'center',
+  },
+  clearFiltersText: {
+    color: '#FF6B35',
+    fontWeight: '600',
+  },
+
+  // Filter modal (same UI as Creatures tab)
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'flex-end',
+  },
+  modalContent: {
+    backgroundColor: '#FFF',
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    height: '80%',
+    padding: 20,
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 20,
+    backgroundColor: 'transparent',
+  },
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+  },
+  modalBody: {
+    flex: 1,
+  },
+  filterLabel: {
+    fontSize: 16,
+    fontWeight: '600',
+    marginBottom: 12,
+    marginTop: 8,
+  },
+  chipContainer: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginBottom: 16,
+    backgroundColor: 'transparent',
+  },
+  chip: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 20,
+    backgroundColor: '#F3F4F6',
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+  },
+  chipActive: {
+    backgroundColor: '#FFF5F1',
+    borderColor: '#FF6B35',
+  },
+  chipText: {
+    color: '#4B5563',
+    fontSize: 14,
+  },
+  chipTextActive: {
+    color: '#FF6B35',
+    fontWeight: '600',
+  },
+  modalFooter: {
+    flexDirection: 'row',
+    gap: 12,
+    marginTop: 20,
+    paddingBottom: 20,
+    backgroundColor: 'transparent',
+  },
+  resetButton: {
+    flex: 1,
+    padding: 16,
+    borderRadius: 12,
+    backgroundColor: '#F3F4F6',
+    alignItems: 'center',
+  },
+  resetButtonText: {
+    color: '#4B5563',
+    fontWeight: '600',
+    fontSize: 16,
+  },
+  applyButton: {
+    flex: 2,
+    padding: 16,
+    borderRadius: 12,
+    backgroundColor: '#FF6B35',
+    alignItems: 'center',
+  },
+  applyButtonText: {
+    color: '#FFF',
+    fontWeight: '600',
+    fontSize: 16,
+  },
 
   // Header actions
   battleHeaderActionsRow: { flexDirection: 'row', alignItems: 'center' },
