@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, Pressable, Modal, useWindowDimensions } from 'react-native';
+import { View, Text, Pressable, Modal, ScrollView, useWindowDimensions } from 'react-native';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Creature } from '../../src/types/polar';
@@ -331,6 +331,49 @@ export const CreatureDetailsModal: React.FC<CreatureDetailsModalProps> = ({
   captured,
   onClose
 }) => {
+  const { height: windowHeight } = useWindowDimensions();
+  const maxModalHeight = Math.round(windowHeight * 0.85);
+
+  const detailsBody = (
+    <>
+      <CreatureCard 
+        creature={creature} 
+        captured={captured}
+      />
+      <View style={styles.border}>
+        {captured && (
+          <View style={styles.header}>
+            <Text style={styles.desc}>{creature.lore}</Text>
+            <View style={styles.capturedBadge}>
+              <Text style={styles.capturedText}>CAPTURED!</Text>
+            </View>
+          </View>
+        )}
+        {!captured && (
+          <View>
+            <View style={styles.header}>
+              <Text style={styles.requirementsTitle}>Unlock Requirements:</Text>
+              <View style={styles.lockedBadge}>
+                <Text style={styles.capturedText}>LOCKED</Text>
+              </View>
+            </View>
+            {creature.unlockRequirements.minCalories && (
+              <Text style={styles.requirement}>• {creature.unlockRequirements.minCalories} calories</Text>
+            )}
+            {creature.unlockRequirements.minDistance && (
+              <Text style={styles.requirement}>• {(creature.unlockRequirements.minDistance / 1000).toFixed(1)}km distance</Text>
+            )}
+            {creature.unlockRequirements.minDuration && (
+              <Text style={styles.requirement}>• {creature.unlockRequirements.minDuration} minutes</Text>
+            )}
+            {creature.sport != 'GENERAL' && (
+              <Text style={styles.requirement}>• {creature.sport} workout</Text>
+            )}
+          </View>
+        )}
+      </View>
+    </>
+  );
 
   return (
     <Modal
@@ -345,9 +388,9 @@ export const CreatureDetailsModal: React.FC<CreatureDetailsModalProps> = ({
             colors={[...LEGENDARY_SPECTRUM_GRADIENT_COLORS]}
             start={{ x: 0, y: 0 }}
             end={{ x: 1, y: 1 }}
-            style={styles.legendaryModalBorderWrap}
+            style={[styles.legendaryModalBorderWrap, { maxHeight: maxModalHeight }]}
           >
-            <View style={styles.legendaryModalInner}>
+            <View style={[styles.legendaryModalInner, { maxHeight: maxModalHeight }]}>
               <LinearGradient
                 pointerEvents="none"
                 colors={[...LEGENDARY_SPECTRUM_GRADIENT_COLORS]}
@@ -356,89 +399,33 @@ export const CreatureDetailsModal: React.FC<CreatureDetailsModalProps> = ({
                 style={styles.legendaryModalBackground}
               />
 
-              <CreatureCard 
-                creature={creature} 
-                captured={captured}
-              />
-              <View style={styles.border}>
-                  {captured && (
-                    <View style={styles.header}>
-                      <Text style={styles.desc}>{creature.lore}</Text>
-                      <View style={styles.capturedBadge}>
-                        <Text style={styles.capturedText}>CAPTURED!</Text>
-                      </View>
-                    </View>
-                  )}
-                  {!captured && (
-                    <View>
-                      <View style={styles.header}>
-                        <Text style={styles.requirementsTitle}>Unlock Requirements:</Text>
-                        <View style={styles.lockedBadge}>
-                          <Text style={styles.capturedText}>LOCKED</Text>
-                        </View>
-                      </View>
-                        {creature.unlockRequirements.minCalories && (
-                          <Text style={styles.requirement}>• {creature.unlockRequirements.minCalories} calories</Text>
-                        )}
-                        {creature.unlockRequirements.minDistance && (
-                          <Text style={styles.requirement}>• {(creature.unlockRequirements.minDistance / 1000).toFixed(1)}km distance</Text>
-                        )}
-                        {creature.unlockRequirements.minDuration && (
-                          <Text style={styles.requirement}>• {creature.unlockRequirements.minDuration} minutes</Text>
-                        )}
-                        {creature.sport != 'GENERAL' && (
-                          <Text style={styles.requirement}>• {creature.sport} workout</Text>
-                        )}
-                    </View>
-                  )}
-              </View>
+              <ScrollView
+                style={{ width: '100%', flexGrow: 0 }}
+                contentContainerStyle={{ paddingBottom: 12 }}
+                showsVerticalScrollIndicator={false}
+              >
+                {detailsBody}
+              </ScrollView>
+
               <Pressable style={styles.closeButton} onPress={onClose}>
                 <Text style={styles.closeButtonText}>Close</Text>
               </Pressable>
             </View>
           </LinearGradient>
         ) : (
-          <View style={[styles.modal, {borderColor: getRarityColor(creature.rarity)}]}>
-          <CreatureCard 
-            creature={creature} 
-            captured={captured}
-          />
-          <View style={styles.border}>
-              {captured && (
-                <View style={styles.header}>
-                  <Text style={styles.desc}>{creature.lore}</Text>
-                  <View style={styles.capturedBadge}>
-                    <Text style={styles.capturedText}>CAPTURED!</Text>
-                  </View>
-                </View>
-              )}
-              {!captured && (
-                <View>
-                  <View style={styles.header}>
-                    <Text style={styles.requirementsTitle}>Unlock Requirements:</Text>
-                    <View style={styles.lockedBadge}>
-                      <Text style={styles.capturedText}>LOCKED</Text>
-                    </View>
-                  </View>
-                    {creature.unlockRequirements.minCalories && (
-                      <Text style={styles.requirement}>• {creature.unlockRequirements.minCalories} calories</Text>
-                    )}
-                    {creature.unlockRequirements.minDistance && (
-                      <Text style={styles.requirement}>• {(creature.unlockRequirements.minDistance / 1000).toFixed(1)}km distance</Text>
-                    )}
-                    {creature.unlockRequirements.minDuration && (
-                      <Text style={styles.requirement}>• {creature.unlockRequirements.minDuration} minutes</Text>
-                    )}
-                    {creature.sport != 'GENERAL' && (
-                      <Text style={styles.requirement}>• {creature.sport} workout</Text>
-                    )}
-                </View>
-              )}
+          <View style={[styles.modal, { borderColor: getRarityColor(creature.rarity), maxHeight: maxModalHeight }]}>
+            <ScrollView
+              style={{ width: '100%', flexGrow: 0 }}
+              contentContainerStyle={{ paddingBottom: 12 }}
+              showsVerticalScrollIndicator={false}
+            >
+              {detailsBody}
+            </ScrollView>
+
+            <Pressable style={styles.closeButton} onPress={onClose}>
+              <Text style={styles.closeButtonText}>Close</Text>
+            </Pressable>
           </View>
-          <Pressable style={styles.closeButton} onPress={onClose}>
-            <Text style={styles.closeButtonText}>Close</Text>
-          </Pressable>
-        </View>
         )}
       </View>
     </Modal>
