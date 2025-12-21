@@ -2403,8 +2403,9 @@ export default function BattleScreen() {
     );
   }
 
-  return (
-    <View style={styles.container}>
+  if (Platform.OS === 'web') {
+    return (
+      <View style={styles.container}>
       <View style={styles.header}>
         <Text style={[styles.username, {color: '#3B82F6'}]}>{userName}</Text>
         {phase === 'battle' && (
@@ -2901,12 +2902,581 @@ export default function BattleScreen() {
           </View>
         </View>
       )}
+      </View>
+    );
+  }
+
+  return (
+    <View style={uiStyles.mobileBattleContainer}>
+      <View style={uiStyles.mobileBattleHeader}>
+        <View style={uiStyles.mobileBattleHeaderTopRow}>
+          <View style={uiStyles.mobileBattleNamesCol}>
+            <Text style={uiStyles.mobileOpponentName} numberOfLines={1}>{opponentName}</Text>
+            <Text style={uiStyles.mobileUserName} numberOfLines={1}>{userName}</Text>
+          </View>
+
+          <View style={uiStyles.mobileBattleHeaderActions}>
+            {!isBattleOver && (
+              <Pressable
+                onPress={openPause}
+                style={({ pressed }) => [
+                  uiStyles.battleHeaderSecondaryButton,
+                  uiStyles.battleHeaderActionButtonWithMargin,
+                  pressed && uiStyles.buttonPressed07,
+                ]}
+              >
+                <Text style={uiStyles.battleHeaderSecondaryText}>Pause</Text>
+              </Pressable>
+            )}
+            <Pressable
+              onPress={openCreaturesModal}
+              style={({ pressed }) => [
+                uiStyles.battleHeaderPrimaryButton,
+                pressed && uiStyles.buttonPressed085,
+              ]}
+            >
+              <Text style={uiStyles.battleHeaderPrimaryText}>Creatures</Text>
+            </Pressable>
+          </View>
+        </View>
+
+        <View style={uiStyles.mobileOpponentTeamRow}>
+          {[3, 4, 5].map((idx) => (
+            <View key={idx} style={uiStyles.mobileTeamSlotWrap}>
+              {wrapHeaderSlot(
+                creatures[idx],
+                <View
+                  style={{
+                    backgroundColor: '#FFFFFF',
+                    borderRadius: 10,
+                    overflow: 'hidden',
+                    opacity: healths[idx] <= 0 ? 0.4 : 1,
+                  }}
+                >
+                  <Image
+                    source={getCreatureImage(creatures[idx].id)}
+                    style={[
+                      styles.creatureIcon,
+                      {
+                        opacity: healths[idx] > 0 ? 1 : 0.4,
+                        tintColor: healths[idx] <= 0 ? '#6B7280' : undefined,
+                      },
+                    ]}
+                  />
+                </View>
+              )}
+            </View>
+          ))}
+        </View>
+      </View>
+
+      <Pressable
+        style={uiStyles.mobileBattleArenaPressable}
+        onPress={() => { battlePress(); }}
+        disabled={isBattleOver || isPaused}
+      >
+        <View style={uiStyles.mobileCreaturePanelTop}>
+          <View style={uiStyles.mobileCreatureTitleRow}>
+            <Text style={uiStyles.mobileCreatureName} numberOfLines={1}>
+              {creatures[opponentSelectedCreature].name}
+            </Text>
+            <Text style={uiStyles.mobileCreatureStatsText} numberOfLines={1}>
+              ⚔️ {creatures[opponentSelectedCreature].stats.power}  ⚡ {creatures[opponentSelectedCreature].stats.speed}  🛡️ {creatures[opponentSelectedCreature].stats.endurance}
+            </Text>
+          </View>
+
+          <View style={uiStyles.mobileCreatureBadgesRow}>
+            <Text style={[styles.creatureSport, { color: getSportColor(creatures[opponentSelectedCreature].sport)[0] }]}>
+              {creatures[opponentSelectedCreature].sport}
+            </Text>
+            {creatures[opponentSelectedCreature].rarity === 'legendary' ? (
+              <LinearGradient
+                colors={[...LEGENDARY_BADGE_GRADIENT_COLORS]}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={styles.creatureRarityBadge}
+              >
+                <Text style={styles.legendaryBadgeText}>{creatures[opponentSelectedCreature].rarity.toUpperCase()}</Text>
+              </LinearGradient>
+            ) : (
+              <Text
+                style={[
+                  styles.creatureRarityBadge,
+                  {
+                    backgroundColor: getRarityColor(creatures[opponentSelectedCreature].rarity),
+                    color: '#FFFFFF',
+                  },
+                ]}
+              >
+                {creatures[opponentSelectedCreature].rarity.toUpperCase()}
+              </Text>
+            )}
+          </View>
+
+          <HealthBar
+            health={healths[opponentSelectedCreature]}
+            maxHealth={creatures[opponentSelectedCreature].stats.endurance}
+          />
+
+          <View style={uiStyles.mobileCreatureIconRow}>
+            {healths[opponentSelectedCreature] == 0 ? (
+              <FaintedIcon creature={creatures[opponentSelectedCreature]} onFaintEnd={handleOpponentFaintEnd} />
+            ) : (
+              <IdleIcon
+                creature={creatures[opponentSelectedCreature]}
+                attackTrigger={(trigger) => (attackRefs.current[creatures[opponentSelectedCreature].id] = trigger)}
+              />
+            )}
+
+            {floatingDamages
+              .filter(d => d.creatureIndex === opponentSelectedCreature)
+              .map(d => (
+                <DamageNumber
+                  key={d.id}
+                  damage={d.amount}
+                  isUser={false}
+                  effectiveness={d.effectiveness}
+                  isSpecial={d.isSpecial}
+                  onComplete={() => {
+                    setFloatingDamages(prev => prev.filter(f => f.id !== d.id));
+                  }}
+                />
+              ))}
+
+            {floatingImpacts
+              .filter(f => f.creatureIndex === opponentSelectedCreature)
+              .map(f => (
+                <ImpactEffect
+                  key={f.id}
+                  onComplete={() => {
+                    setFloatingImpacts(prev => prev.filter(x => x.id !== f.id));
+                  }}
+                  sport={creatures[userSelectedCreature].sport}
+                />
+              ))}
+          </View>
+        </View>
+
+        <View style={uiStyles.mobileBattleHintRow}>
+          <Text style={uiStyles.mobileBattleHintText}>Tap to attack</Text>
+          <Text style={uiStyles.mobileBattleHintSubText}>Clicks: {clickNum}</Text>
+        </View>
+
+        <View style={uiStyles.mobileCreaturePanelBottom}>
+          <View style={uiStyles.mobileCreatureTitleRow}>
+            <Text style={uiStyles.mobileCreatureName} numberOfLines={1}>
+              {creatures[userSelectedCreature].name}
+            </Text>
+            <Text style={uiStyles.mobileCreatureStatsText} numberOfLines={1}>
+              ⚔️ {creatures[userSelectedCreature].stats.power}  ⚡ {creatures[userSelectedCreature].stats.speed}  🛡️ {creatures[userSelectedCreature].stats.endurance}
+            </Text>
+          </View>
+
+          <View style={uiStyles.mobileCreatureBadgesRow}>
+            <Text style={[styles.creatureSport, { color: getSportColor(creatures[userSelectedCreature].sport)[0] }]}>
+              {creatures[userSelectedCreature].sport}
+            </Text>
+            {creatures[userSelectedCreature].rarity === 'legendary' ? (
+              <LinearGradient
+                colors={[...LEGENDARY_BADGE_GRADIENT_COLORS]}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={styles.creatureRarityBadge}
+              >
+                <Text style={styles.legendaryBadgeText}>{creatures[userSelectedCreature].rarity.toUpperCase()}</Text>
+              </LinearGradient>
+            ) : (
+              <Text
+                style={[
+                  styles.creatureRarityBadge,
+                  {
+                    backgroundColor: getRarityColor(creatures[userSelectedCreature].rarity),
+                    color: '#FFFFFF',
+                  },
+                ]}
+              >
+                {creatures[userSelectedCreature].rarity.toUpperCase()}
+              </Text>
+            )}
+          </View>
+
+          <HealthBar
+            health={healths[userSelectedCreature]}
+            maxHealth={creatures[userSelectedCreature].stats.endurance}
+          />
+
+          <View style={uiStyles.mobileCreatureIconRow}>
+            <View style={{ transform: [{ scaleX: -1 }] }}>
+              {healths[userSelectedCreature] == 0 ? (
+                <FaintedIcon creature={creatures[userSelectedCreature]} onFaintEnd={handleUserFaintEnd} />
+              ) : (
+                <IdleIcon
+                  creature={creatures[userSelectedCreature]}
+                  attackTrigger={(trigger) => (attackRefs.current[creatures[userSelectedCreature].id] = trigger)}
+                />
+              )}
+            </View>
+
+            {floatingDamages
+              .filter(d => d.creatureIndex === userSelectedCreature)
+              .map(d => (
+                <DamageNumber
+                  key={d.id}
+                  damage={d.amount}
+                  isUser={true}
+                  effectiveness={d.effectiveness}
+                  isSpecial={d.isSpecial}
+                  onComplete={() => {
+                    setFloatingDamages(prev => prev.filter(f => f.id !== d.id));
+                  }}
+                />
+              ))}
+
+            {floatingImpacts
+              .filter(f => f.creatureIndex === userSelectedCreature)
+              .map(f => (
+                <ImpactEffect
+                  key={f.id}
+                  onComplete={() => {
+                    setFloatingImpacts(prev => prev.filter(x => x.id !== f.id));
+                  }}
+                  sport={creatures[opponentSelectedCreature].sport}
+                />
+              ))}
+          </View>
+        </View>
+      </Pressable>
+
+      <View style={uiStyles.mobileBattleBottomBar}>
+        <View style={uiStyles.mobileUserTeamRow}>
+          {[0, 1, 2].map((idx) => (
+            <View key={idx} style={uiStyles.mobileTeamSlotWrap}>
+              {wrapHeaderSlot(
+                creatures[idx],
+                <Pressable
+                  hitSlop={10}
+                  disabled={isBattleOver || !canSwitch || healths[idx] <= 0}
+                  onPress={() => switchCreature(idx as 0 | 1 | 2)}
+                  style={{
+                    backgroundColor: '#FFFFFF',
+                    borderRadius: 10,
+                    overflow: 'hidden',
+                    opacity: healths[idx] <= 0 ? 0.4 : 1,
+                  }}
+                >
+                  <Animated.View
+                    pointerEvents="none"
+                    style={[
+                      styles.cooldownFill,
+                      {
+                        height: fillHeight,
+                      },
+                    ]}
+                  />
+                  <Image
+                    source={getCreatureImage(creatures[idx].id)}
+                    style={[
+                      styles.creatureIcon,
+                      {
+                        opacity: canSwitch && healths[idx] > 0 ? 1 : 0.4,
+                        tintColor: healths[idx] <= 0 ? '#6B7280' : undefined,
+                      },
+                    ]}
+                  />
+                </Pressable>
+              )}
+            </View>
+          ))}
+        </View>
+
+        <Pressable
+          onPress={specialPress}
+          hitSlop={10}
+          disabled={isBattleOver || charges[userSelectedCreature] < chargeMaxes[userSelectedCreature]}
+          style={({ pressed }) => [
+            uiStyles.mobileSpecialButton,
+            pressed && uiStyles.buttonPressed07,
+            charges[userSelectedCreature] < chargeMaxes[userSelectedCreature] && { opacity: 0.4 },
+          ]}
+        >
+          <SpecialSvg
+            max={chargeMaxes[userSelectedCreature]}
+            current={charges[userSelectedCreature]}
+            sport={creatures[userSelectedCreature].sport}
+          />
+        </Pressable>
+      </View>
+
+      {isBattleOver && (
+        <View
+          style={{
+            ...StyleSheet.absoluteFillObject,
+            backgroundColor: 'rgba(107,114,128,0.65)',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: 24,
+          }}
+          pointerEvents="auto"
+        >
+          <View
+            style={uiStyles.overlayCard}
+            pointerEvents="auto"
+          >
+            <Text
+              style={{
+                fontSize: 22,
+                fontWeight: '700',
+                color: battleResult === 'victory' ? '#10B981' : '#EF4444',
+                marginBottom: 8,
+              }}
+            >
+              {battleResult === 'victory' ? 'Victory' : 'Defeat'}
+            </Text>
+            <Text style={{ fontSize: 14, color: '#6B7280', textAlign: 'center', marginBottom: 16 }}>
+              {battleResult === 'victory'
+                ? `Your opponent has no creatures left. You earned ${victoryRewardEarned} QP.`
+                : defeatReason === 'leftAfterReload'
+                  ? 'You left the battle after reloading. This counts as a loss.'
+                  : 'Your active creature ran out of health.'}
+            </Text>
+
+            {battleCreatures && battleCreatures.length === 6 && (
+              (() => {
+                const cooldownItems = [0, 1, 2]
+                  .map(i => {
+                    const c = battleCreatures[i];
+                    const until = c ? creatureCooldowns[c.id] : undefined;
+                    if (!c || typeof until !== 'number' || until <= nowMs) return null;
+                    return { id: c.id, name: c.name, until };
+                  })
+                  .filter(Boolean) as Array<{ id: string; name: string; until: number }>;
+
+                if (cooldownItems.length === 0) return null;
+
+                return (
+                  <View style={{ width: '100%', marginBottom: 12 }}>
+                    <Text style={{ fontSize: 12, color: '#6B7280', marginBottom: 6, textAlign: 'center' }}>
+                      Creature cooldowns (time left)
+                    </Text>
+                    {cooldownItems.map(item => (
+                      <View key={item.id} style={{ marginBottom: 10, alignItems: 'center' }}>
+                        <Text style={{ fontSize: 13, color: '#6B7280', textAlign: 'center' }}>
+                          {item.name}: {formatCooldown(item.until)}
+                        </Text>
+                      </View>
+                    ))}
+                  </View>
+                );
+              })()
+            )}
+            <Pressable
+              onPress={resetBattle}
+              style={({ pressed }) => [
+                uiStyles.primaryButton,
+                pressed && uiStyles.buttonPressed085,
+              ]}
+            >
+              <Text style={uiStyles.primaryButtonText}>Restart</Text>
+            </Pressable>
+          </View>
+        </View>
+      )}
+
+      {creaturesModal}
+
+      {phase === 'battle' && !isBattleOver && isPaused && !isCreaturesModalOpen && (pauseReason === 'restored' || pauseReason === 'manual') && (
+        <View
+          style={{
+            ...StyleSheet.absoluteFillObject,
+            backgroundColor: 'rgba(107,114,128,0.65)',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: 24,
+          }}
+          pointerEvents="auto"
+        >
+          <View
+            style={uiStyles.overlayCard}
+          >
+            <Text style={uiStyles.overlayTitleMuted}>
+              Paused
+            </Text>
+            <Text style={uiStyles.overlayBodyMuted}>
+              {pauseReason === 'restored'
+                ? 'Battle was restored after reloading. Resume to continue.'
+                : 'Battle paused. Resume to continue.'}
+            </Text>
+            <Pressable
+              onPress={() => setIsPaused(false)}
+              style={({ pressed }) => [
+                uiStyles.primaryButton,
+                uiStyles.fullWidth,
+                uiStyles.buttonWithBottomMargin,
+                pressed && uiStyles.buttonPressed085,
+              ]}
+            >
+              <Text style={uiStyles.primaryButtonText}>Resume</Text>
+            </Pressable>
+            <Pressable
+              onPress={forfeitBattle}
+              style={({ pressed }) => [
+                uiStyles.dangerButton,
+                uiStyles.fullWidth,
+                pressed && uiStyles.buttonPressed085,
+              ]}
+            >
+              <Text style={uiStyles.primaryButtonText}>Leave (Counts as loss)</Text>
+            </Pressable>
+          </View>
+        </View>
+      )}
     </View>
   );
 }
 
 const uiStyles = StyleSheet.create({
   flex1: { flex: 1 },
+
+  // Mobile battle layout
+  mobileBattleContainer: {
+    flex: 1,
+    backgroundColor: '#F9FAFB',
+  },
+  mobileBattleHeader: {
+    paddingHorizontal: 14,
+    paddingTop: 12,
+    paddingBottom: 10,
+    backgroundColor: '#FFFFFF',
+    borderBottomWidth: 1,
+    borderBottomColor: '#E5E7EB',
+  },
+  mobileBattleHeaderTopRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: 'transparent',
+  },
+  mobileBattleNamesCol: {
+    flex: 1,
+    backgroundColor: 'transparent',
+  },
+  mobileOpponentName: {
+    fontSize: 14,
+    fontWeight: '800',
+    color: '#EF4444',
+  },
+  mobileUserName: {
+    fontSize: 16,
+    fontWeight: '900',
+    color: '#3B82F6',
+    marginTop: 2,
+  },
+  mobileBattleHeaderActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'transparent',
+    marginLeft: 10,
+  },
+  mobileOpponentTeamRow: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    alignItems: 'center',
+    marginTop: 10,
+    backgroundColor: 'transparent',
+  },
+  mobileUserTeamRow: {
+    flexDirection: 'row',
+    justifyContent: 'flex-start',
+    alignItems: 'center',
+    backgroundColor: 'transparent',
+  },
+  mobileTeamSlotWrap: {
+    backgroundColor: 'transparent',
+  },
+  mobileBattleArenaPressable: {
+    flex: 1,
+    paddingHorizontal: 14,
+    paddingTop: 10,
+    paddingBottom: 10,
+  },
+  mobileCreaturePanelTop: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+  },
+  mobileCreaturePanelBottom: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+  },
+  mobileCreatureTitleRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'baseline',
+    backgroundColor: 'transparent',
+    gap: 10,
+  },
+  mobileCreatureName: {
+    flex: 1,
+    fontSize: 16,
+    fontWeight: '800',
+    color: '#111827',
+  },
+  mobileCreatureStatsText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#6B7280',
+  },
+  mobileCreatureBadgesRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'flex-start',
+    marginTop: 6,
+    backgroundColor: 'transparent',
+    gap: 8,
+  },
+  mobileCreatureIconRow: {
+    marginTop: 6,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'transparent',
+    minHeight: 170,
+  },
+  mobileBattleHintRow: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 10,
+    backgroundColor: 'transparent',
+  },
+  mobileBattleHintText: {
+    fontSize: 14,
+    fontWeight: '800',
+    color: '#6B7280',
+  },
+  mobileBattleHintSubText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#6B7280',
+    marginTop: 2,
+  },
+  mobileBattleBottomBar: {
+    paddingHorizontal: 14,
+    paddingTop: 10,
+    paddingBottom: 12,
+    backgroundColor: '#FFFFFF',
+    borderTopWidth: 1,
+    borderTopColor: '#E5E7EB',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  mobileSpecialButton: {
+    marginLeft: 12,
+  },
 
   // Search / filter bar (same UI as Creatures tab)
   searchContainer: {
