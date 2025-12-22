@@ -1,9 +1,8 @@
-import { View, Text } from '@/components/Themed';
 import { battleStyles as styles, getRarityColor, getSportColor, LEGENDARY_BADGE_GRADIENT_COLORS } from '@/src/styles';
 import creatureService from '@/src/services/creatureService';
 import { Image } from 'expo-image';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { Alert, Animated, Easing, InteractionManager, Modal, Platform, Pressable, ScrollView, StyleSheet, TextInput, TouchableOpacity } from 'react-native';
+import { Alert, Animated, Easing, InteractionManager, Modal, Platform, PixelRatio, Pressable, ScrollView, StyleSheet, TextInput, TouchableOpacity, useWindowDimensions, View, Text } from 'react-native';
 import { Creature } from '@/src/types/polar';
 import Svg, { G, Path, Defs, ClipPath, Rect } from 'react-native-svg';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -12,7 +11,7 @@ import { useGameProfile } from '@/src/hooks/useGameProfile';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { creatureCardStyles } from '@/src/styles/components/creatureCardStyles';
 import { LEGENDARY_SPECTRUM_GRADIENT_COLORS } from '@/src/styles';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView as SACSafeAreaView } from 'react-native-safe-area-context';
 import { CreatureCardGrid, CreatureCardGridSkeleton, CreatureDetailsModal } from '@/components/game/CreatureCard';
 import { Ionicons } from '@expo/vector-icons';
 
@@ -39,6 +38,67 @@ const typeMatchups = [[1, 1, 1, 1, 1, 1, 1], // GENERAL
 
 function getCreatureImage(id: string) {
   return creatureImages(`./creature_icon_${id}.png`);
+}
+
+function BattlePickerCreatureIcon({ id, height, dimmed }: { id: string; height: number; dimmed: boolean }) {
+  if (Platform.OS === 'web') {
+    return (
+      <Image
+        source={getCreatureImage(id)}
+        style={{ width: '100%', height, opacity: dimmed ? 0.55 : 1, imageRendering: 'pixelated' } as any}
+        contentFit="contain"
+      />
+    );
+  }
+
+  // Skia isn't supported on web builds; this branch only renders on native.
+  // We lazy-require to keep web bundling safe.
+  const skia = React.useMemo(() => {
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    return require('@shopify/react-native-skia') as any;
+  }, []);
+
+  const { Canvas, Image: SkiaImage, useImage, FilterMode, MipmapMode } = skia;
+  const [layoutWidth, setLayoutWidth] = React.useState(0);
+  const image = useImage(getCreatureImage(id));
+  const pr = PixelRatio.get();
+  const snap = React.useCallback((v: number) => Math.round(v * pr) / pr, [pr]);
+
+  return (
+    <View
+      style={{ width: '100%', height, opacity: dimmed ? 0.55 : 1 }}
+      onLayout={(e) => {
+        const next = snap(e.nativeEvent.layout.width);
+        if (next > 0 && next !== layoutWidth) setLayoutWidth(next);
+      }}
+    >
+      {layoutWidth > 0 && image && (() => {
+        const srcW = image.width();
+        const srcH = image.height();
+        const maxScale = Math.min(layoutWidth / srcW, height / srcH);
+        const scale = maxScale >= 1 ? Math.max(1, Math.floor(maxScale)) : maxScale;
+
+        const drawW = snap(srcW * scale);
+        const drawH = snap(srcH * scale);
+        const x = snap((layoutWidth - drawW) / 2);
+        const y = snap((height - drawH) / 2);
+
+        return (
+          <Canvas style={{ width: layoutWidth, height }}>
+            <SkiaImage
+              image={image}
+              x={x}
+              y={y}
+              width={drawW}
+              height={drawH}
+              fit="fill"
+              sampling={{ filter: FilterMode.Nearest, mipmap: MipmapMode.None }}
+            />
+          </Canvas>
+        );
+      })()}
+    </View>
+  );
 }
 
 interface IconProps {
@@ -439,6 +499,10 @@ function calcChargeMax(creature: Creature): number {
 
 export default function BattleScreen() {
 
+  const { width: windowWidth } = useWindowDimensions();
+  const isNarrowWeb = Platform.OS === 'web' && windowWidth < 768;
+  const isDesktopWeb = Platform.OS === 'web' && !isNarrowWeb;
+
   const { user: authUser } = useAuth();
   const { profile, loading: profileLoading, updateProfile } = useGameProfile(authUser?.uid || null);
 
@@ -537,6 +601,8 @@ export default function BattleScreen() {
   const [pickCreaturesSortField, setPickCreaturesSortField] = useState<SortField>('none');
   const [pickCreaturesSortDirection, setPickCreaturesSortDirection] = useState<SortDirection>('asc');
   const [showPickCreaturesFilterModal, setShowPickCreaturesFilterModal] = useState(false);
+  const [isPickCreaturesControlsCollapsed, setIsPickCreaturesControlsCollapsed] = useState(true);
+  const [pickCreaturesBattleStateFilter, setPickCreaturesBattleStateFilter] = useState<'all' | 'fainted'>('all');
 
   const victoryRewardAppliedRef = useRef(false);
   const [victoryRewardEarned, setVictoryRewardEarned] = useState<number>(0);
@@ -619,7 +685,8 @@ export default function BattleScreen() {
   const pickCreaturesActiveFiltersCount =
     (pickCreaturesSelectedRarities.length > 0 ? 1 : 0) +
     (pickCreaturesSelectedSports.length > 0 ? 1 : 0) +
-    (pickCreaturesSortField !== 'none' ? 1 : 0);
+    (pickCreaturesSortField !== 'none' ? 1 : 0) +
+    (pickCreaturesBattleStateFilter !== 'all' ? 1 : 0);
 
   const filteredAndSortedAllCreatureCards = useMemo(() => {
     const q = allCreaturesSearchQuery.trim().toLowerCase();
@@ -667,7 +734,10 @@ export default function BattleScreen() {
       const matchesSearch = q.length === 0 ? true : c.name.toLowerCase().includes(q);
       const matchesRarity = pickCreaturesSelectedRarities.length === 0 ? true : pickCreaturesSelectedRarities.includes(c.rarity);
       const matchesSport = pickCreaturesSelectedSports.length === 0 ? true : pickCreaturesSelectedSports.includes(c.sport);
-      return matchesSearch && matchesRarity && matchesSport;
+      const matchesBattleState = pickCreaturesBattleStateFilter === 'all'
+        ? true
+        : isCreatureOnCooldown(c.id);
+      return matchesSearch && matchesRarity && matchesSport && matchesBattleState;
     });
 
     const sorted = [...filtered].sort((a, b) => {
@@ -695,6 +765,9 @@ export default function BattleScreen() {
     pickCreaturesSelectedSports,
     pickCreaturesSortField,
     pickCreaturesSortDirection,
+    pickCreaturesBattleStateFilter,
+    creatureCooldowns,
+    nowMs,
   ]);
 
   const openCreaturesModal = () => {
@@ -743,7 +816,7 @@ export default function BattleScreen() {
       animationType="slide"
       onRequestClose={closeCreaturesModal}
     >
-      <SafeAreaView style={uiStyles.creaturesModalSafeArea}>
+      <SACSafeAreaView style={uiStyles.creaturesModalSafeArea}>
         <View
           style={uiStyles.creaturesModalHeader}
         >
@@ -861,6 +934,7 @@ export default function BattleScreen() {
                   ))}
                 </View>
 
+
                 <Text style={uiStyles.filterLabel}>Rarity</Text>
                 <View style={uiStyles.chipContainer}>
                   <TouchableOpacity
@@ -969,7 +1043,7 @@ export default function BattleScreen() {
           </View>
         </Modal>
 
-      </SafeAreaView>
+      </SACSafeAreaView>
     </Modal>
   );
 
@@ -1686,7 +1760,32 @@ export default function BattleScreen() {
     outputRange: [0, 60],
   });
 
-  const wrapHeaderSlot = (creature: Creature, child: React.ReactNode) => {
+  const wrapHeaderSlot = (creature: Creature, child: React.ReactNode, isFainted: boolean) => {
+    const content = (
+      <View style={uiStyles.headerSlotContentWrap}>
+        {child}
+        {isFainted && <View pointerEvents="none" style={uiStyles.headerSlotFaintedOverlay} />}
+      </View>
+    );
+
+    if (isFainted) {
+      return (
+        <View
+          style={[
+            creatureCardStyles.legendaryCardBorderWrap,
+            {
+              borderRadius: 12,
+              padding: 2,
+              margin: 2,
+              backgroundColor: '#9CA3AF',
+            },
+          ]}
+        >
+          {content}
+        </View>
+      );
+    }
+
     if (creature.rarity === 'legendary') {
       return (
         <LinearGradient
@@ -1698,7 +1797,7 @@ export default function BattleScreen() {
             { borderRadius: 12, padding: 2, margin: 2 },
           ]}
         >
-          {child}
+          {content}
         </LinearGradient>
       );
     }
@@ -1715,7 +1814,7 @@ export default function BattleScreen() {
           },
         ]}
       >
-        {child}
+        {content}
       </View>
     );
   };
@@ -1892,29 +1991,20 @@ export default function BattleScreen() {
     const allSlotsFilled = selectedUserCreatures.every(Boolean);
 
     return (
-      <View style={styles.container}>
-        <View style={styles.header}>
-          <Text style={[styles.username, { color: '#3B82F6' }]}>{userName}</Text>
+      <SACSafeAreaView style={[styles.container, { flex: 1, backgroundColor: '#F9FAFB' }]} edges={['top', 'left', 'right', 'bottom']}>
+        <View style={[styles.header, { paddingVertical: 4 }]}>
+          <Text style={{ fontSize: 18, fontWeight: '700', color: '#111827' }} numberOfLines={1}>
+            Select your 3 creatures
+          </Text>
           <Pressable
             onPress={openCreaturesModal}
             style={({ pressed }) => [uiStyles.selectHeaderButton, pressed && uiStyles.buttonPressed085]}
           >
             <Text style={uiStyles.selectHeaderButtonText}>Creatures</Text>
           </Pressable>
-          <Text style={[styles.username, { color: '#EF4444' }]}>{opponentName}</Text>
         </View>
 
-        <View style={{ paddingHorizontal: 16, paddingTop: 12, paddingBottom: 8 }}>
-          <Text style={{ fontSize: 18, fontWeight: '700' }}>Select your 3 creatures</Text>
-          <Text style={{ color: '#6B7280', marginTop: 4 }}>
-            Tap a slot to set order, then tap a captured creature to assign it.
-          </Text>
-          <Text style={{ color: '#6B7280', marginTop: 4 }}>
-            If a creature faints in battle, it goes on a 1h cooldown.
-          </Text>
-        </View>
-
-        <View style={{ flexDirection: 'row', justifyContent: 'space-around', paddingHorizontal: 16, paddingVertical: 8, alignItems: 'flex-start' }}>
+        <View style={{ flexDirection: 'row', justifyContent: 'space-between', paddingHorizontal: 16, paddingVertical: 8, alignItems: 'flex-start' }}>
           {[0, 1, 2].map((i) => {
             const idx = i as 0 | 1 | 2;
             const selected = selectedUserCreatures[idx];
@@ -1934,38 +2024,40 @@ export default function BattleScreen() {
                   }
                   setActiveSlot(idx);
                 }}
-                style={{
-                  width: 96,
-                  borderRadius: 12,
-                  padding: 8,
-                  alignItems: 'center',
-                  justifyContent: 'flex-start',
-                  minHeight: 156,
-                  backgroundColor: '#FFFFFF',
-                  borderWidth: 2,
-                  borderColor: isActive ? '#3B82F6' : 'transparent',
-                }}
+                style={[uiStyles.selectSlotPressable, { borderColor: isActive ? '#3B82F6' : 'transparent' }]}
               >
-                <Text style={{ fontWeight: '700', marginBottom: 6 }}>#{idx + 1}</Text>
+                <Text style={uiStyles.selectSlotNumber}>#{idx + 1}</Text>
                 {selected ? (
                   <>
-                    <Image
-                      source={getCreatureImage(selected.id)}
-                      style={{ width: 64, height: 64, opacity: 1 }}
-                      contentFit="contain"
-                    />
-                    <Text style={{ marginTop: 6, fontSize: 12, textAlign: 'center' }} numberOfLines={2}>
-                      {selected.name}
-                    </Text>
+                    <View style={uiStyles.selectSlotIcon}>
+                      <BattlePickerCreatureIcon id={String(selected.id)} height={60} dimmed={false} />
+                    </View>
                   </>
                 ) : (
-                  <View style={{ width: 64, height: 64, alignItems: 'center', justifyContent: 'center' }}>
+                  <View style={uiStyles.selectSlotIconPlaceholder}>
                     <Text style={{ color: '#6B7280' }}>Pick</Text>
                   </View>
                 )}
-                <Text style={{ marginTop: 6, fontSize: 11, color: '#6B7280' }}>
-                  {isActive ? 'Active' : 'Tap'}
-                </Text>
+                {selected ? (
+                  <View style={uiStyles.selectSlotMeta}>
+                    <Text
+                      style={[uiStyles.selectSlotMetaName, isDesktopWeb ? null : uiStyles.selectSlotMetaNameMobile]}
+                      numberOfLines={1}
+                    >
+                      {selected.name}
+                    </Text>
+                    <Text
+                      style={[uiStyles.selectSlotMetaStats, isDesktopWeb ? null : uiStyles.selectSlotMetaStatsMobile]}
+                      numberOfLines={1}
+                    >
+                      ⚔️ {selected.stats.power}  ⚡ {selected.stats.speed}  🛡️ {selected.stats.endurance}
+                    </Text>
+                  </View>
+                ) : (
+                  <Text style={uiStyles.selectSlotMetaHint}>
+                    {isActive ? 'Active' : 'Tap'}
+                  </Text>
+                )}
               </Pressable>
             );
 
@@ -1973,33 +2065,19 @@ export default function BattleScreen() {
               return (
                 <View
                   key={idx}
-                  style={{
-                    borderWidth: 2,
-                    borderColor: isActive ? '#3B82F6' : '#E5E7EB',
-                    borderRadius: 14,
-                    padding: 2,
-                    backgroundColor: 'transparent',
-                  }}
+                  style={uiStyles.selectSlotWrap}
                 >
                   <Pressable
                     onPress={() => {
                       setActiveSlot(idx);
                     }}
-                    style={{
-                      width: 96,
-                      borderRadius: 12,
-                      padding: 8,
-                      alignItems: 'center',
-                      justifyContent: 'flex-start',
-                      minHeight: 156,
-                      backgroundColor: '#FFFFFF',
-                    }}
+                    style={[uiStyles.selectSlotPressable, { borderColor: isActive ? '#3B82F6' : '#E5E7EB' }]}
                   >
-                    <Text style={{ fontWeight: '700', marginBottom: 6 }}>#{idx + 1}</Text>
-                    <View style={{ width: 64, height: 64, alignItems: 'center', justifyContent: 'center' }}>
+                    <Text style={uiStyles.selectSlotNumber}>#{idx + 1}</Text>
+                    <View style={uiStyles.selectSlotIconPlaceholder}>
                       <Text style={{ color: '#6B7280' }}>Pick</Text>
                     </View>
-                    <Text style={{ marginTop: 6, fontSize: 11, color: '#6B7280' }}>
+                    <Text style={uiStyles.selectSlotMetaHint}>
                       {isActive ? 'Active' : 'Tap'}
                     </Text>
                   </Pressable>
@@ -2014,7 +2092,7 @@ export default function BattleScreen() {
                   colors={[...LEGENDARY_SPECTRUM_GRADIENT_COLORS]}
                   start={{ x: 0, y: 0 }}
                   end={{ x: 1, y: 1 }}
-                  style={{ borderRadius: 14, padding: 2 }}
+                  style={uiStyles.selectSlotWrap}
                 >
                   {innerSlot}
                 </LinearGradient>
@@ -2022,7 +2100,7 @@ export default function BattleScreen() {
             }
 
             return (
-              <View key={idx} style={{ borderRadius: 14, padding: 2, backgroundColor: getRarityColor(selected.rarity) }}>
+              <View key={idx} style={[uiStyles.selectSlotWrap, { backgroundColor: getRarityColor(selected.rarity) }]}>
                 {innerSlot}
               </View>
             );
@@ -2039,34 +2117,58 @@ export default function BattleScreen() {
           </View>
         ) : (
           <>
-            <View style={[uiStyles.searchContainer, { paddingHorizontal: 16, marginTop: 6 }]}>
-              <View style={uiStyles.searchBar}>
-                <Ionicons name="search" size={20} color="#666" style={{ marginRight: 8 }} />
-                <TextInput
-                  style={uiStyles.searchInput}
-                  placeholder="Search creatures..."
-                  value={pickCreaturesSearchQuery}
-                  onChangeText={setPickCreaturesSearchQuery}
-                  placeholderTextColor="#999"
-                />
-                {pickCreaturesSearchQuery.length > 0 && (
-                  <TouchableOpacity onPress={() => setPickCreaturesSearchQuery('')}>
-                    <Ionicons name="close-circle" size={18} color="#999" />
-                  </TouchableOpacity>
-                )}
-              </View>
-              <TouchableOpacity
-                style={[uiStyles.filterButton, pickCreaturesActiveFiltersCount > 0 && uiStyles.filterButtonActive]}
-                onPress={() => setShowPickCreaturesFilterModal(true)}
-              >
-                <Ionicons name="options" size={20} color={pickCreaturesActiveFiltersCount > 0 ? '#FFF' : '#666'} />
+            <Pressable
+              onPress={() => setIsPickCreaturesControlsCollapsed((prev) => !prev)}
+              style={({ pressed }) => [
+                uiStyles.pickControlsToggleRow,
+                pressed && uiStyles.buttonPressed085,
+              ]}
+            >
+              <Text style={uiStyles.pickControlsToggleLabel}>Search / Filter</Text>
+              <View style={uiStyles.pickControlsToggleRight}>
                 {pickCreaturesActiveFiltersCount > 0 && (
-                  <View style={uiStyles.badge}>
-                    <Text style={uiStyles.badgeText}>{pickCreaturesActiveFiltersCount}</Text>
-                  </View>
+                  <Text style={uiStyles.pickControlsToggleCount}>
+                    {pickCreaturesActiveFiltersCount}
+                  </Text>
                 )}
-              </TouchableOpacity>
-            </View>
+                <Ionicons
+                  name={isPickCreaturesControlsCollapsed ? 'chevron-down' : 'chevron-up'}
+                  size={18}
+                  color="#6B7280"
+                />
+              </View>
+            </Pressable>
+
+            {!isPickCreaturesControlsCollapsed && (
+              <View style={[uiStyles.searchContainer, uiStyles.pickControlsSearchContainer]}>
+                <View style={uiStyles.searchBar}>
+                  <Ionicons name="search" size={20} color="#666" style={{ marginRight: 8 }} />
+                  <TextInput
+                    style={uiStyles.searchInput}
+                    placeholder="Search creatures..."
+                    value={pickCreaturesSearchQuery}
+                    onChangeText={setPickCreaturesSearchQuery}
+                    placeholderTextColor="#999"
+                  />
+                  {pickCreaturesSearchQuery.length > 0 && (
+                    <TouchableOpacity onPress={() => setPickCreaturesSearchQuery('')}>
+                      <Ionicons name="close-circle" size={18} color="#999" />
+                    </TouchableOpacity>
+                  )}
+                </View>
+                <TouchableOpacity
+                  style={[uiStyles.filterButton, pickCreaturesActiveFiltersCount > 0 && uiStyles.filterButtonActive]}
+                  onPress={() => setShowPickCreaturesFilterModal(true)}
+                >
+                  <Ionicons name="options" size={20} color={pickCreaturesActiveFiltersCount > 0 ? '#FFF' : '#666'} />
+                  {pickCreaturesActiveFiltersCount > 0 && (
+                    <View style={uiStyles.badge}>
+                      <Text style={uiStyles.badgeText}>{pickCreaturesActiveFiltersCount}</Text>
+                    </View>
+                  )}
+                </TouchableOpacity>
+              </View>
+            )}
 
             <View style={{ paddingHorizontal: 16, paddingTop: 6, paddingBottom: 6 }}>
               <Text style={{ fontSize: 12, color: '#6B7280' }}>
@@ -2074,14 +2176,27 @@ export default function BattleScreen() {
               </Text>
             </View>
 
-            <ScrollView contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 16 }}>
+            <ScrollView
+              style={{ flex: 1 }}
+              contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 16, flexGrow: 1 }}
+            >
             <View style={{ flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between' }}>
-              {filteredAndSortedPickCreatures.creatures.map((c) => {
+              {filteredAndSortedPickCreatures.creatures.map((c, index) => {
                 const isSelected = selectedUserCreatures.some(s => s?.id === c.id);
                 const cooldownUntil = creatureCooldowns[c.id];
                 const onCooldown = typeof cooldownUntil === 'number' && cooldownUntil > nowMs;
                 const clearCost = getCooldownClearCost(c);
                 const canAffordClear = xpBalance >= clearCost;
+
+                const rowStart = Math.floor(index / 3) * 3;
+                const rowHasCooldown = (() => {
+                  for (let i = rowStart; i < rowStart + 3 && i < filteredAndSortedPickCreatures.creatures.length; i++) {
+                    const rowCreature = filteredAndSortedPickCreatures.creatures[i];
+                    const until = creatureCooldowns[rowCreature.id];
+                    if (typeof until === 'number' && until > nowMs) return true;
+                  }
+                  return false;
+                })();
 
                 const selectionBorderColor = onCooldown
                   ? '#6B7280'
@@ -2102,110 +2217,258 @@ export default function BattleScreen() {
                         borderColor: selectionBorderColor,
                         backgroundColor: '#FFFFFF',
                       },
+                      Platform.OS === 'web'
+                        ? ({ cursor: onCooldown ? 'not-allowed' : 'default' } as any)
+                        : null,
                     ]}
                   >
-                    <Pressable onPress={() => selectCreatureForActiveSlot(c)} style={{ width: '100%' }}>
-                      <View style={[creatureCardStyles.header, { marginBottom: 8 }]}
-                      >
-                        <View style={{ flex: 1, paddingRight: 6 }}>
-                          <Text style={[creatureCardStyles.name, { fontSize: 13 }]} numberOfLines={2}>
-                            {c.name}
-                          </Text>
-                          <Text style={[creatureCardStyles.id, { fontSize: 10 }]} numberOfLines={1}>
-                            #{c.id}
-                          </Text>
-                        </View>
-                        <View style={[creatureCardStyles.header, { alignItems: 'center' }]}>
-                          <Text
-                            style={[
-                              creatureCardStyles.sport,
-                              { color: getSportColor(c.sport)[0], fontSize: 10, marginLeft: 0 },
-                            ]}
-                            numberOfLines={1}
-                          >
-                            {c.sport}
-                          </Text>
-                          {c.rarity === 'legendary' ? (
-                            <LinearGradient
-                              colors={[...LEGENDARY_BADGE_GRADIENT_COLORS]}
-                              start={{ x: 0, y: 0 }}
-                              end={{ x: 1, y: 1 }}
-                              style={[creatureCardStyles.rarityBadge, { paddingHorizontal: 8, paddingVertical: 2 }]}
-                            >
-                              <Text style={[creatureCardStyles.legendaryBadgeText, { fontSize: 10 }]}>
-                                {c.rarity.toUpperCase()}
-                              </Text>
-                            </LinearGradient>
-                          ) : (
+                    <Pressable
+                      disabled={onCooldown}
+                      onPress={() => selectCreatureForActiveSlot(c)}
+                      style={[
+                        { width: '100%' },
+                        Platform.OS === 'web'
+                          ? ({ cursor: onCooldown ? 'not-allowed' : 'pointer' } as any)
+                          : null,
+                      ]}
+                    >
+                      {isDesktopWeb ? (
+                        <View style={[creatureCardStyles.header, uiStyles.creaturePickerCardHeader]}>
+                          <View style={{ flex: 1, paddingRight: 6 }}>
+                            <Text style={[creatureCardStyles.name, { fontSize: 13 }]} numberOfLines={2}>
+                              {c.name}
+                            </Text>
+                            <Text style={[creatureCardStyles.id, { fontSize: 10 }]} numberOfLines={1}>
+                              #{c.id}
+                            </Text>
+                          </View>
+                          <View style={[creatureCardStyles.header, { alignItems: 'center' }]}>
                             <Text
                               style={[
-                                creatureCardStyles.rarityBadge,
-                                {
-                                  backgroundColor: getRarityColor(c.rarity),
-                                  color: '#FFFFFF',
-                                  fontSize: 10,
-                                  paddingHorizontal: 8,
-                                  paddingVertical: 2,
-                                  overflow: 'hidden',
-                                },
+                                creatureCardStyles.sport,
+                                { color: getSportColor(c.sport)[0], fontSize: 10, marginLeft: 0 },
                               ]}
+                              numberOfLines={1}
                             >
-                              {c.rarity.toUpperCase()}
+                              {c.sport}
                             </Text>
-                          )}
+                            {c.rarity === 'legendary' ? (
+                              <LinearGradient
+                                colors={[...LEGENDARY_BADGE_GRADIENT_COLORS]}
+                                start={{ x: 0, y: 0 }}
+                                end={{ x: 1, y: 1 }}
+                                style={[creatureCardStyles.rarityBadge, { paddingHorizontal: 8, paddingVertical: 2 }]}
+                              >
+                                <Text style={[creatureCardStyles.legendaryBadgeText, { fontSize: 10 }]}>
+                                  {c.rarity.toUpperCase()}
+                                </Text>
+                              </LinearGradient>
+                            ) : (
+                              <Text
+                                style={[
+                                  creatureCardStyles.rarityBadge,
+                                  {
+                                    backgroundColor: getRarityColor(c.rarity),
+                                    color: '#FFFFFF',
+                                    fontSize: 10,
+                                    paddingHorizontal: 8,
+                                    paddingVertical: 2,
+                                    overflow: 'hidden',
+                                  },
+                                ]}
+                              >
+                                {c.rarity.toUpperCase()}
+                              </Text>
+                            )}
+                          </View>
                         </View>
-                      </View>
+                      ) : (
+                        <View style={uiStyles.creaturePickerHeaderMobileWrap}>
+                          <Text
+                            style={[creatureCardStyles.name, uiStyles.creaturePickerNameMobile]}
+                            numberOfLines={1}
+                          >
+                            {c.name}
+                          </Text>
+                          <View style={[creatureCardStyles.header, uiStyles.creaturePickerCardHeaderMobile]}>
+                            <Text
+                              style={[
+                                creatureCardStyles.sport,
+                                uiStyles.creaturePickerSportMobile,
+                                { color: getSportColor(c.sport)[0] },
+                              ]}
+                              numberOfLines={1}
+                            >
+                              {c.sport}
+                            </Text>
+                            {c.rarity === 'legendary' ? (
+                              <LinearGradient
+                                colors={[...LEGENDARY_BADGE_GRADIENT_COLORS]}
+                                start={{ x: 0, y: 0 }}
+                                end={{ x: 1, y: 1 }}
+                                style={[creatureCardStyles.rarityBadge, uiStyles.creaturePickerRarityBadgeMobile]}
+                              >
+                                <Text
+                                  style={[
+                                    creatureCardStyles.legendaryBadgeText,
+                                    uiStyles.creaturePickerRarityTextMobile,
+                                    uiStyles.creaturePickerRarityBadgeTextMobile,
+                                  ]}
+                                >
+                                  {c.rarity.toUpperCase()}
+                                </Text>
+                              </LinearGradient>
+                            ) : (
+                              <Text
+                                style={[
+                                  creatureCardStyles.rarityBadge,
+                                  uiStyles.creaturePickerRarityBadgeMobile,
+                                  uiStyles.creaturePickerRarityBadgeTextMobile,
+                                  {
+                                    backgroundColor: getRarityColor(c.rarity),
+                                    color: '#FFFFFF',
+                                  },
+                                ]}
+                              >
+                                {c.rarity.toUpperCase()}
+                              </Text>
+                            )}
+                          </View>
+                        </View>
+                      )}
 
-                      <Image
-                        source={getCreatureImage(c.id)}
-                        style={{ width: '100%', height: 60, opacity: onCooldown ? 0.55 : 1 }}
-                        contentFit="contain"
-                      />
+                      <BattlePickerCreatureIcon id={String(c.id)} height={60} dimmed={onCooldown} />
 
-                      <View style={[creatureCardStyles.stats, { marginBottom: 0, marginTop: 8 }]}
-                      >
+                      <View style={[creatureCardStyles.stats, { marginBottom: 0, marginTop: 8 }]}>
                         <View style={creatureCardStyles.stat}>
-                          <Text style={[creatureCardStyles.statLabel, { fontSize: 10 }]}>⚔️ Power</Text>
-                          <Text style={[creatureCardStyles.statValue, { fontSize: 13 }]}>{c.stats.power}</Text>
+                          <Text
+                            style={[
+                              creatureCardStyles.statLabel,
+                              isDesktopWeb ? uiStyles.creaturePickerStatLabelDesktop : uiStyles.creaturePickerStatLabelMobile,
+                            ]}
+                          >
+                            ⚔️{isDesktopWeb ? ' Power' : ''}
+                          </Text>
+                          <Text
+                            style={[
+                              creatureCardStyles.statValue,
+                              isDesktopWeb ? uiStyles.creaturePickerStatValueDesktop : uiStyles.creaturePickerStatValueMobile,
+                            ]}
+                          >
+                            {c.stats.power}
+                          </Text>
                         </View>
                         <View style={creatureCardStyles.stat}>
-                          <Text style={[creatureCardStyles.statLabel, { fontSize: 10 }]}>⚡ Speed</Text>
-                          <Text style={[creatureCardStyles.statValue, { fontSize: 13 }]}>{c.stats.speed}</Text>
+                          <Text
+                            style={[
+                              creatureCardStyles.statLabel,
+                              isDesktopWeb ? uiStyles.creaturePickerStatLabelDesktop : uiStyles.creaturePickerStatLabelMobile,
+                            ]}
+                          >
+                            ⚡{isDesktopWeb ? ' Speed' : ''}
+                          </Text>
+                          <Text
+                            style={[
+                              creatureCardStyles.statValue,
+                              isDesktopWeb ? uiStyles.creaturePickerStatValueDesktop : uiStyles.creaturePickerStatValueMobile,
+                            ]}
+                          >
+                            {c.stats.speed}
+                          </Text>
                         </View>
                         <View style={creatureCardStyles.stat}>
-                          <Text style={[creatureCardStyles.statLabel, { fontSize: 10 }]}>🛡️ Endurance</Text>
-                          <Text style={[creatureCardStyles.statValue, { fontSize: 13 }]}>{c.stats.endurance}</Text>
+                          <Text
+                            style={[
+                              creatureCardStyles.statLabel,
+                              isDesktopWeb ? uiStyles.creaturePickerStatLabelDesktop : uiStyles.creaturePickerStatLabelMobile,
+                            ]}
+                          >
+                            🛡️{isDesktopWeb ? ' Endurance' : ''}
+                          </Text>
+                          <Text
+                            style={[
+                              creatureCardStyles.statValue,
+                              isDesktopWeb ? uiStyles.creaturePickerStatValueDesktop : uiStyles.creaturePickerStatValueMobile,
+                            ]}
+                          >
+                            {c.stats.endurance}
+                          </Text>
                         </View>
                       </View>
                     </Pressable>
 
-                    {onCooldown && (
-                      <>
-                        <Text style={{ marginTop: 8, fontSize: 11, color: '#6B7280', textAlign: 'center' }}>
-                          Cooldown: {formatCooldown(cooldownUntil!)}
-                        </Text>
-                        <Pressable
-                          onPress={() => clearCreatureCooldownWithXp(c)}
-                          disabled={!canAffordClear}
-                          style={({ pressed }) => [
-                            {
+                    {rowHasCooldown &&
+                      (onCooldown ? (
+                        <>
+                          <Text
+                            style={[
+                              uiStyles.cooldownLabel,
+                              isDesktopWeb ? uiStyles.cooldownLabelDesktop : uiStyles.cooldownLabelMobile,
+                            ]}
+                          >
+                            Cooldown: {formatCooldown(cooldownUntil!)}
+                          </Text>
+                          <Pressable
+                            onPress={() => clearCreatureCooldownWithXp(c)}
+                            disabled={!canAffordClear}
+                            style={({ pressed }) => [
+                              {
+                                marginTop: 6,
+                                paddingVertical: 6,
+                                paddingHorizontal: 8,
+                                borderRadius: 10,
+                                backgroundColor: '#3B82F6',
+                                opacity: !canAffordClear ? 0.35 : pressed ? 0.85 : 1,
+                                width: '100%',
+                                alignItems: 'center',
+                              },
+                              Platform.OS === 'web'
+                                ? ({ cursor: !canAffordClear ? 'not-allowed' : 'pointer' } as any)
+                                : null,
+                            ]}
+                          >
+                            <Text
+                              style={[
+                                uiStyles.clearCooldownButtonText,
+                                isDesktopWeb ? uiStyles.clearCooldownButtonTextDesktop : uiStyles.clearCooldownButtonTextMobile,
+                              ]}
+                            >
+                              Clear ({clearCost} XP)
+                            </Text>
+                          </Pressable>
+                        </>
+                      ) : (
+                        <View style={{ opacity: 0 }} pointerEvents="none">
+                          <Text
+                            style={[
+                              uiStyles.cooldownLabel,
+                              isDesktopWeb ? uiStyles.cooldownLabelDesktop : uiStyles.cooldownLabelMobile,
+                            ]}
+                          >
+                            Cooldown: 00:00
+                          </Text>
+                          <View
+                            style={{
                               marginTop: 6,
                               paddingVertical: 6,
                               paddingHorizontal: 8,
                               borderRadius: 10,
                               backgroundColor: '#3B82F6',
-                              opacity: !canAffordClear ? 0.35 : pressed ? 0.85 : 1,
                               width: '100%',
                               alignItems: 'center',
-                            },
-                          ]}
-                        >
-                          <Text style={{ color: '#FFFFFF', fontSize: 10, fontWeight: '700' }}>
-                            Clear ({clearCost} XP)
-                          </Text>
-                        </Pressable>
-                      </>
-                    )}
+                            }}
+                          >
+                            <Text
+                              style={[
+                                uiStyles.clearCooldownButtonText,
+                                isDesktopWeb ? uiStyles.clearCooldownButtonTextDesktop : uiStyles.clearCooldownButtonTextMobile,
+                              ]}
+                            >
+                              Clear (0 XP)
+                            </Text>
+                          </View>
+                        </View>
+                      ))}
                   </View>
                 );
 
@@ -2243,6 +2506,7 @@ export default function BattleScreen() {
                 <TouchableOpacity
                   onPress={() => {
                     setPickCreaturesSearchQuery('');
+                    setPickCreaturesBattleStateFilter('all');
                     setPickCreaturesSelectedRarities([]);
                     setPickCreaturesSelectedSports([]);
                     setPickCreaturesSortField('none');
@@ -2272,87 +2536,115 @@ export default function BattleScreen() {
                   </View>
 
                   <ScrollView style={uiStyles.modalBody} showsVerticalScrollIndicator={false}>
-                    <Text style={uiStyles.filterLabel}>Rarity</Text>
-                    <View style={uiStyles.chipContainer}>
-                      <TouchableOpacity
-                        style={[uiStyles.chip, pickCreaturesSelectedRarities.length === 0 && uiStyles.chipActive]}
-                        onPress={() => setPickCreaturesSelectedRarities([])}
-                      >
-                        <Text style={[uiStyles.chipText, pickCreaturesSelectedRarities.length === 0 && uiStyles.chipTextActive]}>All</Text>
-                      </TouchableOpacity>
-                      {RARITIES.map((rarity) => (
-                        <TouchableOpacity
-                          key={rarity}
-                          style={[uiStyles.chip, pickCreaturesSelectedRarities.includes(rarity) && uiStyles.chipActive]}
-                          onPress={() => setPickCreaturesSelectedRarities((prev) => toggleSelection(prev, rarity))}
-                        >
-                          <Text style={[uiStyles.chipText, pickCreaturesSelectedRarities.includes(rarity) && uiStyles.chipTextActive]}>
-                            {rarity.charAt(0).toUpperCase() + rarity.slice(1)}
-                          </Text>
-                        </TouchableOpacity>
-                      ))}
-                    </View>
+                    <View style={uiStyles.filterTwoColRow}>
+                      <View style={[uiStyles.filterCol, uiStyles.filterColLeft]}>
+                        <Text style={uiStyles.filterLabel}>Rarity</Text>
+                        <View style={uiStyles.chipContainer}>
+                          <TouchableOpacity
+                            style={[uiStyles.chip, pickCreaturesSelectedRarities.length === 0 && uiStyles.chipActive]}
+                            onPress={() => setPickCreaturesSelectedRarities([])}
+                          >
+                            <Text style={[uiStyles.chipText, pickCreaturesSelectedRarities.length === 0 && uiStyles.chipTextActive]}>All</Text>
+                          </TouchableOpacity>
+                          {RARITIES.map((rarity) => (
+                            <TouchableOpacity
+                              key={rarity}
+                              style={[uiStyles.chip, pickCreaturesSelectedRarities.includes(rarity) && uiStyles.chipActive]}
+                              onPress={() => setPickCreaturesSelectedRarities((prev) => toggleSelection(prev, rarity))}
+                            >
+                              <Text style={[uiStyles.chipText, pickCreaturesSelectedRarities.includes(rarity) && uiStyles.chipTextActive]}>
+                                {rarity.charAt(0).toUpperCase() + rarity.slice(1)}
+                              </Text>
+                            </TouchableOpacity>
+                          ))}
+                        </View>
 
-                    <Text style={uiStyles.filterLabel}>Exercise Type</Text>
-                    <View style={uiStyles.chipContainer}>
-                      <TouchableOpacity
-                        style={[uiStyles.chip, pickCreaturesSelectedSports.length === 0 && uiStyles.chipActive]}
-                        onPress={() => setPickCreaturesSelectedSports([])}
-                      >
-                        <Text style={[uiStyles.chipText, pickCreaturesSelectedSports.length === 0 && uiStyles.chipTextActive]}>All</Text>
-                      </TouchableOpacity>
-                      {SPORTS.map((sport) => (
-                        <TouchableOpacity
-                          key={sport}
-                          style={[uiStyles.chip, pickCreaturesSelectedSports.includes(sport) && uiStyles.chipActive]}
-                          onPress={() => setPickCreaturesSelectedSports((prev) => toggleSelection(prev, sport))}
-                        >
-                          <Text style={[uiStyles.chipText, pickCreaturesSelectedSports.includes(sport) && uiStyles.chipTextActive]}>
-                            {sport.charAt(0) + sport.slice(1).toLowerCase()}
-                          </Text>
-                        </TouchableOpacity>
-                      ))}
-                    </View>
+                        <Text style={uiStyles.filterLabel}>Exercise Type</Text>
+                        <View style={uiStyles.chipContainer}>
+                          <TouchableOpacity
+                            style={[uiStyles.chip, pickCreaturesSelectedSports.length === 0 && uiStyles.chipActive]}
+                            onPress={() => setPickCreaturesSelectedSports([])}
+                          >
+                            <Text style={[uiStyles.chipText, pickCreaturesSelectedSports.length === 0 && uiStyles.chipTextActive]}>All</Text>
+                          </TouchableOpacity>
+                          {SPORTS.map((sport) => (
+                            <TouchableOpacity
+                              key={sport}
+                              style={[uiStyles.chip, pickCreaturesSelectedSports.includes(sport) && uiStyles.chipActive]}
+                              onPress={() => setPickCreaturesSelectedSports((prev) => toggleSelection(prev, sport))}
+                            >
+                              <Text style={[uiStyles.chipText, pickCreaturesSelectedSports.includes(sport) && uiStyles.chipTextActive]}>
+                                {sport.charAt(0) + sport.slice(1).toLowerCase()}
+                              </Text>
+                            </TouchableOpacity>
+                          ))}
+                        </View>
 
-                    <Text style={uiStyles.filterLabel}>Sort</Text>
-                    <View style={uiStyles.chipContainer}>
-                      {(
-                        [
-                          { key: 'none' as const, label: 'None' },
-                          { key: 'rarity' as const, label: 'Rarity' },
-                          { key: 'sport' as const, label: 'Exercise Type' },
-                        ]
-                      ).map((opt) => (
-                        <TouchableOpacity
-                          key={opt.key}
-                          style={[uiStyles.chip, pickCreaturesSortField === opt.key && uiStyles.chipActive]}
-                          onPress={() => setPickCreaturesSortField(opt.key)}
-                        >
-                          <Text style={[uiStyles.chipText, pickCreaturesSortField === opt.key && uiStyles.chipTextActive]}>
-                            {opt.label}
-                          </Text>
-                        </TouchableOpacity>
-                      ))}
-                    </View>
+                        <Text style={uiStyles.filterLabel}>Status</Text>
+                        <View style={uiStyles.chipContainer}>
+                          {(
+                            [
+                              { key: 'all' as const, label: 'All' },
+                              { key: 'fainted' as const, label: 'Fainted' },
+                            ]
+                          ).map((opt) => (
+                            <TouchableOpacity
+                              key={opt.key}
+                              style={[uiStyles.chip, pickCreaturesBattleStateFilter === opt.key && uiStyles.chipActive]}
+                              onPress={() => setPickCreaturesBattleStateFilter(opt.key)}
+                            >
+                              <Text style={[uiStyles.chipText, pickCreaturesBattleStateFilter === opt.key && uiStyles.chipTextActive]}>
+                                {opt.label}
+                              </Text>
+                            </TouchableOpacity>
+                          ))}
+                        </View>
+                      </View>
 
-                    <Text style={uiStyles.filterLabel}>Sort Order</Text>
-                    <View style={uiStyles.chipContainer}>
-                      {(
-                        [
-                          { key: 'asc' as const, label: 'Asc' },
-                          { key: 'desc' as const, label: 'Desc' },
-                        ]
-                      ).map((opt) => (
-                        <TouchableOpacity
-                          key={opt.key}
-                          style={[uiStyles.chip, pickCreaturesSortDirection === opt.key && uiStyles.chipActive]}
-                          onPress={() => setPickCreaturesSortDirection(opt.key)}
-                        >
-                          <Text style={[uiStyles.chipText, pickCreaturesSortDirection === opt.key && uiStyles.chipTextActive]}>
-                            {opt.label}
-                          </Text>
-                        </TouchableOpacity>
-                      ))}
+                      <View pointerEvents="none" style={uiStyles.filterColDivider} />
+
+                      <View style={[uiStyles.filterCol, uiStyles.filterColRight]}>
+                        <Text style={uiStyles.filterLabel}>Sort</Text>
+                        <View style={uiStyles.chipContainer}>
+                          {(
+                            [
+                              { key: 'none' as const, label: 'None' },
+                              { key: 'rarity' as const, label: 'Rarity' },
+                              { key: 'sport' as const, label: 'Exercise Type' },
+                            ]
+                          ).map((opt) => (
+                            <TouchableOpacity
+                              key={opt.key}
+                              style={[uiStyles.chip, pickCreaturesSortField === opt.key && uiStyles.chipActive]}
+                              onPress={() => setPickCreaturesSortField(opt.key)}
+                            >
+                              <Text style={[uiStyles.chipText, pickCreaturesSortField === opt.key && uiStyles.chipTextActive]}>
+                                {opt.label}
+                              </Text>
+                            </TouchableOpacity>
+                          ))}
+                        </View>
+
+                        <Text style={uiStyles.filterLabel}>Sort Order</Text>
+                        <View style={uiStyles.chipContainer}>
+                          {(
+                            [
+                              { key: 'asc' as const, label: 'Asc' },
+                              { key: 'desc' as const, label: 'Desc' },
+                            ]
+                          ).map((opt) => (
+                            <TouchableOpacity
+                              key={opt.key}
+                              style={[uiStyles.chip, pickCreaturesSortDirection === opt.key && uiStyles.chipActive]}
+                              onPress={() => setPickCreaturesSortDirection(opt.key)}
+                            >
+                              <Text style={[uiStyles.chipText, pickCreaturesSortDirection === opt.key && uiStyles.chipTextActive]}>
+                                {opt.label}
+                              </Text>
+                            </TouchableOpacity>
+                          ))}
+                        </View>
+                      </View>
                     </View>
                   </ScrollView>
 
@@ -2360,6 +2652,7 @@ export default function BattleScreen() {
                     <TouchableOpacity
                       style={uiStyles.resetButton}
                       onPress={() => {
+                        setPickCreaturesBattleStateFilter('all');
                         setPickCreaturesSelectedRarities([]);
                         setPickCreaturesSelectedSports([]);
                         setPickCreaturesSortField('none');
@@ -2381,29 +2674,28 @@ export default function BattleScreen() {
           </>
         )}
 
-        <View style={{ padding: 16, borderTopWidth: 1, borderTopColor: '#E5E7EB' }}>
-          <Text style={{ fontSize: 12, color: '#6B7280', textAlign: 'center', marginBottom: 10 }}>
-            QuestPoints (XP): {xpBalance}
+        <View style={uiStyles.selectFooterBar}>
+          <Text style={uiStyles.selectFooterXpText} numberOfLines={1}>
+            QuestPoints: {xpBalance}
           </Text>
           <Pressable
             onPress={startBattle}
             disabled={!hasEnoughCreatures || !allSlotsFilled || selectedUserCreatures.some(c => (c ? isCreatureOnCooldown(c.id) : false))}
             style={({ pressed }) => [
+              uiStyles.selectFooterStartButton,
               {
-                backgroundColor: '#3B82F6',
-                paddingVertical: 12,
-                borderRadius: 12,
-                alignItems: 'center',
                 opacity: !hasEnoughCreatures || !allSlotsFilled || selectedUserCreatures.some(c => (c ? isCreatureOnCooldown(c.id) : false)) ? 0.4 : pressed ? 0.85 : 1,
               },
             ]}
           >
-            <Text style={{ color: '#FFFFFF', fontWeight: '700' }}>Start Battle</Text>
+            <Text style={uiStyles.selectFooterStartText} numberOfLines={1}>
+              Start Battle
+            </Text>
           </Pressable>
         </View>
         {creaturesModal}
         {creatureDetailsModal}
-      </View>
+      </SACSafeAreaView>
     );
   }
 
@@ -2426,15 +2718,6 @@ export default function BattleScreen() {
                 <Text style={uiStyles.battleHeaderSecondaryText}>Pause</Text>
               </Pressable>
             )}
-            <Pressable
-              onPress={openCreaturesModal}
-              style={({ pressed }) => [
-                uiStyles.battleHeaderPrimaryButton,
-                pressed && uiStyles.buttonPressed085,
-              ]}
-            >
-              <Text style={uiStyles.battleHeaderPrimaryText}>Creatures</Text>
-            </Pressable>
           </View>
         )}
         <Text style={[styles.username, {color: '#EF4444'}]}>{opponentName}</Text>
@@ -2473,7 +2756,7 @@ export default function BattleScreen() {
                 ]}
               />
             </Pressable>
-          )}
+          , healths[0] <= 0)}
           {wrapHeaderSlot(
             creatures[1],
             <Pressable
@@ -2506,7 +2789,7 @@ export default function BattleScreen() {
                 ]}
               />
             </Pressable>
-          )}
+          , healths[1] <= 0)}
           {wrapHeaderSlot(
             creatures[2],
             <Pressable
@@ -2539,7 +2822,7 @@ export default function BattleScreen() {
                 ]}
               />
             </Pressable>
-          )}
+          , healths[2] <= 0)}
         </View>
         <View style={styles.creatureHeader}>
           {wrapHeaderSlot(
@@ -2563,7 +2846,7 @@ export default function BattleScreen() {
                 ]}
               />
             </View>
-          )}
+          , healths[3] <= 0)}
           {wrapHeaderSlot(
             creatures[4],
             <View
@@ -2585,7 +2868,7 @@ export default function BattleScreen() {
                 ]}
               />
             </View>
-          )}
+          , healths[4] <= 0)}
           {wrapHeaderSlot(
             creatures[5],
             <View
@@ -2607,7 +2890,7 @@ export default function BattleScreen() {
                 ]}
               />
             </View>
-          )}
+          , healths[5] <= 0)}
         </View>
       </View>
       <Pressable style={{flex: 1}} onPress={() => { battlePress(); }} disabled={isBattleOver || isPaused}>
@@ -2912,7 +3195,7 @@ export default function BattleScreen() {
   }
 
   return (
-    <View style={uiStyles.mobileBattleContainer}>
+    <SACSafeAreaView style={uiStyles.mobileBattleContainer} edges={['top', 'bottom', 'left', 'right']}>
       <View style={uiStyles.mobileBattleHeader}>
         <View style={uiStyles.mobileBattleHeaderTopRow}>
           <View style={uiStyles.mobileBattleNamesCol}>
@@ -2933,15 +3216,6 @@ export default function BattleScreen() {
                 <Text style={uiStyles.battleHeaderSecondaryText}>Pause</Text>
               </Pressable>
             )}
-            <Pressable
-              onPress={openCreaturesModal}
-              style={({ pressed }) => [
-                uiStyles.battleHeaderPrimaryButton,
-                pressed && uiStyles.buttonPressed085,
-              ]}
-            >
-              <Text style={uiStyles.battleHeaderPrimaryText}>Creatures</Text>
-            </Pressable>
           </View>
         </View>
 
@@ -2969,7 +3243,7 @@ export default function BattleScreen() {
                     ]}
                   />
                 </View>
-              )}
+              , healths[idx] <= 0)}
             </View>
           ))}
         </View>
@@ -3189,7 +3463,7 @@ export default function BattleScreen() {
                     ]}
                   />
                 </Pressable>
-              )}
+              , healths[idx] <= 0)}
             </View>
           ))}
         </View>
@@ -3336,12 +3610,203 @@ export default function BattleScreen() {
           </View>
         </View>
       )}
-    </View>
+    </SACSafeAreaView>
   );
 }
 
 const uiStyles = StyleSheet.create({
   flex1: { flex: 1 },
+
+  // Battle select: picker controls (collapsible search/filter)
+  pickControlsToggleRow: {
+    paddingHorizontal: 16,
+    marginTop: 0,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  pickControlsToggleLabel: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#6B7280',
+  },
+  pickControlsToggleRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  pickControlsToggleCount: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#6B7280',
+    marginRight: 8,
+  },
+  pickControlsSearchContainer: {
+    marginTop: 0,
+  },
+
+  // Creature picker card tweaks
+  creaturePickerCardHeader: {
+    marginBottom: 0,
+  },
+  creaturePickerCardHeaderMobile: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 0,
+    paddingTop: 0,
+    paddingBottom: 0,
+  },
+  creaturePickerHeaderMobileWrap: {
+    width: '100%',
+    marginBottom: 0,
+  },
+  creaturePickerNameMobile: {
+    fontSize: 7.15,
+    fontWeight: '700',
+    textAlign: 'center',
+    marginBottom: 2,
+  },
+  creaturePickerSportMobile: {
+    fontSize: 6.5,
+    marginLeft: 0,
+  },
+  creaturePickerRarityBadgeMobile: {
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+  },
+  creaturePickerRarityTextMobile: {
+    fontSize: 6.5,
+  },
+  creaturePickerRarityBadgeTextMobile: {
+    fontSize: 6.5,
+  },
+
+  creaturePickerStatLabelDesktop: {
+    fontSize: 10,
+  },
+  creaturePickerStatLabelMobile: {
+    fontSize: 6.5,
+  },
+  creaturePickerStatValueDesktop: {
+    fontSize: 13,
+  },
+  creaturePickerStatValueMobile: {
+    fontSize: 8.45,
+  },
+
+  cooldownLabel: {
+    marginTop: 8,
+    color: '#6B7280',
+    textAlign: 'center',
+  },
+  cooldownLabelDesktop: {
+    fontSize: 11,
+  },
+  cooldownLabelMobile: {
+    fontSize: 7.15,
+  },
+  clearCooldownButtonText: {
+    color: '#FFFFFF',
+    fontWeight: '700',
+  },
+  clearCooldownButtonTextDesktop: {
+    fontSize: 10,
+  },
+  clearCooldownButtonTextMobile: {
+    fontSize: 6.5,
+  },
+
+  // Select phase: footer (QuestPoints + Start)
+  selectFooterBar: {
+    paddingHorizontal: 16,
+    paddingVertical: 4,
+    borderTopWidth: 1,
+    borderTopColor: '#E5E7EB',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 12,
+  },
+  selectFooterXpText: {
+    fontSize: 12,
+    color: '#6B7280',
+    flex: 1,
+  },
+  selectFooterStartButton: {
+    backgroundColor: '#3B82F6',
+    paddingVertical: 8,
+    paddingHorizontal: 14,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    minWidth: 118,
+  },
+  selectFooterStartText: {
+    color: '#FFFFFF',
+    fontWeight: '700',
+  },
+
+  // Select phase: 3 chosen-slot cards
+  selectSlotWrap: {
+    flex: 1,
+    marginHorizontal: 4,
+    borderRadius: 14,
+    overflow: 'hidden',
+    padding: 2,
+    backgroundColor: 'transparent',
+  },
+  selectSlotPressable: {
+    width: '100%',
+    borderRadius: 12,
+    padding: 3,
+    alignItems: 'center',
+    justifyContent: 'flex-start',
+    height: 118,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 2,
+  },
+  selectSlotNumber: {
+    fontWeight: '700',
+    marginBottom: 0,
+  },
+  selectSlotIcon: {
+    width: '100%',
+    height: 60,
+    opacity: 1,
+  },
+  selectSlotIconPlaceholder: {
+    width: '100%',
+    height: 60,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  selectSlotMeta: {
+    marginTop: 0,
+    alignItems: 'center',
+    width: '100%',
+  },
+  selectSlotMetaName: {
+    fontSize: 11,
+    fontWeight: '700',
+    textAlign: 'center',
+  },
+  selectSlotMetaNameMobile: {
+    fontSize: 7.15,
+  },
+  selectSlotMetaStats: {
+    marginTop: 0,
+    fontSize: 10,
+    color: '#6B7280',
+    textAlign: 'center',
+  },
+  selectSlotMetaStatsMobile: {
+    fontSize: 6.5,
+  },
+  selectSlotMetaHint: {
+    marginTop: 6,
+    fontSize: 11,
+    color: '#6B7280',
+  },
 
   // Mobile battle layout
   mobileBattleContainer: {
@@ -3395,6 +3860,15 @@ const uiStyles = StyleSheet.create({
     justifyContent: 'flex-start',
     alignItems: 'center',
     backgroundColor: 'transparent',
+  },
+  headerSlotContentWrap: {
+    position: 'relative',
+    borderRadius: 10,
+    overflow: 'hidden',
+  },
+  headerSlotFaintedOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(107,114,128,0.25)',
   },
   mobileTeamSlotWrap: {
     backgroundColor: 'transparent',
@@ -3612,6 +4086,24 @@ const uiStyles = StyleSheet.create({
   chipTextActive: {
     color: '#FF6B35',
     fontWeight: '600',
+  },
+  filterTwoColRow: {
+    flexDirection: 'row',
+    alignItems: 'stretch',
+  },
+  filterCol: {
+    flex: 1,
+  },
+  filterColLeft: {
+    paddingRight: 14,
+  },
+  filterColRight: {
+    paddingLeft: 14,
+  },
+  filterColDivider: {
+    width: 1,
+    alignSelf: 'stretch',
+    backgroundColor: '#E5E7EB',
   },
   modalFooter: {
     flexDirection: 'row',

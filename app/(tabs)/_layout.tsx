@@ -55,11 +55,13 @@ export default function TabLayout() {
   const pathname = usePathname();
   const insets = useSafeAreaInsets();
 
-  const defaultTabBarPaddingBottom = Platform.OS === 'ios' ? 28 : 10;
-  const tabBarPaddingBottom = Math.max(insets.bottom, defaultTabBarPaddingBottom);
+  // Some Android devices/gesture modes can report a very small/zero bottom inset.
+  // Enforce a conservative minimum so the app tab bar never sits under the system nav/home bar.
+  const minTabBarSafeAreaBottom = Platform.OS === 'ios' ? 34 : 20;
+  const tabBarSafeAreaBottom = Math.max(insets.bottom, minTabBarSafeAreaBottom);
   const TAB_BAR_HEIGHT_SCALE = 0.85;
   const tabBarBaseHeight = Platform.OS === 'ios' ? 85 : 65;
-  const tabBarHeight = tabBarBaseHeight * TAB_BAR_HEIGHT_SCALE + (tabBarPaddingBottom - defaultTabBarPaddingBottom);
+  const tabBarHeight = tabBarBaseHeight * TAB_BAR_HEIGHT_SCALE + tabBarSafeAreaBottom;
   const tabBarPaddingTop = Math.round(10 * TAB_BAR_HEIGHT_SCALE);
 
   const overlayAnim = React.useRef(new Animated.Value(0)).current;
@@ -188,7 +190,7 @@ export default function TabLayout() {
           backgroundColor: '#FFFFFF',
           borderTopWidth: 0,
           height: tabBarHeight,
-          paddingBottom: tabBarPaddingBottom,
+          paddingBottom: tabBarSafeAreaBottom,
           paddingTop: tabBarPaddingTop,
           shadowColor: "#000",
           shadowOffset: {

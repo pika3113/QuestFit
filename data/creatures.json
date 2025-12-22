@@ -292,7 +292,7 @@
       "description": "A one of a kind crocodile.",
       "sport": "GENERAL",
       "stats": {
-        "power": 210,
+        "power": 21000,
         "speed": 88,
         "endurance": 157
       },
