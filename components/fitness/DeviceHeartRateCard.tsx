@@ -3,6 +3,7 @@ import { View, Text, Pressable } from 'react-native';
 import { ConnectedDeviceInfo } from '@/src/services/bluetoothTypes';
 import Colors from '@/constants/Colors';
 import { deviceHeartRateCardStyles as styles } from '@/src/styles/components/deviceHeartRateCardStyles';
+import { usePolarHistoricalBaseline, type BaselineRange } from '@/src/hooks/usePolarHistoricalBaseline';
 
 interface DeviceHeartRateCardProps {
   deviceInfo: ConnectedDeviceInfo;
@@ -10,6 +11,8 @@ interface DeviceHeartRateCardProps {
   onDisconnect: () => void;
   compact?: boolean;
   ownerName?: string;
+  ownerUserId?: string;
+  baselineRange?: BaselineRange;
   accentColor?: string;
 }
 
@@ -19,6 +22,8 @@ export const DeviceHeartRateCard: React.FC<DeviceHeartRateCardProps> = ({
   onDisconnect,
   compact = false,
   ownerName,
+  ownerUserId,
+  baselineRange = '7d',
   accentColor,
 }) => {
   const getHeartRateColor = (hr: number | null): string => {
@@ -28,6 +33,26 @@ export const DeviceHeartRateCard: React.FC<DeviceHeartRateCardProps> = ({
     if (hr < 140) return '#FBBF24'; // Yellow
     if (hr < 160) return '#F97316'; // Orange
     return '#EF4444'; // Red
+  };
+
+  const normalizedOwnerUserId = (ownerUserId ?? '').trim();
+  const { baseline } = usePolarHistoricalBaseline(
+    normalizedOwnerUserId,
+    baselineRange
+  );
+
+  const baselineAvgHr = baseline?.avgExerciseHr ?? null;
+  const hrDelta = baselineAvgHr != null && heartRate != null ? heartRate - baselineAvgHr : null;
+
+  const getComparisonDotColor = (): string => {
+    if (hrDelta == null) return '#9CA3AF'; // unknown
+    const abs = Math.abs(hrDelta);
+    if (abs <= 5) return '#34D399'; // close to baseline
+    if (hrDelta >= 26) return '#EF4444'; // way above baseline
+    if (hrDelta >= 6) return '#FBBF24'; // above baseline
+    if (hrDelta <= -26) return '#60A5FA'; // way below baseline
+    if (hrDelta <= -6) return '#A855F7'; // below baseline (distinct from blue)
+    return '#A855F7';
   };
 
   if (compact) {
@@ -47,6 +72,16 @@ export const DeviceHeartRateCard: React.FC<DeviceHeartRateCardProps> = ({
             {heartRate ?? '--'}
           </Text>
           <Text style={styles.compactBPM}>bpm</Text>
+          <View
+            style={{
+              width: 10,
+              height: 10,
+              borderRadius: 999,
+              marginLeft: 8,
+              backgroundColor: getComparisonDotColor(),
+              opacity: normalizedOwnerUserId ? 1 : 0.6,
+            }}
+          />
         </View>
       </View>
     );
@@ -77,6 +112,18 @@ export const DeviceHeartRateCard: React.FC<DeviceHeartRateCardProps> = ({
             {heartRate ?? '--'}
           </Text>
           <Text style={styles.hrUnit}>bpm</Text>
+          <View
+            style={{
+              width: 12,
+              height: 12,
+              borderRadius: 999,
+              marginLeft: 10,
+              backgroundColor: getComparisonDotColor(),
+              opacity: normalizedOwnerUserId ? 1 : 0.6,
+              borderWidth: 1,
+              borderColor: '#00000022',
+            }}
+          />
         </View>
         
         {deviceInfo.lastHeartRateTime && (

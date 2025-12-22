@@ -15,6 +15,7 @@ import {
   Easing,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Text } from '@/components/Themed';
 import Colors from '@/constants/Colors';
 import { useColorScheme } from '@/components/useColorScheme';
@@ -55,6 +56,8 @@ export default function TabLayout() {
   const pathname = usePathname();
   const insets = useSafeAreaInsets();
 
+  const lastTabStorageKey = user?.uid ? `LAST_TAB_PATH_${user.uid}` : 'LAST_TAB_PATH_ANON';
+
   // Some Android devices/gesture modes can report a very small/zero bottom inset.
   // Enforce a conservative minimum so the app tab bar never sits under the system nav/home bar.
   const minTabBarSafeAreaBottom = Platform.OS === 'ios'
@@ -78,6 +81,20 @@ export default function TabLayout() {
     setOverlayMenuOpen(false);
     overlayAnim.setValue(0);
   }, [pathname, overlayAnim]);
+
+  useEffect(() => {
+    // Remember the last non-battle tab so Battle's "Quit Battle" can return there.
+    // Store canonical routes (/home, /workout, ...) to match Expo Router's typed paths.
+    const isBattle = pathname === '/battle' || pathname.endsWith('/battle');
+    if (isBattle) return;
+
+    const tabName = pathname.startsWith('/') ? pathname.slice(1).split('/')[0] : pathname;
+    const allowedTabs = new Set(['home', 'workout', 'creatures', 'me', 'instr-dashboard']);
+    if (!allowedTabs.has(tabName)) return;
+
+    const nextPath = `/${tabName}`;
+    AsyncStorage.setItem(lastTabStorageKey, nextPath).catch(() => undefined);
+  }, [pathname, lastTabStorageKey]);
 
   useEffect(() => {
     checkPolarToken();
@@ -290,17 +307,17 @@ export default function TabLayout() {
           // href: null,
           title: 'Battle',
           headerTitle: 'QuestFit',
+          tabBarStyle: { display: 'none' },
           tabBarIcon: ({ color }) => <TabBarIcon6 name="burst" color={color} />,
         }}
       />
       <Tabs.Screen
-        name="multi-device"
+        name="creatures"
         options={{
-          // Keep this screen mounted in tabs but real URL is /workout.
-          href: null,
-          title: 'Multi-Device (Legacy)',
+          title: 'Creatures',
           headerTitle: 'QuestFit',
-          tabBarIcon: ({ color }) => <TabBarIcon6 name="people-robbery" color={color} size={24} />,
+          href:null,
+          tabBarIcon: ({ color }) => <TabBarIcon name="gitlab" color={color} />,
         }}
       />
       <Tabs.Screen
@@ -313,21 +330,22 @@ export default function TabLayout() {
         }}
       />
       <Tabs.Screen
-        name="creatures"
-        options={{
-          href: null,
-          title: 'Creatures',
-          headerTitle: 'QuestFit',
-          tabBarIcon: ({ color }) => <TabBarIcon name="gitlab" color={color} />,
-        }}
-      />
-      <Tabs.Screen
         name="instr-dashboard"
         options={{
           href: isInstructor ? '/instr-dashboard' : null,
           title: 'Instructor',
           headerTitle: 'QuestFit',
           tabBarIcon: ({ color }) => <TabBarIcon6 name="chalkboard-user" color={color} size={24} />,
+        }}
+      />
+      <Tabs.Screen
+        name="multi-device"
+        options={{
+          // Keep this screen mounted in tabs but real URL is /workout.
+          href: null,
+          title: 'Multi-Device (Legacy)',
+          headerTitle: 'QuestFit',
+          tabBarIcon: ({ color }) => <TabBarIcon6 name="people-robbery" color={color} size={24} />,
         }}
       />
       <Tabs.Screen

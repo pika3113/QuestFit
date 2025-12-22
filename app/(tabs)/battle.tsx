@@ -2,7 +2,7 @@ import { battleStyles as styles, getRarityColor, getSportColor, LEGENDARY_BADGE_
 import creatureService from '@/src/services/creatureService';
 import { Image } from 'expo-image';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { Alert, Animated, Easing, InteractionManager, Modal, Platform, PixelRatio, Pressable, ScrollView, StyleSheet, TextInput, TouchableOpacity, useWindowDimensions, View, Text } from 'react-native';
+import { Alert, Animated, BackHandler, Easing, InteractionManager, Modal, Platform, PixelRatio, Pressable, ScrollView, StyleSheet, TextInput, TouchableOpacity, useWindowDimensions, View, Text } from 'react-native';
 import { Creature } from '@/src/types/polar';
 import Svg, { G, Path, Defs, ClipPath, Rect } from 'react-native-svg';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -14,6 +14,7 @@ import { LEGENDARY_SPECTRUM_GRADIENT_COLORS } from '@/src/styles';
 import { SafeAreaView as SACSafeAreaView } from 'react-native-safe-area-context';
 import { CreatureCardGrid, CreatureCardGridSkeleton, CreatureDetailsModal } from '@/components/game/CreatureCard';
 import { Ionicons } from '@expo/vector-icons';
+import { router } from 'expo-router';
 
 const RARITIES = ['common', 'rare', 'epic', 'legendary'];
 const SPORTS = ['GENERAL', 'RUNNING', 'SWIMMING', 'HIKING', 'FITNESS', 'CYCLING', 'CIRCUIT'];
@@ -36,8 +37,16 @@ const typeMatchups = [[1, 1, 1, 1, 1, 1, 1], // GENERAL
                       [1, 0.5, 1, 1, 2, 1, 1] // CIRCUIT
                     ];
 
-function getCreatureImage(id: string) {
-  return creatureImages(`./creature_icon_${id}.png`);
+function getCreatureImage(id: string | number) {
+  try {
+    return creatureImages(`./creature_icon_${String(id)}.png`);
+  } catch {
+    try {
+      return creatureImages('./creature_icon_1.png');
+    } catch {
+      return undefined as any;
+    }
+  }
 }
 
 function BattlePickerCreatureIcon({ id, height, dimmed }: { id: string; height: number; dimmed: boolean }) {
@@ -68,23 +77,86 @@ function BattlePickerCreatureIcon({ id, height, dimmed }: { id: string; height: 
     <View
       style={{ width: '100%', height, opacity: dimmed ? 0.55 : 1 }}
       onLayout={(e) => {
-        const next = snap(e.nativeEvent.layout.width);
-        if (next > 0 && next !== layoutWidth) setLayoutWidth(next);
+        setLayoutWidth(e.nativeEvent.layout.width);
       }}
     >
-      {layoutWidth > 0 && image && (() => {
+      {layoutWidth > 0 && image && (
+        <Canvas style={{ width: layoutWidth, height }}>
+          <SkiaImage
+            image={image}
+            x={0}
+            y={0}
+            width={snap(layoutWidth)}
+            height={snap(height)}
+            fit="contain"
+            sampling={{ filter: FilterMode.Nearest, mipmap: MipmapMode.None }}
+          />
+        </Canvas>
+      )}
+    </View>
+  );
+}
+
+function BattleCreatureSprite({
+  id,
+  size,
+  dimmed,
+  fainted,
+}: {
+  id: string | number;
+  size: number;
+  dimmed?: boolean;
+  fainted?: boolean;
+}) {
+  const opacity = dimmed ? 0.55 : 1;
+
+  if (Platform.OS === 'web') {
+    return (
+      <View style={{ width: size, height: size, opacity }}>
+        <Image
+          source={getCreatureImage(id)}
+          style={{ width: size, height: size, resizeMode: 'contain', imageRendering: 'pixelated' } as any}
+          contentFit="contain"
+        />
+        {fainted && (
+          <View
+            pointerEvents="none"
+            style={{
+              ...StyleSheet.absoluteFillObject,
+              backgroundColor: 'rgba(107,114,128,0.35)',
+            }}
+          />
+        )}
+      </View>
+    );
+  }
+
+  // Native: render pixel art crisply using Skia nearest-neighbor sampling (same approach as CreatureCard).
+  const skia = React.useMemo(() => {
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    return require('@shopify/react-native-skia') as any;
+  }, []);
+
+  const { Canvas, Image: SkiaImage, useImage, FilterMode, MipmapMode, Rect: SkiaRect } = skia;
+  const image = useImage(getCreatureImage(id));
+  const pr = PixelRatio.get();
+  const snap = React.useCallback((v: number) => Math.round(v * pr) / pr, [pr]);
+
+  return (
+    <View style={{ width: size, height: size, opacity }}>
+      {image && (() => {
         const srcW = image.width();
         const srcH = image.height();
-        const maxScale = Math.min(layoutWidth / srcW, height / srcH);
+        const maxScale = Math.min(size / srcW, size / srcH);
         const scale = maxScale >= 1 ? Math.max(1, Math.floor(maxScale)) : maxScale;
 
         const drawW = snap(srcW * scale);
         const drawH = snap(srcH * scale);
-        const x = snap((layoutWidth - drawW) / 2);
-        const y = snap((height - drawH) / 2);
+        const x = snap((size - drawW) / 2);
+        const y = snap((size - drawH) / 2);
 
         return (
-          <Canvas style={{ width: layoutWidth, height }}>
+          <Canvas style={{ width: size, height: size }}>
             <SkiaImage
               image={image}
               x={x}
@@ -94,6 +166,7 @@ function BattlePickerCreatureIcon({ id, height, dimmed }: { id: string; height: 
               fit="fill"
               sampling={{ filter: FilterMode.Nearest, mipmap: MipmapMode.None }}
             />
+            {fainted && <SkiaRect x={0} y={0} width={size} height={size} color="rgba(107,114,128,0.35)" />}
           </Canvas>
         );
       })()}
@@ -101,182 +174,82 @@ function BattlePickerCreatureIcon({ id, height, dimmed }: { id: string; height: 
   );
 }
 
-interface IconProps {
-  creature: Creature;
-  attackTrigger?: (trigger: () => void) => void
-  onFaintEnd?: () => void;
-};
+function ImpactEffect({ sport, onComplete }: { sport: Creature['sport']; onComplete?: () => void }) {
+  const scale = useRef(new Animated.Value(0.7)).current;
+  const opacity = useRef(new Animated.Value(0)).current;
 
-function IdleIcon({ creature, attackTrigger }: IconProps) {
-  const delay = 800/(1+Math.exp(0.03*(creature.stats.speed-50)))+100;
-  const entranceAnim = useRef(new Animated.Value(0)).current;
-  const idleAnim = useRef(new Animated.Value(0)).current;
-  const attackAnim = useRef(new Animated.Value(0)).current;
-
-  // Entrance animation
   useEffect(() => {
-    entranceAnim.setValue(0);
-    idleAnim.setValue(0);
-    Animated.timing(entranceAnim, {
-      toValue: 1,
-      duration: 400,
-      easing: Easing.out(Easing.cubic),
-      useNativeDriver: true,
-    }).start(() => {
-      // Start idle animation after entrance
-      Animated.loop(
-        Animated.sequence([
-          Animated.timing(idleAnim, {
-            toValue: -10,
-            duration: 0,
-            easing: Easing.linear,
-            useNativeDriver: true,
-          }),
-          Animated.delay(delay),
-          Animated.timing(idleAnim, {
-            toValue: 0,
-            duration: 0,
-            easing: Easing.linear,
-            useNativeDriver: true,
-          }),
-          Animated.delay(delay)
-        ])
-      ).start();
-    });
-  }, [creature.id]);
-
-  // Scale interpolation for entrance
-  const scale = entranceAnim.interpolate({
-    inputRange: [0, 1],
-    outputRange: [0, 1], 
-  });
-
-   // Attack animation trigger
-  const triggerAttack = () => {
-    Animated.sequence([
-      Animated.timing(attackAnim, {
-        toValue: -50,
-        duration: delay/2,
-        easing: Easing.out(Easing.quad),
+    Animated.parallel([
+      Animated.timing(scale, {
+        toValue: 1,
+        duration: 260,
         useNativeDriver: true,
       }),
-      Animated.delay(delay),
-      Animated.timing(attackAnim, {
-        toValue: 0,
-        duration: delay/2,
-        easing: Easing.in(Easing.quad),
+      Animated.timing(opacity, {
+        toValue: 0.65,
+        duration: 260,
         useNativeDriver: true,
       }),
-    ]).start();
-  };
-
-  useEffect(() => {
-    attackTrigger?.(triggerAttack);
-  }, [attackTrigger]);
-
-  // Transform stack to anchor to bottom
-  const transform = [
-    { translateY: 75 },
-    { scale },
-    { translateY: Animated.add(-75, idleAnim) }, // combine entrance + idle
-    { translateX: attackAnim } // attack
-  ];
-
-  return (
-    <Animated.Image
-      source={getCreatureImage(creature.id)}
-      style={[
-        styles.creatureIcon,
-        {
-          width: 150,
-          height: 150,
-          transform,
-        },
-      ]}
-      resizeMode="contain"
-    />
-  );
-}
-
-function FaintedIcon ({ creature, onFaintEnd }: IconProps) {
-  const anim = useRef(new Animated.Value(0)).current;
-
-  useEffect(() => {
-    Animated.timing(anim, {
-      toValue: 1,
-      duration: 750,
-      easing: Easing.out(Easing.cubic),
-      useNativeDriver: true,
-    }).start(({ finished }) => {
-      if (finished) {
-        onFaintEnd?.();
-      }
+    ]).start(() => {
+      Animated.parallel([
+        Animated.timing(opacity, {
+          toValue: 0,
+          duration: 520,
+          useNativeDriver: true,
+        }),
+        Animated.timing(scale, {
+          toValue: 1.18,
+          duration: 520,
+          useNativeDriver: true,
+        }),
+      ]).start(() => {
+        onComplete?.();
+      });
     });
   }, []);
-
-  const scaleY = anim.interpolate({
-    inputRange: [0, 1],
-    outputRange: [1, 0.85],
-  });
-
-  const colorOpacity = anim.interpolate({
-    inputRange: [0, 1],
-    outputRange: [1, 0],
-  });
-
-  const greyOpacity = anim.interpolate({
-    inputRange: [0, 1],
-    outputRange: [0, 1],
-  });
 
   return (
     <Animated.View
       style={{
-        transform: [ 
-          { translateY: 75 },
-          { scaleY },
-          { translateY: -75 } ]
+        position: 'absolute',
+        top: 0,
+        left: 0,
+        width: '100%',
+        height: '100%',
+        alignItems: 'center',
+        justifyContent: 'center',
+        opacity,
+        transform: [{ scale }],
       }}
     >
-      <Animated.Image
-        source={getCreatureImage(creature.id)}
-        style={[
-          styles.creatureIcon,
-          {
-          width: 150,
-          height: 150,
-          opacity: colorOpacity
-          }
-        ]}
-        resizeMode="contain"
-      />
-      <Animated.Image
-        source={getCreatureImage(creature.id)}
-        style={[
-          styles.creatureIcon,
-          {
-          width: 150,
-          height: 150,
-          opacity: greyOpacity,
-          ...StyleSheet.absoluteFillObject,
-          filter: "grayscale(40%)"
-          }
-        ]}
-        resizeMode="contain"
-      />
+      <Svg viewBox="-10 -10 50 50" fill={getSportColor(sport)[0]}>
+        <Path d="M 31.578019,19.672316 C 28.510455,18.393603 25.469,15.853 24.862,13.866 c -0.498,-1.631 1.004,-3.801 3.836,-6.416 -2.958,1.621 -5.135,2.722 -5.997,1.185 -0.774,-1.38 0.093,-3.966 1.464,-7.357 0,0 -2.269267,3.7757324 -3.515861,4.0146035 C 19.447545,4.3341582 19.578881,0.20754497 19.578881,0.20754497 18.240881,3.204545 15.865,5.972 13.81,6.263 12.054,6.512 9.781,4.449 7.22,1.521 8.678,4.415 9.214,6.736 8.231,7.309 7.069,7.987 4.9651484,6.8502774 1.5171484,5.4022774 c 0,0 3.994129,2.6801191 3.9238516,4.5217226 -0.358,0.48 -2.9870249,0.397 -5.14402488,0.105 0,0 5.80702488,4.902 5.80702488,6.416 0,1.302 -3.7950299,5.632642 -6.00602985,7.738642 0,0 5.63702985,-1.568642 6.45902985,-0.102642 0.839,1.495 0.276,3.611 -0.802,6.695 0,0 5.667,-4.766 6.66,-4.672 0.703,0.066 0.453,4.672 0.453,4.672 1.743,-4.845 3.892,-7.814 7.078,-7.706 2.796,0.096 5.449,2.91 8.368,4.916 -1.526,-1.867 -5.650433,-5.441423 -4.208612,-5.578214 1.194214,-0.202592 5.769189,0.915209 5.769189,0.915209 -1.863,-1.271 -2.294711,-1.779375 -2.222577,-2.729995 0.450287,-1.406168 3.926019,-0.920684 3.926019,-0.920684 z M 21.948,18.081 c -0.335,0.334 1.759,1.577 2.956,2.438 -1.81,-0.632 -4.092,-1.582 -4.518,-1.234 -0.308,0.252 1.12,1.603 1.897,2.553 -1.485,-1.021 -2.845,-2.448 -4.267,-2.496 -2.092,-0.071 -3.29,2.442 -4.323,6.282 0.272,-1.823 1.089,-4.679 0.502,-4.733 -0.833,-0.078 -2.846,2.892 -4.351,5.106 1.051,-3.185 2.006,-5 1.367,-6.139 -0.577,-1.029 -2.744,-0.403 -3.682,0.143 1.105,-1.043 3.447,-3.141 3.447,-4.025 0,-1.286 -2.32,-2.733 -6.599,-3.951 2.572,0.405 5.888,1.149 6.275,0.631 0.303,-0.405 -2.192,-1.813 -3.71,-2.811 2.672,1.146 4.365,1.92 5.122,1.479 0.5,-0.292 0.222,-1.47 -0.52,-2.942 1.303,1.489 2.471,2.538 3.364,2.411 1.884,-0.267 2.698,-2.76 4.166,-7.518 v 0 C 18.729,5.923 18.03,9.24 18.46,9.644 18.782,9.947 20.096,7.5 21.11,5.943 c -1.144,2.886 -2.245,5.056 -1.69,6.045 0.439,0.782 1.552,0.23 3.056,-0.594 -1.44,1.33 -2.214,2.433 -1.961,3.263 0.503,1.647 2.857,2.292 7.065,3.766 -2.161,-0.28 -5.135,-0.842 -5.634,-0.344 z" />
+      </Svg>
     </Animated.View>
   );
 }
 
-interface DamageNumberProps {
-  damage: number;
-  isUser: boolean;
-  effectiveness?: String;
-  isSpecial: boolean;
-  onComplete?: () => void;
+interface FloatingDamage {
+  id: string;
+  creatureIndex: number;
+  amount: number;
+  effectiveness?: string;
+  isSpecial?: boolean;
 }
 
-export function DamageNumber({ damage, isUser, effectiveness, isSpecial, onComplete }: DamageNumberProps) {
+function DamageNumber({
+  damage,
+  isUser,
+  effectiveness,
+  isSpecial,
+  onComplete,
+}: {
+  damage: number;
+  isUser: boolean;
+  effectiveness?: string;
+  isSpecial?: boolean;
+  onComplete?: () => void;
+}) {
   const translateY = useRef(new Animated.Value(0)).current;
   const opacity = useRef(new Animated.Value(0)).current;
 
@@ -284,133 +257,135 @@ export function DamageNumber({ damage, isUser, effectiveness, isSpecial, onCompl
     Animated.parallel([
       Animated.timing(opacity, {
         toValue: 1,
-        duration: 100, // fade in quickly
+        duration: 140,
         useNativeDriver: true,
       }),
       Animated.timing(translateY, {
-        toValue: -20, // initial upward move
-        duration: 300,
+        toValue: -32,
+        duration: 720,
         useNativeDriver: true,
       }),
     ]).start(() => {
-      // continue moving up and fading out
-      Animated.parallel([
-        Animated.timing(opacity, {
-          toValue: 0,
-          duration: 400,
-          useNativeDriver: true,
-        }),
-        Animated.timing(translateY, {
-          toValue: -50,
-          duration: 400,
-          useNativeDriver: true,
-        }),
-      ]).start(() => {
-        onComplete?.();
-      });
-    });
-  }, []);
-
-  return (
-    <Animated.Text
-      style={[
-        {
-          color: (effectiveness === 'WEAK') ? '#10B981' : (effectiveness === 'RESIST') ? '#EF4444' : '#6B7280',
-          position: 'absolute',
-          textAlign: 'center',
-          fontSize: isSpecial ? 30 : 24,
-          fontWeight: isSpecial ? 'bold' : 'normal',
-          bottom: 100, 
-          left: 50, 
-          opacity,
-          transform: [{ translateY }, {scaleX: isUser ? -1 : 1 }],
-        },
-      ]}
-    >
-      -{damage}
-      {effectiveness && 
-      <>
-        <br/>
-        <Text style={[
-          {
-            color: (effectiveness === 'WEAK') ? '#10B981' : (effectiveness === 'RESIST') ? '#EF4444' : '#6B7280',
-            fontSize: isSpecial ? 22 : 16
-          }]}>
-          {effectiveness}
-        </Text>
-      </>}
-    </Animated.Text>
-  );
-}
-
-interface FloatingDamage {
-  id: string; // unique key
-  creatureIndex: number; // which creature receives damage
-  effectiveness?: String; // type effectiveness message
-  isSpecial: boolean; // if the attack is special or normal
-  amount: number;
-}
-
-interface ImpactEffectProps {
-  onComplete?: () => void;
-  sport: "GENERAL" | "RUNNING" | "SWIMMING" | "HIKING" | "FITNESS" | "CYCLING" | "CIRCUIT";
-}
-
-export function ImpactEffect({ onComplete, sport }: ImpactEffectProps) {
-  const scale = useRef(new Animated.Value(0)).current;
-  const opacity = useRef(new Animated.Value(0)).current;
-
-  useEffect(() => {
-    // Animate scale + opacity in
-    Animated.parallel([
-      Animated.timing(scale, {
-        toValue: 1,
-        duration: 300,
-        useNativeDriver: true,
-      }),
       Animated.timing(opacity, {
-        toValue: 0.6,
-        duration: 300,
+        toValue: 0,
+        duration: 200,
         useNativeDriver: true,
-      }),
-    ]).start(() => {
-      // Animate fade out + slight scale up
-      Animated.parallel([
-        Animated.timing(opacity, {
-          toValue: 0,
-          duration: 600,
-          useNativeDriver: true,
-        }),
-        Animated.timing(scale, {
-          toValue: 1.2,
-          duration: 600,
-          useNativeDriver: true,
-        }),
-      ]).start(() => {
+      }).start(() => {
         onComplete?.();
       });
     });
   }, []);
+
+  const baseColor = isUser ? '#EF4444' : '#3B82F6';
+  const specialColor = '#F59E0B';
 
   return (
     <Animated.View
+      pointerEvents="none"
       style={{
-          position: 'absolute',
-          top: 0,
-          left: 0,
-          width: '100%',
-          height: '100%',
-          alignItems: 'center',
-          justifyContent: 'center',
-          opacity,
-          transform: [{ scale }],
-        }}
+        position: 'absolute',
+        top: 10,
+        left: 0,
+        right: 0,
+        alignItems: 'center',
+        opacity,
+        transform: [{ translateY }],
+      }}
     >
-      <Svg viewBox="-10 -10 50 50" fill={getSportColor(sport)[0]}>
-        <path
-          d="M 31.578019,19.672316 C 28.510455,18.393603 25.469,15.853 24.862,13.866 c -0.498,-1.631 1.004,-3.801 3.836,-6.416 -2.958,1.621 -5.135,2.722 -5.997,1.185 -0.774,-1.38 0.093,-3.966 1.464,-7.357 0,0 -2.269267,3.7757324 -3.515861,4.0146035 C 19.447545,4.3341582 19.578881,0.20754497 19.578881,0.20754497 18.240881,3.204545 15.865,5.972 13.81,6.263 12.054,6.512 9.781,4.449 7.22,1.521 8.678,4.415 9.214,6.736 8.231,7.309 7.069,7.987 4.9651484,6.8502774 1.5171484,5.4022774 c 0,0 3.994129,2.6801191 3.9238516,4.5217226 -0.358,0.48 -2.9870249,0.397 -5.14402488,0.105 0,0 5.80702488,4.902 5.80702488,6.416 0,1.302 -3.7950299,5.632642 -6.00602985,7.738642 0,0 5.63702985,-1.568642 6.45902985,-0.102642 0.839,1.495 0.276,3.611 -0.802,6.695 0,0 5.667,-4.766 6.66,-4.672 0.703,0.066 0.453,4.672 0.453,4.672 1.743,-4.845 3.892,-7.814 7.078,-7.706 2.796,0.096 5.449,2.91 8.368,4.916 -1.526,-1.867 -5.650433,-5.441423 -4.208612,-5.578214 1.194214,-0.202592 5.769189,0.915209 5.769189,0.915209 -1.863,-1.271 -2.294711,-1.779375 -2.222577,-2.729995 0.450287,-1.406168 3.926019,-0.920684 3.926019,-0.920684 z M 21.948,18.081 c -0.335,0.334 1.759,1.577 2.956,2.438 -1.81,-0.632 -4.092,-1.582 -4.518,-1.234 -0.308,0.252 1.12,1.603 1.897,2.553 -1.485,-1.021 -2.845,-2.448 -4.267,-2.496 -2.092,-0.071 -3.29,2.442 -4.323,6.282 0.272,-1.823 1.089,-4.679 0.502,-4.733 -0.833,-0.078 -2.846,2.892 -4.351,5.106 1.051,-3.185 2.006,-5 1.367,-6.139 -0.577,-1.029 -2.744,-0.403 -3.682,0.143 1.105,-1.043 3.447,-3.141 3.447,-4.025 0,-1.286 -2.32,-2.733 -6.599,-3.951 2.572,0.405 5.888,1.149 6.275,0.631 0.303,-0.405 -2.192,-1.813 -3.71,-2.811 2.672,1.146 4.365,1.92 5.122,1.479 0.5,-0.292 0.222,-1.47 -0.52,-2.942 1.303,1.489 2.471,2.538 3.364,2.411 1.884,-0.267 2.698,-2.76 4.166,-7.518 v 0 C 18.729,5.923 18.03,9.24 18.46,9.644 18.782,9.947 20.096,7.5 21.11,5.943 c -1.144,2.886 -2.245,5.056 -1.69,6.045 0.439,0.782 1.552,0.23 3.056,-0.594 -1.44,1.33 -2.214,2.433 -1.961,3.263 0.503,1.647 2.857,2.292 7.065,3.766 -2.161,-0.28 -5.135,-0.842 -5.634,-0.344 z"
-        />
-      </Svg>
+      <Text
+        style={{
+          fontSize: 18,
+          fontWeight: '900',
+          color: isSpecial ? specialColor : baseColor,
+          textShadowColor: 'rgba(0,0,0,0.25)',
+          textShadowRadius: 6,
+          textShadowOffset: { width: 0, height: 2 },
+          textAlign: 'center',
+        }}
+      >
+        -{damage}
+      </Text>
+      {!!effectiveness && (
+        <Text style={{ marginTop: 2, fontSize: 12, fontWeight: '800', color: '#111827', textAlign: 'center' }}>
+          {effectiveness}
+        </Text>
+      )}
+    </Animated.View>
+  );
+}
+
+function IdleIcon({
+  creature,
+  attackTrigger,
+  size = 150,
+}: {
+  creature: Creature;
+  attackTrigger: (trigger: () => void) => void;
+  size?: number;
+}) {
+  const bob = useRef(new Animated.Value(0)).current;
+  const attack = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    const loop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(bob, { toValue: 1, duration: 900, useNativeDriver: true, easing: Easing.inOut(Easing.quad) }),
+        Animated.timing(bob, { toValue: 0, duration: 900, useNativeDriver: true, easing: Easing.inOut(Easing.quad) }),
+      ])
+    );
+    loop.start();
+
+    const trigger = () => {
+      attack.stopAnimation();
+      attack.setValue(0);
+      Animated.sequence([
+        Animated.timing(attack, { toValue: 1, duration: 90, useNativeDriver: true, easing: Easing.out(Easing.quad) }),
+        Animated.timing(attack, { toValue: 0, duration: 180, useNativeDriver: true, easing: Easing.inOut(Easing.quad) }),
+      ]).start();
+    };
+
+    attackTrigger(trigger);
+
+    return () => {
+      loop.stop();
+      attackTrigger(() => {});
+    };
+  }, [attackTrigger]);
+
+  const translateY = bob.interpolate({ inputRange: [0, 1], outputRange: [0, -6] });
+  const scale = attack.interpolate({ inputRange: [0, 1], outputRange: [1, 1.08] });
+
+  return (
+    <Animated.View style={{ transform: [{ translateY }, { scale }] }}>
+      <BattleCreatureSprite id={creature.id} size={size} />
+    </Animated.View>
+  );
+}
+
+function FaintedIcon({
+  creature,
+  onFaintEnd,
+  size = 150,
+}: {
+  creature: Creature;
+  onFaintEnd?: () => void;
+  size?: number;
+}) {
+  const opacity = useRef(new Animated.Value(1)).current;
+  const translateY = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    Animated.parallel([
+      Animated.timing(opacity, { toValue: 0.35, duration: 420, useNativeDriver: true }),
+      Animated.timing(translateY, { toValue: 10, duration: 420, useNativeDriver: true, easing: Easing.out(Easing.quad) }),
+    ]).start(() => {
+      onFaintEnd?.();
+    });
+  }, []);
+
+  return (
+    <Animated.View style={{ opacity, transform: [{ translateY }] }}>
+      <BattleCreatureSprite id={creature.id} size={size} fainted />
     </Animated.View>
   );
 }
@@ -464,19 +439,29 @@ function SpecialSvg({ max, current, sport }: SpecialProps) {
 interface HealthBarProps {
   health: number;
   maxHealth: number;
-};
+  variant?: 'default' | 'mobile';
+}
 
-function HealthBar ({ health, maxHealth }: HealthBarProps) {
+function HealthBar({ health, maxHealth, variant = 'default' }: HealthBarProps) {
+  const max = Number.isFinite(maxHealth) && maxHealth > 0 ? maxHealth : 1;
+  const ratioRaw = Number.isFinite(health) ? health / max : 0;
+  const ratio = Math.max(0, Math.min(ratioRaw, 1));
+
+  const containerStyle = variant === 'mobile' ? uiStyles.mobileHealthBarContainer : styles.healthBarContainer;
+  const emptyStyle = variant === 'mobile' ? uiStyles.mobileEmptyHealthBar : styles.emptyHealthBar;
+  const barStyle = variant === 'mobile' ? uiStyles.mobileHealthBar : styles.healthBar;
+
   return (
-    <View style={styles.healthBarContainer}>
-      <View style={styles.emptyHealthBar}>
-        <View style={[styles.healthBar, {width: `${health/maxHealth*100}%`}]}/>
+    <View style={containerStyle}>
+      <View style={emptyStyle}>
+        <View style={[barStyle, { flexGrow: ratio, flexBasis: 0 }]} />
+        <View style={{ flexGrow: 1 - ratio, flexBasis: 0 }} />
       </View>
     </View>
   );
 }
 
-function calcDamage(attacker: Creature, defender: Creature): { amount: number, effectiveness?: String} {
+function calcDamage(attacker: Creature, defender: Creature): { amount: number; effectiveness?: string } {
   const typeDict = {'GENERAL': 0, 'RUNNING': 1, 'SWIMMING': 2, 'HIKING': 3, 'FITNESS': 4, 'CYCLING': 5, 'CIRCUIT': 6};
   const mult = typeMatchups[typeDict[attacker.sport]][typeDict[defender.sport]];
   const amount = Math.floor((attacker.stats.power/defender.stats.endurance*4+1)*mult);
@@ -500,7 +485,21 @@ function calcChargeMax(creature: Creature): number {
 export default function BattleScreen() {
 
   const { width: windowWidth } = useWindowDimensions();
-  const isNarrowWeb = Platform.OS === 'web' && windowWidth < 768;
+  const isSmallMobile = windowWidth < 360;
+  const mobileSpriteSize = isSmallMobile ? 120 : 150;
+  const isCoarsePointerWeb = useMemo(() => {
+    if (Platform.OS !== 'web') return false;
+    if (typeof window === 'undefined') return false;
+    if (typeof window.matchMedia !== 'function') return false;
+    try {
+      return window.matchMedia('(pointer: coarse)').matches;
+    } catch {
+      return false;
+    }
+  }, []);
+
+  // Treat touch-first web devices as "mobile" even if width is large (e.g. landscape phones).
+  const isNarrowWeb = Platform.OS === 'web' && (windowWidth < 768 || isCoarsePointerWeb);
   const isDesktopWeb = Platform.OS === 'web' && !isNarrowWeb;
 
   const { user: authUser } = useAuth();
@@ -602,7 +601,13 @@ export default function BattleScreen() {
   const [pickCreaturesSortDirection, setPickCreaturesSortDirection] = useState<SortDirection>('asc');
   const [showPickCreaturesFilterModal, setShowPickCreaturesFilterModal] = useState(false);
   const [isPickCreaturesControlsCollapsed, setIsPickCreaturesControlsCollapsed] = useState(true);
-  const [pickCreaturesBattleStateFilter, setPickCreaturesBattleStateFilter] = useState<'all' | 'fainted'>('all');
+  const [pickCreaturesBattleStateFilter, setPickCreaturesBattleStateFilter] = useState<'all' | 'alive' | 'fainted'>('all');
+
+  useEffect(() => {
+    if (phase !== 'select') return;
+    setActiveSlot(0);
+    setSelectedUserCreatures([null, null, null]);
+  }, [phase]);
 
   const victoryRewardAppliedRef = useRef(false);
   const [victoryRewardEarned, setVictoryRewardEarned] = useState<number>(0);
@@ -736,7 +741,9 @@ export default function BattleScreen() {
       const matchesSport = pickCreaturesSelectedSports.length === 0 ? true : pickCreaturesSelectedSports.includes(c.sport);
       const matchesBattleState = pickCreaturesBattleStateFilter === 'all'
         ? true
-        : isCreatureOnCooldown(c.id);
+        : pickCreaturesBattleStateFilter === 'fainted'
+          ? isCreatureOnCooldown(c.id)
+          : !isCreatureOnCooldown(c.id);
       return matchesSearch && matchesRarity && matchesSport && matchesBattleState;
     });
 
@@ -1104,15 +1111,43 @@ export default function BattleScreen() {
     if (typeof untilMs !== 'number' || untilMs <= nowMs) return base;
 
     const remaining = Math.max(untilMs - nowMs, 0);
-    // remaining<=15m => base, remaining>=50m => cap
-    const t = Math.min(
-      1,
-      Math.max(0, (remaining - rampStartMs) / Math.max(1, rampFullMs - rampStartMs))
-    );
+
+    // Base curve (original): remaining<=15m => base, remaining>=50m => cap.
+    const t = Math.min(1, Math.max(0, (remaining - rampStartMs) / Math.max(1, rampFullMs - rampStartMs)));
     const raw = base + t * (cap - base);
+
+    // Extra penalty for long cooldowns (e.g. premature quits set 2h cooldowns).
+    // 2h remaining => 3x
+    // 1.5h remaining => 2x
+    // 1h remaining => 1x
+    const oneHourMs = 60 * 60 * 1000;
+    const ninetyMinMs = 90 * 60 * 1000;
+    const twoHoursMs = 2 * 60 * 60 * 1000;
+
+    let mult = 1;
+    if (remaining > oneHourMs) {
+      if (remaining >= twoHoursMs) {
+        mult = 3;
+      } else if (remaining >= ninetyMinMs) {
+        const u = (remaining - ninetyMinMs) / Math.max(1, twoHoursMs - ninetyMinMs);
+        // 1.5h..2h => 2..3
+        mult = 2 + u;
+      } else {
+        const u = (remaining - oneHourMs) / Math.max(1, ninetyMinMs - oneHourMs);
+        // 1h..1.5h => 1..2
+        mult = 1 + u;
+      }
+    }
+
+    const maxMult = 3;
+    mult = Math.min(maxMult, Math.max(1, mult));
+    const scaledRaw = raw * mult;
+
     // Round to a friendly number.
-    const rounded = cap <= 1200 ? Math.round(raw / 10) * 10 : Math.round(raw / 25) * 25;
-    return Math.max(base, Math.min(cap, rounded));
+    const roundStep = scaledRaw <= 1200 ? 10 : scaledRaw <= 5000 ? 25 : 50;
+    const rounded = Math.round(scaledRaw / roundStep) * roundStep;
+    const scaledCap = cap * maxMult;
+    return Math.max(base, Math.min(scaledCap, rounded));
   };
 
   const persistCooldownsAndXp = async (nextCooldowns: Record<string, number>, nextXp: number) => {
@@ -1234,23 +1269,56 @@ export default function BattleScreen() {
   };
 
   const forfeitBattle = () => {
-    // Counts as a loss. Keeps the battle state (including HP) so cooldown-on-end logic stays consistent.
-    if (pauseReason === 'restored') {
-      setDefeatReason('leftAfterReload');
+    // Leave the battle immediately and return to the selection screen.
+    // Premature quit penalty: faint the whole team for 2h.
+    if (phase !== 'battle') return;
 
-      // Leaving after a reload counts as all 3 creatures fainting.
-      // This ensures cooldowns are applied to the whole team.
-      setHealths(prev => {
-        const next = [...prev];
-        for (let i = 0; i < 3; i++) next[i] = 0;
-        return next;
-      });
-    } else {
-      setDefeatReason('normal');
+    const activeBattleCreatures = battleCreaturesRef.current;
+    const idsToCooldown = activeBattleCreatures && activeBattleCreatures.length === 6
+      ? [0, 1, 2].map(i => activeBattleCreatures[i]?.id).filter((id): id is string => !!id)
+      : [];
+
+    if (idsToCooldown.length > 0) {
+      const twoHoursMs = 2 * 60 * 60 * 1000;
+      const baseUntil = Date.now() + twoHoursMs;
+      const next: Record<string, number> = { ...creatureCooldowns };
+      for (const id of idsToCooldown) {
+        next[id] = Math.max(next[id] ?? 0, baseUntil);
+      }
+      persistCooldowns(next);
     }
-    setBattleResult('defeat');
-    setIsPaused(false);
+
+    // Reset battle state so the user lands back on selection (no defeat overlay).
+    resetBattle();
   };
+
+  useEffect(() => {
+    if (Platform.OS === 'web') return;
+    const sub = BackHandler.addEventListener('hardwareBackPress', () => {
+      if (phase !== 'battle') return false;
+
+      // Premature quit penalty: faint the whole team for 2h, then return to selection.
+      const activeBattleCreatures = battleCreaturesRef.current;
+      const idsToCooldown = activeBattleCreatures && activeBattleCreatures.length === 6
+        ? [0, 1, 2].map(i => activeBattleCreatures[i]?.id).filter((id): id is string => !!id)
+        : [];
+
+      if (idsToCooldown.length > 0) {
+        const twoHoursMs = 2 * 60 * 60 * 1000;
+        const baseUntil = Date.now() + twoHoursMs;
+        const next: Record<string, number> = { ...creatureCooldowns };
+        for (const id of idsToCooldown) {
+          next[id] = Math.max(next[id] ?? 0, baseUntil);
+        }
+        persistCooldowns(next);
+      }
+
+      resetBattle();
+      return true;
+    });
+
+    return () => sub.remove();
+  }, [phase, pauseReason, creatureCooldowns, persistCooldowns]);
 
   type PersistedBattleSessionV1 = {
     version: 1;
@@ -1337,13 +1405,29 @@ export default function BattleScreen() {
         if (cancelled) return;
         if (!parsed || parsed.version !== 1) return;
 
-        // Only restore active battles. If it already ended, drop the session.
+        // If it already ended, drop the session.
         if (parsed.battleResult && parsed.battleResult !== 'active') {
           await AsyncStorage.removeItem(battleSessionStorageKey);
           return;
         }
 
-        hydrateBattleFromSession(parsed);
+        // Active session found while entering the screen means the user closed/reloaded mid-battle.
+        // Premature quit penalty: faint the whole team for 2h, then clear the session.
+        const idsToCooldown = Array.isArray(parsed.battleCreatureIds)
+          ? parsed.battleCreatureIds.slice(0, 3).filter((id): id is string => typeof id === 'string' && id.length > 0)
+          : [];
+
+        if (idsToCooldown.length > 0) {
+          const twoHoursMs = 2 * 60 * 60 * 1000;
+          const baseUntil = Date.now() + twoHoursMs;
+          const next: Record<string, number> = { ...creatureCooldowns };
+          for (const id of idsToCooldown) {
+            next[id] = Math.max(next[id] ?? 0, baseUntil);
+          }
+          await persistCooldowns(next);
+        }
+
+        await AsyncStorage.removeItem(battleSessionStorageKey);
       } catch {
         // ignore
       }
@@ -2585,6 +2669,7 @@ export default function BattleScreen() {
                           {(
                             [
                               { key: 'all' as const, label: 'All' },
+                              { key: 'alive' as const, label: 'Alive' },
                               { key: 'fainted' as const, label: 'Fainted' },
                             ]
                           ).map((opt) => (
@@ -2679,6 +2764,48 @@ export default function BattleScreen() {
             QuestPoints: {xpBalance}
           </Text>
           <Pressable
+            onPress={() => {
+              const storageKey = authUser?.uid ? `LAST_TAB_PATH_${authUser.uid}` : 'LAST_TAB_PATH_ANON';
+              void (async () => {
+                const allowed = ['/home', '/workout', '/creatures', '/me', '/instr-dashboard'] as const;
+                type AllowedTabPath = (typeof allowed)[number];
+
+                const isAllowedTabPath = (value: string): value is AllowedTabPath =>
+                  (allowed as readonly string[]).includes(value);
+
+                const normalizeStoredPath = (value: string | null): AllowedTabPath | null => {
+                  if (!value) return null;
+                  if (isAllowedTabPath(value)) return value;
+                  if (value.startsWith('/(tabs)/')) {
+                    const withoutGroup = `/${value.slice('/(tabs)/'.length)}`;
+                    if (isAllowedTabPath(withoutGroup)) return withoutGroup;
+                  }
+                  return null;
+                };
+
+                try {
+                  const last = await AsyncStorage.getItem(storageKey);
+                  const normalized = normalizeStoredPath(last);
+                  if (normalized) {
+                    router.push(normalized);
+                    return;
+                  }
+                } catch {
+                  // ignore
+                }
+                router.push('/home');
+              })();
+            }}
+            style={({ pressed }) => [
+              uiStyles.selectFooterQuitButton,
+              pressed && uiStyles.buttonPressed085,
+            ]}
+          >
+            <Text style={uiStyles.selectFooterQuitText} numberOfLines={1}>
+              Quit Battle
+            </Text>
+          </Pressable>
+          <Pressable
             onPress={startBattle}
             disabled={!hasEnoughCreatures || !allSlotsFilled || selectedUserCreatures.some(c => (c ? isCreatureOnCooldown(c.id) : false))}
             style={({ pressed }) => [
@@ -2699,7 +2826,9 @@ export default function BattleScreen() {
     );
   }
 
-  if (Platform.OS === 'web') {
+  // Desktop web battle layout does not work well on narrow screens.
+  // Use the mobile battle layout for narrow web (e.g. mobile browsers).
+  if (isDesktopWeb) {
     return (
       <View style={styles.container}>
       <View style={styles.header}>
@@ -3194,77 +3323,82 @@ export default function BattleScreen() {
     );
   }
 
+  if (__DEV__) {
+    // eslint-disable-next-line no-console
+    console.log('[battle] rendering MOBILE battle layout', { platform: Platform.OS });
+  }
+
   return (
     <SACSafeAreaView style={uiStyles.mobileBattleContainer} edges={['top', 'bottom', 'left', 'right']}>
-      <View style={uiStyles.mobileBattleHeader}>
-        <View style={uiStyles.mobileBattleHeaderTopRow}>
-          <View style={uiStyles.mobileBattleNamesCol}>
+      {__DEV__ && (
+        <View style={{ paddingHorizontal: 14, paddingTop: 6, backgroundColor: '#111827' }}>
+          <Text style={{ color: '#FFFFFF', fontSize: 12, fontWeight: '800' }}>
+            DEV: Mobile Battle UI (new layout)
+          </Text>
+        </View>
+      )}
+      <View style={uiStyles.mobileTopBar}>
+        <View style={uiStyles.mobileTopBarRow}>
+          <View style={uiStyles.mobileNamesBlock}>
             <Text style={uiStyles.mobileOpponentName} numberOfLines={1}>{opponentName}</Text>
             <Text style={uiStyles.mobileUserName} numberOfLines={1}>{userName}</Text>
           </View>
 
-          <View style={uiStyles.mobileBattleHeaderActions}>
-            {!isBattleOver && (
-              <Pressable
-                onPress={openPause}
-                style={({ pressed }) => [
-                  uiStyles.battleHeaderSecondaryButton,
-                  uiStyles.battleHeaderActionButtonWithMargin,
-                  pressed && uiStyles.buttonPressed07,
-                ]}
-              >
-                <Text style={uiStyles.battleHeaderSecondaryText}>Pause</Text>
-              </Pressable>
-            )}
-          </View>
+          {!isBattleOver && (
+            <Pressable
+              onPress={openPause}
+              style={({ pressed }) => [
+                uiStyles.mobilePauseButton,
+                pressed && uiStyles.buttonPressed07,
+              ]}
+            >
+              <Text style={uiStyles.mobilePauseText}>Pause</Text>
+            </Pressable>
+          )}
         </View>
 
-        <View style={uiStyles.mobileOpponentTeamRow}>
+        <View style={uiStyles.mobileEnemySlotsRow}>
           {[3, 4, 5].map((idx) => (
-            <View key={idx} style={uiStyles.mobileTeamSlotWrap}>
+            <View key={idx} style={[uiStyles.mobileSlotWrap, isSmallMobile && uiStyles.mobileSlotWrapSmall]}>
               {wrapHeaderSlot(
                 creatures[idx],
-                <View
-                  style={{
-                    backgroundColor: '#FFFFFF',
-                    borderRadius: 10,
-                    overflow: 'hidden',
-                    opacity: healths[idx] <= 0 ? 0.4 : 1,
-                  }}
-                >
+                <View style={[uiStyles.mobileSlotInner, isSmallMobile && uiStyles.mobileSlotInnerSmall]}>
                   <Image
                     source={getCreatureImage(creatures[idx].id)}
                     style={[
-                      styles.creatureIcon,
+                      uiStyles.mobileSlotIcon,
+                      isSmallMobile && uiStyles.mobileSlotIconSmall,
                       {
-                        opacity: healths[idx] > 0 ? 1 : 0.4,
+                        opacity: healths[idx] > 0 ? 1 : 0.35,
                         tintColor: healths[idx] <= 0 ? '#6B7280' : undefined,
                       },
                     ]}
+                    contentFit="contain"
                   />
-                </View>
-              , healths[idx] <= 0)}
+                </View>,
+                healths[idx] <= 0
+              )}
             </View>
           ))}
         </View>
       </View>
 
       <Pressable
-        style={uiStyles.mobileBattleArenaPressable}
-        onPress={() => { battlePress(); }}
+        style={uiStyles.mobileArena}
+        onPress={battlePress}
         disabled={isBattleOver || isPaused}
       >
-        <View style={uiStyles.mobileCreaturePanelTop}>
-          <View style={uiStyles.mobileCreatureTitleRow}>
-            <Text style={uiStyles.mobileCreatureName} numberOfLines={1}>
+        <View style={[uiStyles.mobileCombatCardTop, isSmallMobile && uiStyles.mobileCombatCardTopSmall]}>
+          <View style={[uiStyles.mobileCardHeaderRow, isSmallMobile && uiStyles.mobileCardHeaderRowSmall]}>
+            <Text style={[uiStyles.mobileCardName, isSmallMobile && uiStyles.mobileCardNameSmall]} numberOfLines={1}>
               {creatures[opponentSelectedCreature].name}
             </Text>
-            <Text style={uiStyles.mobileCreatureStatsText} numberOfLines={1}>
+            <Text style={[uiStyles.mobileCardStats, isSmallMobile && uiStyles.mobileCardStatsSmall]} numberOfLines={1}>
               ⚔️ {creatures[opponentSelectedCreature].stats.power}  ⚡ {creatures[opponentSelectedCreature].stats.speed}  🛡️ {creatures[opponentSelectedCreature].stats.endurance}
             </Text>
           </View>
 
-          <View style={uiStyles.mobileCreatureBadgesRow}>
+          <View style={uiStyles.mobileCardBadgesRow}>
             <Text style={[styles.creatureSport, { color: getSportColor(creatures[opponentSelectedCreature].sport)[0] }]}>
               {creatures[opponentSelectedCreature].sport}
             </Text>
@@ -3295,14 +3429,16 @@ export default function BattleScreen() {
           <HealthBar
             health={healths[opponentSelectedCreature]}
             maxHealth={creatures[opponentSelectedCreature].stats.endurance}
+            variant="mobile"
           />
 
-          <View style={uiStyles.mobileCreatureIconRow}>
-            {healths[opponentSelectedCreature] == 0 ? (
-              <FaintedIcon creature={creatures[opponentSelectedCreature]} onFaintEnd={handleOpponentFaintEnd} />
+          <View style={[uiStyles.mobileIconStage, isSmallMobile && uiStyles.mobileIconStageSmall]}>
+            {healths[opponentSelectedCreature] === 0 ? (
+              <FaintedIcon creature={creatures[opponentSelectedCreature]} onFaintEnd={handleOpponentFaintEnd} size={mobileSpriteSize} />
             ) : (
               <IdleIcon
                 creature={creatures[opponentSelectedCreature]}
+                size={mobileSpriteSize}
                 attackTrigger={(trigger) => (attackRefs.current[creatures[opponentSelectedCreature].id] = trigger)}
               />
             )}
@@ -3336,22 +3472,22 @@ export default function BattleScreen() {
           </View>
         </View>
 
-        <View style={uiStyles.mobileBattleHintRow}>
-          <Text style={uiStyles.mobileBattleHintText}>Tap to attack</Text>
-          <Text style={uiStyles.mobileBattleHintSubText}>Clicks: {clickNum}</Text>
+        <View style={uiStyles.mobileTapHint}>
+          <Text style={uiStyles.mobileTapHintTitle}>Tap anywhere to attack</Text>
+          <Text style={uiStyles.mobileTapHintSub}>Taps: {clickNum}</Text>
         </View>
 
-        <View style={uiStyles.mobileCreaturePanelBottom}>
-          <View style={uiStyles.mobileCreatureTitleRow}>
-            <Text style={uiStyles.mobileCreatureName} numberOfLines={1}>
+        <View style={[uiStyles.mobileCombatCardBottom, isSmallMobile && uiStyles.mobileCombatCardBottomSmall]}>
+          <View style={[uiStyles.mobileCardHeaderRow, isSmallMobile && uiStyles.mobileCardHeaderRowSmall]}>
+            <Text style={[uiStyles.mobileCardName, isSmallMobile && uiStyles.mobileCardNameSmall]} numberOfLines={1}>
               {creatures[userSelectedCreature].name}
             </Text>
-            <Text style={uiStyles.mobileCreatureStatsText} numberOfLines={1}>
+            <Text style={[uiStyles.mobileCardStats, isSmallMobile && uiStyles.mobileCardStatsSmall]} numberOfLines={1}>
               ⚔️ {creatures[userSelectedCreature].stats.power}  ⚡ {creatures[userSelectedCreature].stats.speed}  🛡️ {creatures[userSelectedCreature].stats.endurance}
             </Text>
           </View>
 
-          <View style={uiStyles.mobileCreatureBadgesRow}>
+          <View style={uiStyles.mobileCardBadgesRow}>
             <Text style={[styles.creatureSport, { color: getSportColor(creatures[userSelectedCreature].sport)[0] }]}>
               {creatures[userSelectedCreature].sport}
             </Text>
@@ -3382,15 +3518,17 @@ export default function BattleScreen() {
           <HealthBar
             health={healths[userSelectedCreature]}
             maxHealth={creatures[userSelectedCreature].stats.endurance}
+            variant="mobile"
           />
 
-          <View style={uiStyles.mobileCreatureIconRow}>
+          <View style={[uiStyles.mobileIconStage, isSmallMobile && uiStyles.mobileIconStageSmall]}>
             <View style={{ transform: [{ scaleX: -1 }] }}>
-              {healths[userSelectedCreature] == 0 ? (
-                <FaintedIcon creature={creatures[userSelectedCreature]} onFaintEnd={handleUserFaintEnd} />
+              {healths[userSelectedCreature] === 0 ? (
+                <FaintedIcon creature={creatures[userSelectedCreature]} onFaintEnd={handleUserFaintEnd} size={mobileSpriteSize} />
               ) : (
                 <IdleIcon
                   creature={creatures[userSelectedCreature]}
+                  size={mobileSpriteSize}
                   attackTrigger={(trigger) => (attackRefs.current[creatures[userSelectedCreature].id] = trigger)}
                 />
               )}
@@ -3426,22 +3564,21 @@ export default function BattleScreen() {
         </View>
       </Pressable>
 
-      <View style={uiStyles.mobileBattleBottomBar}>
-        <View style={uiStyles.mobileUserTeamRow}>
+      <View style={uiStyles.mobileBottomBar}>
+        <View style={uiStyles.mobileSlotsRow}>
           {[0, 1, 2].map((idx) => (
-            <View key={idx} style={uiStyles.mobileTeamSlotWrap}>
+            <View key={idx} style={[uiStyles.mobileSlotWrap, isSmallMobile && uiStyles.mobileSlotWrapSmall]}>
               {wrapHeaderSlot(
                 creatures[idx],
                 <Pressable
-                  hitSlop={10}
+                  hitSlop={12}
                   disabled={isBattleOver || !canSwitch || healths[idx] <= 0}
                   onPress={() => switchCreature(idx as 0 | 1 | 2)}
-                  style={{
-                    backgroundColor: '#FFFFFF',
-                    borderRadius: 10,
-                    overflow: 'hidden',
-                    opacity: healths[idx] <= 0 ? 0.4 : 1,
-                  }}
+                  style={[
+                    uiStyles.mobileSlotInner,
+                    isSmallMobile && uiStyles.mobileSlotInnerSmall,
+                    { opacity: healths[idx] <= 0 ? 0.35 : 1 },
+                  ]}
                 >
                   <Animated.View
                     pointerEvents="none"
@@ -3449,28 +3586,32 @@ export default function BattleScreen() {
                       styles.cooldownFill,
                       {
                         height: fillHeight,
+                        borderRadius: 10,
                       },
                     ]}
                   />
                   <Image
                     source={getCreatureImage(creatures[idx].id)}
                     style={[
-                      styles.creatureIcon,
+                      uiStyles.mobileSlotIcon,
+                      isSmallMobile && uiStyles.mobileSlotIconSmall,
                       {
-                        opacity: canSwitch && healths[idx] > 0 ? 1 : 0.4,
+                        opacity: canSwitch && healths[idx] > 0 ? 1 : 0.35,
                         tintColor: healths[idx] <= 0 ? '#6B7280' : undefined,
                       },
                     ]}
+                    contentFit="contain"
                   />
-                </Pressable>
-              , healths[idx] <= 0)}
+                </Pressable>,
+                healths[idx] <= 0
+              )}
             </View>
           ))}
         </View>
 
         <Pressable
           onPress={specialPress}
-          hitSlop={10}
+          hitSlop={14}
           disabled={isBattleOver || charges[userSelectedCreature] < chargeMaxes[userSelectedCreature]}
           style={({ pressed }) => [
             uiStyles.mobileSpecialButton,
@@ -3732,6 +3873,19 @@ const uiStyles = StyleSheet.create({
     color: '#6B7280',
     flex: 1,
   },
+  selectFooterQuitButton: {
+    backgroundColor: '#EF4444',
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    minWidth: 110,
+  },
+  selectFooterQuitText: {
+    color: '#FFFFFF',
+    fontWeight: '700',
+  },
   selectFooterStartButton: {
     backgroundColor: '#3B82F6',
     paddingVertical: 8,
@@ -3813,21 +3967,21 @@ const uiStyles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#F9FAFB',
   },
-  mobileBattleHeader: {
+  mobileTopBar: {
     paddingHorizontal: 14,
-    paddingTop: 12,
+    paddingTop: 10,
     paddingBottom: 10,
     backgroundColor: '#FFFFFF',
     borderBottomWidth: 1,
     borderBottomColor: '#E5E7EB',
   },
-  mobileBattleHeaderTopRow: {
+  mobileTopBarRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     backgroundColor: 'transparent',
   },
-  mobileBattleNamesCol: {
+  mobileNamesBlock: {
     flex: 1,
     backgroundColor: 'transparent',
   },
@@ -3842,23 +3996,25 @@ const uiStyles = StyleSheet.create({
     color: '#3B82F6',
     marginTop: 2,
   },
-  mobileBattleHeaderActions: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: 'transparent',
+  mobilePauseButton: {
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    backgroundColor: '#FFFFFF',
     marginLeft: 10,
   },
-  mobileOpponentTeamRow: {
+  mobilePauseText: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: '#111827',
+  },
+  mobileEnemySlotsRow: {
     flexDirection: 'row',
     justifyContent: 'flex-end',
     alignItems: 'center',
     marginTop: 10,
-    backgroundColor: 'transparent',
-  },
-  mobileUserTeamRow: {
-    flexDirection: 'row',
-    justifyContent: 'flex-start',
-    alignItems: 'center',
     backgroundColor: 'transparent',
   },
   headerSlotContentWrap: {
@@ -3870,48 +4026,111 @@ const uiStyles = StyleSheet.create({
     ...StyleSheet.absoluteFillObject,
     backgroundColor: 'rgba(107,114,128,0.25)',
   },
-  mobileTeamSlotWrap: {
+  mobileSlotWrap: {
     backgroundColor: 'transparent',
+    marginLeft: 8,
   },
-  mobileBattleArenaPressable: {
+  mobileSlotWrapSmall: {
+    marginLeft: 6,
+  },
+  mobileSlotInner: {
+    width: 46,
+    height: 46,
+    borderRadius: 12,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    overflow: 'hidden',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  mobileSlotInnerSmall: {
+    width: 40,
+    height: 40,
+    borderRadius: 10,
+  },
+  mobileSlotIcon: {
+    width: 44,
+    height: 44,
+    resizeMode: 'contain',
+  },
+  mobileSlotIconSmall: {
+    width: 38,
+    height: 38,
+  },
+  mobileArena: {
     flex: 1,
     paddingHorizontal: 14,
-    paddingTop: 10,
-    paddingBottom: 10,
+    paddingTop: 12,
+    paddingBottom: 20,
+    justifyContent: 'space-between',
+    backgroundColor: 'transparent',
   },
-  mobileCreaturePanelTop: {
+  mobileCombatCardTop: {
     backgroundColor: '#FFFFFF',
-    borderRadius: 12,
+    borderRadius: 20,
     padding: 12,
-    borderWidth: 1,
-    borderColor: '#E5E7EB',
+    borderWidth: 2,
+    borderColor: '#D1D5DB',
+    alignSelf: 'flex-end',
+    width: '82%',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 12,
+    elevation: 4,
   },
-  mobileCreaturePanelBottom: {
+  mobileCombatCardTopSmall: {
+    width: '92%',
+    padding: 10,
+  },
+  mobileCombatCardBottom: {
     backgroundColor: '#FFFFFF',
-    borderRadius: 12,
+    borderRadius: 20,
     padding: 12,
-    borderWidth: 1,
-    borderColor: '#E5E7EB',
+    borderWidth: 2,
+    borderColor: '#D1D5DB',
+    alignSelf: 'flex-start',
+    width: '82%',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 12,
+    elevation: 4,
   },
-  mobileCreatureTitleRow: {
+  mobileCombatCardBottomSmall: {
+    width: '92%',
+    padding: 10,
+  },
+  mobileCardHeaderRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'baseline',
+    alignItems: 'center',
     backgroundColor: 'transparent',
-    gap: 10,
+    gap: 12,
   },
-  mobileCreatureName: {
+  mobileCardHeaderRowSmall: {
+    alignItems: 'flex-start',
+    flexWrap: 'wrap',
+  },
+  mobileCardName: {
     flex: 1,
-    fontSize: 16,
-    fontWeight: '800',
+    fontSize: 18,
+    fontWeight: '900',
     color: '#111827',
   },
-  mobileCreatureStatsText: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: '#6B7280',
+  mobileCardNameSmall: {
+    fontSize: 16,
   },
-  mobileCreatureBadgesRow: {
+  mobileCardStats: {
+    fontSize: 14,
+    fontWeight: '800',
+    color: '#4B5563',
+  },
+  mobileCardStatsSmall: {
+    fontSize: 12,
+  },
+  mobileCardBadgesRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'flex-start',
@@ -3919,31 +4138,59 @@ const uiStyles = StyleSheet.create({
     backgroundColor: 'transparent',
     gap: 8,
   },
-  mobileCreatureIconRow: {
-    marginTop: 6,
+  mobileHealthBarContainer: {
+    width: '100%',
+    height: 14,
+    marginTop: 8,
+  },
+  mobileEmptyHealthBar: {
+    flexDirection: 'row',
+    width: '100%',
+    height: '100%',
+    borderRadius: 6,
+    backgroundColor: '#E5E7EB',
+    overflow: 'hidden',
+  },
+  mobileHealthBar: {
+    height: '100%',
+    borderRadius: 6,
+    backgroundColor: '#10B981',
+  },
+  mobileIconStage: {
+    marginTop: 10,
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: 'transparent',
-    minHeight: 170,
+    minHeight: 130,
   },
-  mobileBattleHintRow: {
+  mobileIconStageSmall: {
+    minHeight: 110,
+  },
+  mobileTapHint: {
+    position: 'absolute',
+    top: '50%',
+    left: 0,
+    right: 0,
+    marginTop: -30,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 10,
     backgroundColor: 'transparent',
+    zIndex: 1,
   },
-  mobileBattleHintText: {
-    fontSize: 14,
-    fontWeight: '800',
-    color: '#6B7280',
+  mobileTapHintTitle: {
+    fontSize: 16,
+    fontWeight: '900',
+    color: '#3B82F6',
+    textTransform: 'uppercase',
+    letterSpacing: 1,
   },
-  mobileBattleHintSubText: {
+  mobileTapHintSub: {
     fontSize: 12,
     fontWeight: '700',
     color: '#6B7280',
     marginTop: 2,
   },
-  mobileBattleBottomBar: {
+  mobileBottomBar: {
     paddingHorizontal: 14,
     paddingTop: 10,
     paddingBottom: 12,
@@ -3953,6 +4200,11 @@ const uiStyles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
+  },
+  mobileSlotsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'transparent',
   },
   mobileSpecialButton: {
     marginLeft: 12,
