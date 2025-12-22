@@ -31,7 +31,7 @@ function TabBarIcon(props: {
   name: React.ComponentProps<typeof FontAwesome>['name'];
   color: string;
 }) {
-  return <FontAwesome size={28} style={{ marginBottom: -3 }} {...props} />;
+  return <FontAwesome size={20} style={{ marginBottom: 0, marginRight: 0 }} {...props} />;
 }
 
 // helper for awesome6 icons
@@ -40,7 +40,7 @@ function TabBarIcon6(props: {
   color: string;
   size?: number;
 }) {
-  return <FontAwesome6 size={props.size || 24} style={{ marginBottom: -3 }} {...props} />;
+  return <FontAwesome6 size={props.size || 18} style={{ marginBottom: 0, marginRight: 0 }} {...props} />;
 }
 
 export default function TabLayout() {
@@ -57,12 +57,17 @@ export default function TabLayout() {
 
   // Some Android devices/gesture modes can report a very small/zero bottom inset.
   // Enforce a conservative minimum so the app tab bar never sits under the system nav/home bar.
-  const minTabBarSafeAreaBottom = Platform.OS === 'ios' ? 34 : 20;
-  const tabBarSafeAreaBottom = Math.max(insets.bottom, minTabBarSafeAreaBottom);
-  const TAB_BAR_HEIGHT_SCALE = 0.85;
+  const minTabBarSafeAreaBottom = Platform.OS === 'ios'
+    ? 34
+    : Platform.OS === 'android'
+      ? 34
+      : 0;
+  const tabBarSafeAreaBottom = Platform.OS === 'web' ? 0 : Math.max(insets.bottom, minTabBarSafeAreaBottom);
+  // Reduce tab bar height ~20% while preserving safe-area bottom inset.
+  const TAB_BAR_HEIGHT_SCALE = 0.68 * 0.8;
   const tabBarBaseHeight = Platform.OS === 'ios' ? 85 : 65;
   const tabBarHeight = tabBarBaseHeight * TAB_BAR_HEIGHT_SCALE + tabBarSafeAreaBottom;
-  const tabBarPaddingTop = Math.round(10 * TAB_BAR_HEIGHT_SCALE);
+  const tabBarPaddingTop = Platform.OS === 'web' ? 0 : Math.round(10 * TAB_BAR_HEIGHT_SCALE);
 
   const overlayAnim = React.useRef(new Animated.Value(0)).current;
 
@@ -190,7 +195,7 @@ export default function TabLayout() {
           backgroundColor: '#FFFFFF',
           borderTopWidth: 0,
           height: tabBarHeight,
-          paddingBottom: tabBarSafeAreaBottom,
+          paddingBottom: Platform.OS === 'web' ? 0 : tabBarSafeAreaBottom,
           paddingTop: tabBarPaddingTop,
           shadowColor: "#000",
           shadowOffset: {
@@ -201,9 +206,26 @@ export default function TabLayout() {
           shadowRadius: 8,
           elevation: 10,
         },
+        tabBarItemStyle: Platform.OS === 'web'
+          ? {
+              height: '100%',
+              justifyContent: 'center',
+              alignItems: 'center',
+              paddingVertical: 0,
+            }
+          : undefined,
+        tabBarIconStyle: Platform.OS === 'web'
+          ? {
+              marginTop: 0,
+              marginBottom: 0,
+            }
+          : undefined,
         tabBarLabelStyle: {
           fontSize: 11,
           fontWeight: '600',
+          marginTop: Platform.OS === 'web' ? 0 : undefined,
+          marginBottom: Platform.OS === 'web' ? 0 : undefined,
+          paddingTop: Platform.OS === 'web' ? 0 : undefined,
         },
         // Hide the QuestFit header globally; we only show it on the Home tab tbh
         headerShown: false,
