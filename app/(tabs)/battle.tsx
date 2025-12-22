@@ -3388,179 +3388,186 @@ export default function BattleScreen() {
         onPress={battlePress}
         disabled={isBattleOver || isPaused}
       >
-        <View style={[uiStyles.mobileCombatCardTop, isSmallMobile && uiStyles.mobileCombatCardTopSmall]}>
-          <View style={[uiStyles.mobileCardHeaderRow, isSmallMobile && uiStyles.mobileCardHeaderRowSmall]}>
-            <Text style={[uiStyles.mobileCardName, isSmallMobile && uiStyles.mobileCardNameSmall]} numberOfLines={1}>
-              {creatures[opponentSelectedCreature].name}
-            </Text>
-            <Text style={[uiStyles.mobileCardStats, isSmallMobile && uiStyles.mobileCardStatsSmall]} numberOfLines={1}>
-              ⚔️ {creatures[opponentSelectedCreature].stats.power}  ⚡ {creatures[opponentSelectedCreature].stats.speed}  🛡️ {creatures[opponentSelectedCreature].stats.endurance}
-            </Text>
-          </View>
 
-          <View style={uiStyles.mobileCardBadgesRow}>
-            <Text style={[styles.creatureSport, { color: getSportColor(creatures[opponentSelectedCreature].sport)[0] }]}>
-              {creatures[opponentSelectedCreature].sport}
-            </Text>
-            {creatures[opponentSelectedCreature].rarity === 'legendary' ? (
-              <LinearGradient
-                colors={[...LEGENDARY_BADGE_GRADIENT_COLORS]}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 1 }}
-                style={styles.creatureRarityBadge}
-              >
-                <Text style={styles.legendaryBadgeText}>{creatures[opponentSelectedCreature].rarity.toUpperCase()}</Text>
-              </LinearGradient>
-            ) : (
-              <Text
-                style={[
-                  styles.creatureRarityBadge,
-                  {
-                    backgroundColor: getRarityColor(creatures[opponentSelectedCreature].rarity),
-                    color: '#FFFFFF',
-                  },
-                ]}
-              >
-                {creatures[opponentSelectedCreature].rarity.toUpperCase()}
-              </Text>
-            )}
-          </View>
+        <View style={uiStyles.mobileArenaContent}>
+          <View style={uiStyles.mobileArenaTopHalf}>
+            <View style={[uiStyles.mobileCombatCardTop, isSmallMobile && uiStyles.mobileCombatCardTopSmall]}>
+              <View style={[uiStyles.mobileCardHeaderRow, isSmallMobile && uiStyles.mobileCardHeaderRowSmall]}>
+                <Text style={[uiStyles.mobileCardName, isSmallMobile && uiStyles.mobileCardNameSmall]} numberOfLines={1}>
+                  {creatures[opponentSelectedCreature].name}
+                </Text>
+                <Text style={[uiStyles.mobileCardStats, isSmallMobile && uiStyles.mobileCardStatsSmall]} numberOfLines={1}>
+                  ⚔️ {creatures[opponentSelectedCreature].stats.power}  ⚡ {creatures[opponentSelectedCreature].stats.speed}  🛡️ {creatures[opponentSelectedCreature].stats.endurance}
+                </Text>
+              </View>
 
-          <HealthBar
-            health={healths[opponentSelectedCreature]}
-            maxHealth={creatures[opponentSelectedCreature].stats.endurance}
-            variant="mobile"
-          />
+              <View style={uiStyles.mobileCardBadgesRow}>
+                <Text style={[styles.creatureSport, { color: getSportColor(creatures[opponentSelectedCreature].sport)[0] }]}>
+                  {creatures[opponentSelectedCreature].sport}
+                </Text>
+                {creatures[opponentSelectedCreature].rarity === 'legendary' ? (
+                  <LinearGradient
+                    colors={[...LEGENDARY_BADGE_GRADIENT_COLORS]}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 1 }}
+                    style={styles.creatureRarityBadge}
+                  >
+                    <Text style={styles.legendaryBadgeText}>{creatures[opponentSelectedCreature].rarity.toUpperCase()}</Text>
+                  </LinearGradient>
+                ) : (
+                  <Text
+                    style={[
+                      styles.creatureRarityBadge,
+                      {
+                        backgroundColor: getRarityColor(creatures[opponentSelectedCreature].rarity),
+                        color: '#FFFFFF',
+                      },
+                    ]}
+                  >
+                    {creatures[opponentSelectedCreature].rarity.toUpperCase()}
+                  </Text>
+                )}
+              </View>
 
-          <View style={[uiStyles.mobileIconStage, isSmallMobile && uiStyles.mobileIconStageSmall]}>
-            {healths[opponentSelectedCreature] === 0 ? (
-              <FaintedIcon creature={creatures[opponentSelectedCreature]} onFaintEnd={handleOpponentFaintEnd} size={mobileSpriteSize} />
-            ) : (
-              <IdleIcon
-                creature={creatures[opponentSelectedCreature]}
-                size={mobileSpriteSize}
-                attackTrigger={(trigger) => (attackRefs.current[creatures[opponentSelectedCreature].id] = trigger)}
+              <HealthBar
+                health={healths[opponentSelectedCreature]}
+                maxHealth={creatures[opponentSelectedCreature].stats.endurance}
+                variant="mobile"
               />
-            )}
 
-            {floatingDamages
-              .filter(d => d.creatureIndex === opponentSelectedCreature)
-              .map(d => (
-                <DamageNumber
-                  key={d.id}
-                  damage={d.amount}
-                  isUser={false}
-                  effectiveness={d.effectiveness}
-                  isSpecial={d.isSpecial}
-                  onComplete={() => {
-                    setFloatingDamages(prev => prev.filter(f => f.id !== d.id));
-                  }}
-                />
-              ))}
+              <View style={[uiStyles.mobileIconStage, isSmallMobile && uiStyles.mobileIconStageSmall]}>
+                {healths[opponentSelectedCreature] === 0 ? (
+                  <FaintedIcon creature={creatures[opponentSelectedCreature]} onFaintEnd={handleOpponentFaintEnd} size={mobileSpriteSize} />
+                ) : (
+                  <IdleIcon
+                    creature={creatures[opponentSelectedCreature]}
+                    size={mobileSpriteSize}
+                    attackTrigger={(trigger) => (attackRefs.current[creatures[opponentSelectedCreature].id] = trigger)}
+                  />
+                )}
 
-            {floatingImpacts
-              .filter(f => f.creatureIndex === opponentSelectedCreature)
-              .map(f => (
-                <ImpactEffect
-                  key={f.id}
-                  onComplete={() => {
-                    setFloatingImpacts(prev => prev.filter(x => x.id !== f.id));
-                  }}
-                  sport={creatures[userSelectedCreature].sport}
-                />
-              ))}
+                {floatingDamages
+                  .filter(d => d.creatureIndex === opponentSelectedCreature)
+                  .map(d => (
+                    <DamageNumber
+                      key={d.id}
+                      damage={d.amount}
+                      isUser={false}
+                      effectiveness={d.effectiveness}
+                      isSpecial={d.isSpecial}
+                      onComplete={() => {
+                        setFloatingDamages(prev => prev.filter(f => f.id !== d.id));
+                      }}
+                    />
+                  ))}
+
+                {floatingImpacts
+                  .filter(f => f.creatureIndex === opponentSelectedCreature)
+                  .map(f => (
+                    <ImpactEffect
+                      key={f.id}
+                      onComplete={() => {
+                        setFloatingImpacts(prev => prev.filter(x => x.id !== f.id));
+                      }}
+                      sport={creatures[userSelectedCreature].sport}
+                    />
+                  ))}
+              </View>
+            </View>
+          </View>
+
+          <View style={uiStyles.mobileArenaBottomHalf}>
+            <View style={[uiStyles.mobileCombatCardBottom, isSmallMobile && uiStyles.mobileCombatCardBottomSmall]}>
+              <View style={[uiStyles.mobileCardHeaderRow, isSmallMobile && uiStyles.mobileCardHeaderRowSmall]}>
+                <Text style={[uiStyles.mobileCardName, isSmallMobile && uiStyles.mobileCardNameSmall]} numberOfLines={1}>
+                  {creatures[userSelectedCreature].name}
+                </Text>
+                <Text style={[uiStyles.mobileCardStats, isSmallMobile && uiStyles.mobileCardStatsSmall]} numberOfLines={1}>
+                  ⚔️ {creatures[userSelectedCreature].stats.power}  ⚡ {creatures[userSelectedCreature].stats.speed}  🛡️ {creatures[userSelectedCreature].stats.endurance}
+                </Text>
+              </View>
+
+              <View style={uiStyles.mobileCardBadgesRow}>
+                <Text style={[styles.creatureSport, { color: getSportColor(creatures[userSelectedCreature].sport)[0] }]}>
+                  {creatures[userSelectedCreature].sport}
+                </Text>
+                {creatures[userSelectedCreature].rarity === 'legendary' ? (
+                  <LinearGradient
+                    colors={[...LEGENDARY_BADGE_GRADIENT_COLORS]}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 1 }}
+                    style={styles.creatureRarityBadge}
+                  >
+                    <Text style={styles.legendaryBadgeText}>{creatures[userSelectedCreature].rarity.toUpperCase()}</Text>
+                  </LinearGradient>
+                ) : (
+                  <Text
+                    style={[
+                      styles.creatureRarityBadge,
+                      {
+                        backgroundColor: getRarityColor(creatures[userSelectedCreature].rarity),
+                        color: '#FFFFFF',
+                      },
+                    ]}
+                  >
+                    {creatures[userSelectedCreature].rarity.toUpperCase()}
+                  </Text>
+                )}
+              </View>
+
+              <HealthBar
+                health={healths[userSelectedCreature]}
+                maxHealth={creatures[userSelectedCreature].stats.endurance}
+                variant="mobile"
+              />
+
+              <View style={[uiStyles.mobileIconStage, isSmallMobile && uiStyles.mobileIconStageSmall]}>
+                <View style={{ transform: [{ scaleX: -1 }] }}>
+                  {healths[userSelectedCreature] === 0 ? (
+                    <FaintedIcon creature={creatures[userSelectedCreature]} onFaintEnd={handleUserFaintEnd} size={mobileSpriteSize} />
+                  ) : (
+                    <IdleIcon
+                      creature={creatures[userSelectedCreature]}
+                      size={mobileSpriteSize}
+                      attackTrigger={(trigger) => (attackRefs.current[creatures[userSelectedCreature].id] = trigger)}
+                    />
+                  )}
+                </View>
+
+                {floatingDamages
+                  .filter(d => d.creatureIndex === userSelectedCreature)
+                  .map(d => (
+                    <DamageNumber
+                      key={d.id}
+                      damage={d.amount}
+                      isUser={true}
+                      effectiveness={d.effectiveness}
+                      isSpecial={d.isSpecial}
+                      onComplete={() => {
+                        setFloatingDamages(prev => prev.filter(f => f.id !== d.id));
+                      }}
+                    />
+                  ))}
+
+                {floatingImpacts
+                  .filter(f => f.creatureIndex === userSelectedCreature)
+                  .map(f => (
+                    <ImpactEffect
+                      key={f.id}
+                      onComplete={() => {
+                        setFloatingImpacts(prev => prev.filter(x => x.id !== f.id));
+                      }}
+                      sport={creatures[opponentSelectedCreature].sport}
+                    />
+                  ))}
+              </View>
+            </View>
           </View>
         </View>
 
         <View style={uiStyles.mobileTapHint}>
           <Text style={uiStyles.mobileTapHintTitle}>Tap anywhere to attack</Text>
           <Text style={uiStyles.mobileTapHintSub}>Taps: {clickNum}</Text>
-        </View>
-
-        <View style={[uiStyles.mobileCombatCardBottom, isSmallMobile && uiStyles.mobileCombatCardBottomSmall]}>
-          <View style={[uiStyles.mobileCardHeaderRow, isSmallMobile && uiStyles.mobileCardHeaderRowSmall]}>
-            <Text style={[uiStyles.mobileCardName, isSmallMobile && uiStyles.mobileCardNameSmall]} numberOfLines={1}>
-              {creatures[userSelectedCreature].name}
-            </Text>
-            <Text style={[uiStyles.mobileCardStats, isSmallMobile && uiStyles.mobileCardStatsSmall]} numberOfLines={1}>
-              ⚔️ {creatures[userSelectedCreature].stats.power}  ⚡ {creatures[userSelectedCreature].stats.speed}  🛡️ {creatures[userSelectedCreature].stats.endurance}
-            </Text>
-          </View>
-
-          <View style={uiStyles.mobileCardBadgesRow}>
-            <Text style={[styles.creatureSport, { color: getSportColor(creatures[userSelectedCreature].sport)[0] }]}>
-              {creatures[userSelectedCreature].sport}
-            </Text>
-            {creatures[userSelectedCreature].rarity === 'legendary' ? (
-              <LinearGradient
-                colors={[...LEGENDARY_BADGE_GRADIENT_COLORS]}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 1 }}
-                style={styles.creatureRarityBadge}
-              >
-                <Text style={styles.legendaryBadgeText}>{creatures[userSelectedCreature].rarity.toUpperCase()}</Text>
-              </LinearGradient>
-            ) : (
-              <Text
-                style={[
-                  styles.creatureRarityBadge,
-                  {
-                    backgroundColor: getRarityColor(creatures[userSelectedCreature].rarity),
-                    color: '#FFFFFF',
-                  },
-                ]}
-              >
-                {creatures[userSelectedCreature].rarity.toUpperCase()}
-              </Text>
-            )}
-          </View>
-
-          <HealthBar
-            health={healths[userSelectedCreature]}
-            maxHealth={creatures[userSelectedCreature].stats.endurance}
-            variant="mobile"
-          />
-
-          <View style={[uiStyles.mobileIconStage, isSmallMobile && uiStyles.mobileIconStageSmall]}>
-            <View style={{ transform: [{ scaleX: -1 }] }}>
-              {healths[userSelectedCreature] === 0 ? (
-                <FaintedIcon creature={creatures[userSelectedCreature]} onFaintEnd={handleUserFaintEnd} size={mobileSpriteSize} />
-              ) : (
-                <IdleIcon
-                  creature={creatures[userSelectedCreature]}
-                  size={mobileSpriteSize}
-                  attackTrigger={(trigger) => (attackRefs.current[creatures[userSelectedCreature].id] = trigger)}
-                />
-              )}
-            </View>
-
-            {floatingDamages
-              .filter(d => d.creatureIndex === userSelectedCreature)
-              .map(d => (
-                <DamageNumber
-                  key={d.id}
-                  damage={d.amount}
-                  isUser={true}
-                  effectiveness={d.effectiveness}
-                  isSpecial={d.isSpecial}
-                  onComplete={() => {
-                    setFloatingDamages(prev => prev.filter(f => f.id !== d.id));
-                  }}
-                />
-              ))}
-
-            {floatingImpacts
-              .filter(f => f.creatureIndex === userSelectedCreature)
-              .map(f => (
-                <ImpactEffect
-                  key={f.id}
-                  onComplete={() => {
-                    setFloatingImpacts(prev => prev.filter(x => x.id !== f.id));
-                  }}
-                  sport={creatures[opponentSelectedCreature].sport}
-                />
-              ))}
-          </View>
         </View>
       </Pressable>
 
@@ -3965,7 +3972,7 @@ const uiStyles = StyleSheet.create({
   // Mobile battle layout
   mobileBattleContainer: {
     flex: 1,
-    backgroundColor: '#F9FAFB',
+    backgroundColor: '#FFFFFF',
   },
   mobileTopBar: {
     paddingHorizontal: 14,
@@ -4063,8 +4070,20 @@ const uiStyles = StyleSheet.create({
     paddingHorizontal: 14,
     paddingTop: 12,
     paddingBottom: 20,
-    justifyContent: 'space-between',
     backgroundColor: 'transparent',
+  },
+  mobileArenaContent: {
+    flex: 1,
+  },
+  mobileArenaTopHalf: {
+    flex: 1,
+    justifyContent: 'flex-start',
+    alignItems: 'flex-end',
+  },
+  mobileArenaBottomHalf: {
+    flex: 1,
+    justifyContent: 'flex-end',
+    alignItems: 'flex-start',
   },
   mobileCombatCardTop: {
     backgroundColor: '#FFFFFF',
