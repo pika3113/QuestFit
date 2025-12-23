@@ -1,5 +1,5 @@
 import { Redirect } from 'expo-router';
 
 export default function MultiDeviceLiveWorkoutScreen() {
-  return <Redirect href="/(tabs)/workout" />;
+  return <Redirect href="/workout" />;
 }

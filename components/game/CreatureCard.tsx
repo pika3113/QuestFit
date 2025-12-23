@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, Pressable, Modal, ScrollView, useWindowDimensions } from 'react-native';
+import { View, Text, Pressable, Modal, ScrollView, useWindowDimensions, Platform, PixelRatio } from 'react-native';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Creature } from '../../src/types/polar';
@@ -17,6 +17,84 @@ const creatureImages = require.context(
 
 function getCreatureImage(id: string) {
   return creatureImages(`./creature_icon_${id}.png`);
+}
+
+function CreatureIconWeb({ id, captured }: { id: string; captured: boolean }) {
+  if (captured) {
+    return (
+      <Image
+        source={getCreatureImage(id)}
+        style={{ width: '100%', height: 75, resizeMode: 'contain', imageRendering: 'pixelated' } as any}
+      />
+    );
+  }
+
+  return (
+    <Image
+      source={getCreatureImage(id)}
+      style={{ width: '100%', height: 75, resizeMode: 'contain', imageRendering: 'pixelated', filter: 'grayscale(100%)' } as any}
+    />
+  );
+}
+
+function CreatureIconSkia({ id }: { id: string }) {
+  // Skia isn't supported on web builds; this component must never render on web.
+  const skia = React.useMemo(() => {
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    return require('@shopify/react-native-skia') as any;
+  }, []);
+
+  const { Canvas, Image: SkiaImage, useImage, FilterMode, MipmapMode } = skia;
+  const [layoutWidth, setLayoutWidth] = React.useState(0);
+
+  const image = useImage(getCreatureImage(id));
+  const height = 75;
+  const pr = PixelRatio.get();
+  const snap = React.useCallback((v: number) => Math.round(v * pr) / pr, [pr]);
+
+  return (
+    <View
+      style={{ width: '100%', height }}
+      onLayout={(e) => {
+        const next = snap(e.nativeEvent.layout.width);
+        if (next > 0 && next !== layoutWidth) setLayoutWidth(next);
+      }}
+    >
+      {layoutWidth > 0 && image && (() => {
+        const srcW = image.width();
+        const srcH = image.height();
+        const maxScale = Math.min(layoutWidth / srcW, height / srcH);
+
+        // Prefer integer upscaling for crisp pixel art.
+        // If we must downscale (maxScale < 1), fall back to fractional scaling but still snap to pixel grid.
+        const scale = maxScale >= 1 ? Math.max(1, Math.floor(maxScale)) : maxScale;
+
+        const drawW = snap(srcW * scale);
+        const drawH = snap(srcH * scale);
+        const x = snap((layoutWidth - drawW) / 2);
+        const y = snap((height - drawH) / 2);
+
+        return (
+          <Canvas style={{ width: layoutWidth, height }}>
+            <SkiaImage
+              image={image}
+              x={x}
+              y={y}
+              width={drawW}
+              height={drawH}
+              fit="fill"
+              sampling={{ filter: FilterMode.Nearest, mipmap: MipmapMode.None }}
+            />
+          </Canvas>
+        );
+      })()}
+    </View>
+  );
+}
+
+function CreatureIcon({ id, captured }: { id: string; captured: boolean }) {
+  if (Platform.OS === 'web') return <CreatureIconWeb id={id} captured={captured} />;
+  return <CreatureIconSkia id={id} />;
 }
 
 interface CreatureCardProps {
@@ -99,18 +177,7 @@ export const CreatureCard: React.FC<CreatureCardProps> = ({ creature, captured =
           </View>
         </View>
         <View>
-          {captured && (
-            <Image 
-              source={getCreatureImage(creature.id)}
-              style={{ width: '100%', height: 75, resizeMode: 'contain', imageRendering: 'pixelated' } as any} 
-            />
-          )}
-          {!captured && (
-            <Image 
-              source={getCreatureImage(creature.id)}
-              style={{ width: '100%', height: 75, resizeMode: 'contain', imageRendering: 'pixelated', filter: "grayscale(100%)" } as any} 
-            />
-          )}
+          <CreatureIcon id={creature.id} captured={captured} />
         </View>
         <View style={[styles.stats, isGrid && { marginTop: 'auto' }]}>
           <View style={styles.stat}>

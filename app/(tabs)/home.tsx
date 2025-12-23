@@ -173,7 +173,7 @@ export default function HomeScreen() {
           <Text style={styles.greetingText}>{getGreeting()},</Text>
           <Text style={styles.nameText}>{user?.displayName || 'Adventurer'}</Text>
         </View>
-        <TouchableOpacity style={styles.profileButton} onPress={() => router.push('/(tabs)/me')}>
+        <TouchableOpacity style={styles.profileButton} onPress={() => router.push('/me')}>
           {/* Placeholder for avatar */}
           <View style={styles.avatarPlaceholder}>
             <Text style={styles.avatarText}>
@@ -251,13 +251,19 @@ export default function HomeScreen() {
           icon="fitness" 
           label="Workout" 
           color="#FF6B35" 
-          onPress={() => router.push('/(tabs)/workout')} 
+          onPress={() => router.push('/workout')} 
+        />
+        <QuickActionButton 
+          icon="flash" 
+          label="Battle" 
+          color="#6C5CE7" 
+          onPress={() => router.push('/battle')} 
         />
         <QuickActionButton 
           icon="paw" 
           label="Creatures" 
           color="#2E86AB" 
-          onPress={() => router.push('/(tabs)/creatures')} 
+          onPress={() => router.push('/creatures')} 
         />
         <QuickActionButton 
           icon="medal"
@@ -269,7 +275,7 @@ export default function HomeScreen() {
           icon="trophy" 
           label="Profile" 
           color="#FDCB6E" 
-          onPress={() => router.push('/(tabs)/me')} 
+          onPress={() => router.push('/me')} 
         />
         <QuickActionButton 
           icon="gift" 
@@ -282,7 +288,7 @@ export default function HomeScreen() {
             icon="school" 
             label="Instructor" 
             color="#6C5CE7" 
-            onPress={() => router.push('/(tabs)/instr-dashboard')} 
+            onPress={() => router.push('/instr-dashboard')} 
           />
         )}
       </View>

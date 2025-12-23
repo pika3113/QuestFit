@@ -121,7 +121,6 @@
 - **StatsDisplay**: Visual representation of user statistics
 - **DeviceHeartRateCard**: Real-time heart rate display for connected devices
 - **PolarLinkScreen**: Polar account connection interface
-- **DebugConsole**: Development debugging tools
 
 ---
 
@@ -216,7 +215,6 @@
 
 ### Testing & Debugging
 - Mock data utilities for development
-- Debug console component
 - Workout completion examples
 
 ### Configuration

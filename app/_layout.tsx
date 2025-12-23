@@ -6,13 +6,13 @@ import * as SplashScreen from 'expo-splash-screen';
 import { useEffect } from 'react';
 import { Platform } from 'react-native';
 import 'react-native-reanimated';
+import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { StatusBar } from 'expo-status-bar';
 
 import { useColorScheme } from '@/components/useColorScheme';
 import { useAuth } from '@/src/hooks/useAuth';
 import { SignInScreen } from '@/components/auth/SignInScreen';
 import { View, ActivityIndicator, Text as RNText, TextInput as RNTextInput } from 'react-native';
-import DebugConsole from '@/components/DebugConsole';
-import { IS_DEV_MODE } from '@/constants/DevConfig';
 
 export {
   // Catch any errors thrown by the Layout component.
@@ -79,6 +79,7 @@ function RootLayoutNav() {
   const colorScheme = useColorScheme();
   const { user, loading } = useAuth();
   const pathname = usePathname();
+  const insets = useSafeAreaInsets();
 
   useEffect(() => {
     if (Platform.OS !== 'web') return;
@@ -105,24 +106,33 @@ function RootLayoutNav() {
 
   // Show main app if authenticated
   return (
-    <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
-      <Stack>
-        <Stack.Screen name="index" options={{ headerShown: false }} />
-        <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-        <Stack.Screen name="history" options={{ headerShown: false }} />
-        <Stack.Screen name="me-exercises" options={{ headerShown: false }} />
-        <Stack.Screen name="instructor" options={{ headerShown: false }} />
-      </Stack>
-      {Platform.OS === 'web' && (
-        <>
-          {/* @ts-ignore - Dynamic import for web only */}
-          {typeof window !== 'undefined' && (() => {
-            const { Analytics } = require('@vercel/analytics/react');
-            return <Analytics />;
-          })()}
-        </>
-      )}
-      {IS_DEV_MODE && <DebugConsole />}
-    </ThemeProvider>
+    <SafeAreaProvider>
+      <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
+        <StatusBar style="light" backgroundColor="#000000" />
+
+        {/* Black underlay for the notch / status-bar safe-area */}
+        <View
+          pointerEvents="none"
+          style={{ position: 'absolute', top: 0, left: 0, right: 0, height: insets.top, backgroundColor: '#000000', zIndex: 9999 }}
+        />
+
+        <Stack>
+          <Stack.Screen name="index" options={{ headerShown: false }} />
+          <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+          <Stack.Screen name="history" options={{ headerShown: false }} />
+          <Stack.Screen name="me-exercises" options={{ headerShown: false }} />
+          <Stack.Screen name="instructor" options={{ headerShown: false }} />
+        </Stack>
+        {Platform.OS === 'web' && (
+          <>
+            {/* @ts-ignore - Dynamic import for web only */}
+            {typeof window !== 'undefined' && (() => {
+              const { Analytics } = require('@vercel/analytics/react');
+              return <Analytics />;
+            })()}
+          </>
+        )}
+      </ThemeProvider>
+    </SafeAreaProvider>
   );
 }

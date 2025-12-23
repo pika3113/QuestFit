@@ -24,7 +24,7 @@ export default function PolarOAuthCallback() {
 
     // Redirect back to home after a brief moment
     const timer = setTimeout(() => {
-      router.replace('/(tabs)/home');
+      router.replace('/home');
     }, 1000);
 
     return () => clearTimeout(timer);

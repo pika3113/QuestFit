@@ -1,6 +1,7 @@
 import React, { memo, useCallback, useEffect, useMemo, useState } from 'react';
 import { ScrollView, ActivityIndicator, Alert, Pressable, TextInput, Platform } from 'react-native';
 import Slider from '@react-native-community/slider';
+import { Picker } from '@react-native-picker/picker';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Text, View } from '@/components/Themed';
 import { useLocalSearchParams } from 'expo-router';
@@ -35,6 +36,10 @@ import { GroupMetrics } from '@/components/multi-device/GroupMetrics';
 type AgeCacheEntry = { fetchedAtMs: number; age: number | null };
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const GLOBAL_AGE_CACHE: Record<string, AgeCacheEntry> = ((globalThis as any).__QUESTFIT_AGE_CACHE__ ??= {});
+
+type UsersIdCacheEntry = { fetchedAtMs: number; ids: string[] };
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const GLOBAL_USERS_ID_CACHE: UsersIdCacheEntry = ((globalThis as any).__QUESTFIT_USERS_ID_CACHE__ ??= { fetchedAtMs: 0, ids: [] });
 
 function WorkoutFakeScreen() {
   const { user } = useAuth();
@@ -229,9 +234,13 @@ function WorkoutRealScreen() {
   );
 
   const [emuUserId, setEmuUserId] = useState('');
+  const [emuUserIdDropdown, setEmuUserIdDropdown] = useState<'__manual__' | string>('__manual__');
   const [emuResolveLoading, setEmuResolveLoading] = useState(false);
   const [emuResolvedDisplayName, setEmuResolvedDisplayName] = useState('');
   const [emuResolvedDeviceId, setEmuResolvedDeviceId] = useState('');
+
+  const [emuAllUserIds, setEmuAllUserIds] = useState<string[]>([]);
+  const [emuAllUserIdsLoading, setEmuAllUserIdsLoading] = useState(false);
 
   const [emuHrOverrides, setEmuHrOverrides] = useState<Record<string, number | null>>({});
 
@@ -239,6 +248,53 @@ function WorkoutRealScreen() {
 
   // Per-device HR history for charting (emulation mode).
   const [emuHrHistory, setEmuHrHistory] = useState<Record<string, HrPoint[]>>({});
+
+  const storedEmuUserIds = useMemo(() => {
+    const ids = emulationDevices
+      .map((d) => (d.userId ?? '').trim())
+      .filter((id) => id.length > 0);
+    return Array.from(new Set(ids)).sort((a, b) => a.localeCompare(b));
+  }, [emulationDevices]);
+
+  useEffect(() => {
+    if (!emulate) return;
+
+    // Fetch user doc IDs from Firestore so emulate mode can pick real users.
+    // Cache briefly to avoid refetching on minor rerenders.
+    const now = Date.now();
+    const cacheMaxAgeMs = 60_000;
+    if (GLOBAL_USERS_ID_CACHE.ids.length > 0 && now - GLOBAL_USERS_ID_CACHE.fetchedAtMs < cacheMaxAgeMs) {
+      setEmuAllUserIds(GLOBAL_USERS_ID_CACHE.ids);
+      return;
+    }
+
+    let cancelled = false;
+    setEmuAllUserIdsLoading(true);
+    (async () => {
+      try {
+        const snap = await getDocs(collection(db, 'users'));
+        const ids = snap.docs.map((d) => d.id).filter(Boolean).sort((a, b) => a.localeCompare(b));
+        GLOBAL_USERS_ID_CACHE.fetchedAtMs = Date.now();
+        GLOBAL_USERS_ID_CACHE.ids = ids;
+        if (!cancelled) setEmuAllUserIds(ids);
+      } catch (e) {
+        console.error('Failed to load user ids for emulation:', e);
+        if (!cancelled) setEmuAllUserIds([]);
+      } finally {
+        if (!cancelled) setEmuAllUserIdsLoading(false);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [emulate]);
+
+  const emuUserIdOptions = useMemo(() => {
+    // Prefer Firestore IDs, but keep locally stored ids too.
+    const combined = [...emuAllUserIds, ...storedEmuUserIds].map((x) => x.trim()).filter(Boolean);
+    return Array.from(new Set(combined)).sort((a, b) => a.localeCompare(b));
+  }, [emuAllUserIds, storedEmuUserIds]);
 
   const useUserAge = (userId: string | null | undefined) => {
     const [age, setAge] = useState<number | null>(null);
@@ -424,6 +480,18 @@ function WorkoutRealScreen() {
   }, [emulate, connectedDevices, emu.devices, effectiveDeviceHeartRates]);
 
   const [deviceOwners, setDeviceOwners] = useState<Record<string, string>>({});
+  const [deviceOwnerUserIds, setDeviceOwnerUserIds] = useState<Record<string, string>>({});
+
+  const effectiveDeviceOwnerUserIds = useMemo(() => {
+    if (!emulate) return deviceOwnerUserIds;
+    const next: Record<string, string> = {};
+    for (const d of emulationDevices) {
+      const uid = (d.userId ?? '').trim();
+      if (!uid) continue;
+      next[`${uid}__${d.deviceId}`] = uid;
+    }
+    return next;
+  }, [emulate, deviceOwnerUserIds, emulationDevices]);
 
   useEffect(() => {
     checkBluetoothStatus();
@@ -453,6 +521,7 @@ function WorkoutRealScreen() {
         }
 
         const newOwners: Record<string, string> = {};
+        const newOwnerUserIds: Record<string, string> = {};
 
         for (const chunk of chunks) {
           const q1 = query(collection(db, 'users'), where('deviceID', 'in', chunk));
@@ -464,12 +533,15 @@ function WorkoutRealScreen() {
             const data = docSnap.data();
             const id = data.deviceID || data.deviceId;
             if (!id || !data.displayName) return;
+            const uid = docSnap.id;
 
             if (availableDevices.some((d) => d.id === id)) {
               newOwners[id] = data.displayName;
+              if (uid) newOwnerUserIds[id] = uid;
             }
             if (nameToIdMap[id]) {
               newOwners[nameToIdMap[id]] = data.displayName;
+              if (uid) newOwnerUserIds[nameToIdMap[id]] = uid;
             }
           };
 
@@ -478,6 +550,7 @@ function WorkoutRealScreen() {
         }
 
         setDeviceOwners((prev) => ({ ...prev, ...newOwners }));
+        setDeviceOwnerUserIds((prev) => ({ ...prev, ...newOwnerUserIds }));
       } catch (err) {
         console.error('Error fetching device owners:', err);
       }
@@ -819,23 +892,59 @@ function WorkoutRealScreen() {
             </View>
 
             <Text style={{ marginBottom: 6 }}>user_id</Text>
-            <TextInput
-              value={emuUserId}
-              onChangeText={(t) => {
-                setEmuUserId(t);
-                void resolveUserForEmulation(t);
-              }}
-              placeholder="linked user uid"
-              autoCapitalize="none"
+            <View
               style={{
                 borderWidth: 1,
                 borderColor: '#99999966',
                 borderRadius: 10,
-                padding: 12,
                 marginBottom: 10,
-                color: Colors[colorScheme ?? 'light'].text,
+                overflow: 'hidden',
               }}
-            />
+            >
+              <Picker
+                selectedValue={emuUserIdDropdown}
+                onValueChange={(value) => {
+                  const v = String(value);
+                  setEmuUserIdDropdown(v);
+                  if (v === '__manual__') return;
+                  setEmuUserId(v);
+                  void resolveUserForEmulation(v);
+                }}
+                style={{ color: Colors[colorScheme ?? 'light'].text }}
+              >
+                <Picker.Item label="Enter user_id…" value="__manual__" />
+                {emuUserIdOptions.map((id) => (
+                  <Picker.Item key={id} label={id} value={id} />
+                ))}
+              </Picker>
+            </View>
+
+            {emuAllUserIdsLoading && (
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+                <ActivityIndicator />
+                <Text style={{ opacity: 0.85 }}>Loading users…</Text>
+              </View>
+            )}
+
+            {emuUserIdDropdown === '__manual__' && (
+              <TextInput
+                value={emuUserId}
+                onChangeText={(t) => {
+                  setEmuUserId(t);
+                  void resolveUserForEmulation(t);
+                }}
+                placeholder="linked user uid"
+                autoCapitalize="none"
+                style={{
+                  borderWidth: 1,
+                  borderColor: '#99999966',
+                  borderRadius: 10,
+                  padding: 12,
+                  marginBottom: 10,
+                  color: Colors[colorScheme ?? 'light'].text,
+                }}
+              />
+            )}
 
             <Text style={{ marginBottom: 6 }}>device_id (auto)</Text>
             <View
@@ -882,6 +991,7 @@ function WorkoutRealScreen() {
                   label: emuResolvedDisplayName,
                 });
                 setEmuUserId('');
+                setEmuUserIdDropdown('__manual__');
                 setEmuResolvedDeviceId('');
                 setEmuResolvedDisplayName('');
                 await refreshEmulationDevices();
@@ -1038,6 +1148,7 @@ function WorkoutRealScreen() {
           connectedDevices={effectiveConnectedDevices}
           deviceHeartRates={effectiveDeviceHeartRates}
           deviceOwners={deviceOwners}
+          deviceOwnerUserIds={effectiveDeviceOwnerUserIds}
           onDisconnect={handleDisconnectDevice}
           onDisconnectAll={handleDisconnectAll}
           aggregateHeartRate={aggregateHeartRate}

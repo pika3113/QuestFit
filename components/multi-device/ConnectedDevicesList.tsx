@@ -24,6 +24,7 @@ interface ConnectedDevicesListProps {
   connectedDevices: ConnectedDeviceInfo[];
   deviceHeartRates: Map<string, number | null>;
   deviceOwners: Record<string, string>;
+  deviceOwnerUserIds?: Record<string, string>;
   onDisconnect: (deviceId: string, deviceName?: string) => void;
   onDisconnectAll: () => void;
   aggregateHeartRate: number | null;
@@ -34,6 +35,7 @@ export const ConnectedDevicesList: React.FC<ConnectedDevicesListProps> = ({
   connectedDevices,
   deviceHeartRates,
   deviceOwners,
+  deviceOwnerUserIds,
   onDisconnect,
   onDisconnectAll,
   aggregateHeartRate: _aggregateHeartRate,
@@ -59,12 +61,14 @@ export const ConnectedDevicesList: React.FC<ConnectedDevicesListProps> = ({
       {connectedDevices.map((deviceInfo) => {
         // Try to find owner by device ID or by extracted ID from name
         let ownerName = deviceOwners[deviceInfo.device.id];
+        let ownerUserId = deviceOwnerUserIds?.[deviceInfo.device.id];
         
         if (!ownerName && deviceInfo.device.name) {
           const parts = deviceInfo.device.name.split(' ');
           const lastPart = parts[parts.length - 1];
           if (/^[0-9A-F]{8}$/i.test(lastPart)) {
             ownerName = deviceOwners[lastPart];
+            ownerUserId = deviceOwnerUserIds?.[lastPart];
           }
         }
 
@@ -76,6 +80,8 @@ export const ConnectedDevicesList: React.FC<ConnectedDevicesListProps> = ({
             onDisconnect={() => onDisconnect(deviceInfo.device.id, deviceInfo.device.name || undefined)}
             compact={connectedDevices.length > 2}
             ownerName={ownerName}
+            ownerUserId={ownerUserId}
+            baselineRange="7d"
             accentColor={accentForDeviceId(deviceInfo.device.id)}
           />
         );

@@ -15,6 +15,7 @@ import {
   Easing,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Text } from '@/components/Themed';
 import Colors from '@/constants/Colors';
 import { useColorScheme } from '@/components/useColorScheme';
@@ -31,7 +32,7 @@ function TabBarIcon(props: {
   name: React.ComponentProps<typeof FontAwesome>['name'];
   color: string;
 }) {
-  return <FontAwesome size={28} style={{ marginBottom: -3 }} {...props} />;
+  return <FontAwesome size={20} style={{ marginBottom: 0, marginRight: 0 }} {...props} />;
 }
 
 // helper for awesome6 icons
@@ -40,7 +41,7 @@ function TabBarIcon6(props: {
   color: string;
   size?: number;
 }) {
-  return <FontAwesome6 size={props.size || 24} style={{ marginBottom: -3 }} {...props} />;
+  return <FontAwesome6 size={props.size || 18} style={{ marginBottom: 0, marginRight: 0 }} {...props} />;
 }
 
 export default function TabLayout() {
@@ -55,12 +56,21 @@ export default function TabLayout() {
   const pathname = usePathname();
   const insets = useSafeAreaInsets();
 
-  const defaultTabBarPaddingBottom = Platform.OS === 'ios' ? 28 : 10;
-  const tabBarPaddingBottom = Math.max(insets.bottom, defaultTabBarPaddingBottom);
-  const TAB_BAR_HEIGHT_SCALE = 0.85;
+  const lastTabStorageKey = user?.uid ? `LAST_TAB_PATH_${user.uid}` : 'LAST_TAB_PATH_ANON';
+
+  // Some Android devices/gesture modes can report a very small/zero bottom inset.
+  // Enforce a conservative minimum so the app tab bar never sits under the system nav/home bar.
+  const minTabBarSafeAreaBottom = Platform.OS === 'ios'
+    ? 34
+    : Platform.OS === 'android'
+      ? 34
+      : 0;
+  const tabBarSafeAreaBottom = Platform.OS === 'web' ? 0 : Math.max(insets.bottom, minTabBarSafeAreaBottom);
+  // Reduce tab bar height ~20% while preserving safe-area bottom inset.
+  const TAB_BAR_HEIGHT_SCALE = 0.68 * 0.8;
   const tabBarBaseHeight = Platform.OS === 'ios' ? 85 : 65;
-  const tabBarHeight = tabBarBaseHeight * TAB_BAR_HEIGHT_SCALE + (tabBarPaddingBottom - defaultTabBarPaddingBottom);
-  const tabBarPaddingTop = Math.round(10 * TAB_BAR_HEIGHT_SCALE);
+  const tabBarHeight = tabBarBaseHeight * TAB_BAR_HEIGHT_SCALE + tabBarSafeAreaBottom;
+  const tabBarPaddingTop = Platform.OS === 'web' ? 0 : Math.round(10 * TAB_BAR_HEIGHT_SCALE);
 
   const overlayAnim = React.useRef(new Animated.Value(0)).current;
 
@@ -71,6 +81,20 @@ export default function TabLayout() {
     setOverlayMenuOpen(false);
     overlayAnim.setValue(0);
   }, [pathname, overlayAnim]);
+
+  useEffect(() => {
+    // Remember the last non-battle tab so Battle's "Quit Battle" can return there.
+    // Store canonical routes (/home, /workout, ...) to match Expo Router's typed paths.
+    const isBattle = pathname === '/battle' || pathname.endsWith('/battle');
+    if (isBattle) return;
+
+    const tabName = pathname.startsWith('/') ? pathname.slice(1).split('/')[0] : pathname;
+    const allowedTabs = new Set(['home', 'workout', 'creatures', 'me', 'instr-dashboard']);
+    if (!allowedTabs.has(tabName)) return;
+
+    const nextPath = `/${tabName}`;
+    AsyncStorage.setItem(lastTabStorageKey, nextPath).catch(() => undefined);
+  }, [pathname, lastTabStorageKey]);
 
   useEffect(() => {
     checkPolarToken();
@@ -188,7 +212,7 @@ export default function TabLayout() {
           backgroundColor: '#FFFFFF',
           borderTopWidth: 0,
           height: tabBarHeight,
-          paddingBottom: tabBarPaddingBottom,
+          paddingBottom: Platform.OS === 'web' ? 0 : tabBarSafeAreaBottom,
           paddingTop: tabBarPaddingTop,
           shadowColor: "#000",
           shadowOffset: {
@@ -199,9 +223,26 @@ export default function TabLayout() {
           shadowRadius: 8,
           elevation: 10,
         },
+        tabBarItemStyle: Platform.OS === 'web'
+          ? {
+              height: '100%',
+              justifyContent: 'center',
+              alignItems: 'center',
+              paddingVertical: 0,
+            }
+          : undefined,
+        tabBarIconStyle: Platform.OS === 'web'
+          ? {
+              marginTop: 0,
+              marginBottom: 0,
+            }
+          : undefined,
         tabBarLabelStyle: {
           fontSize: 11,
           fontWeight: '600',
+          marginTop: Platform.OS === 'web' ? 0 : undefined,
+          marginBottom: Platform.OS === 'web' ? 0 : undefined,
+          paddingTop: Platform.OS === 'web' ? 0 : undefined,
         },
         // Hide the QuestFit header globally; we only show it on the Home tab tbh
         headerShown: false,
@@ -266,17 +307,17 @@ export default function TabLayout() {
           // href: null,
           title: 'Battle',
           headerTitle: 'QuestFit',
+          tabBarStyle: { display: 'none' },
           tabBarIcon: ({ color }) => <TabBarIcon6 name="burst" color={color} />,
         }}
       />
       <Tabs.Screen
-        name="multi-device"
+        name="creatures"
         options={{
-          // Keep this screen mounted in tabs but real URL is /workout.
-          href: null,
-          title: 'Multi-Device (Legacy)',
+          title: 'Creatures',
           headerTitle: 'QuestFit',
-          tabBarIcon: ({ color }) => <TabBarIcon6 name="people-robbery" color={color} size={24} />,
+          href:null,
+          tabBarIcon: ({ color }) => <TabBarIcon name="gitlab" color={color} />,
         }}
       />
       <Tabs.Screen
@@ -289,21 +330,22 @@ export default function TabLayout() {
         }}
       />
       <Tabs.Screen
-        name="creatures"
-        options={{
-          href: null,
-          title: 'Creatures',
-          headerTitle: 'QuestFit',
-          tabBarIcon: ({ color }) => <TabBarIcon name="gitlab" color={color} />,
-        }}
-      />
-      <Tabs.Screen
         name="instr-dashboard"
         options={{
           href: isInstructor ? '/instr-dashboard' : null,
           title: 'Instructor',
           headerTitle: 'QuestFit',
           tabBarIcon: ({ color }) => <TabBarIcon6 name="chalkboard-user" color={color} size={24} />,
+        }}
+      />
+      <Tabs.Screen
+        name="multi-device"
+        options={{
+          // Keep this screen mounted in tabs but real URL is /workout.
+          href: null,
+          title: 'Multi-Device (Legacy)',
+          headerTitle: 'QuestFit',
+          tabBarIcon: ({ color }) => <TabBarIcon6 name="people-robbery" color={color} size={24} />,
         }}
       />
       <Tabs.Screen

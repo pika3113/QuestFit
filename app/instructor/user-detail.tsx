@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   StyleSheet,
   View,
@@ -189,6 +189,10 @@ export default function UserDetailScreen() {
   const [rangeItems, setRangeItems] = useState<RangeDailyItem[]>([]);
   const [loadingRange, setLoadingRange] = useState(false);
 
+  const lastRangeLoadKeyRef = useRef<string | null>(null);
+  const rangeLoadRequestIdRef = useRef(0);
+  const rangeLoadInFlightRef = useRef(false);
+
   const selectedDate = useMemo(() => {
     // Use the end of the range as the "selected day" for single-day sections (AI, cardio, etc.)
     const start = new Date(dateRange.start);
@@ -197,7 +201,7 @@ export default function UserDetailScreen() {
     end.setHours(0, 0, 0, 0);
     const endMs = Math.max(start.getTime(), end.getTime());
     return new Date(endMs);
-  }, [dateRange]);
+  }, [dateRange.end.getTime(), dateRange.start.getTime()]);
   
   // AI State
   const [aiSummary, setAiSummary] = useState<AISummary | null>(null);
@@ -409,7 +413,7 @@ export default function UserDetailScreen() {
     }
 
     return dates;
-  }, [dateRange]);
+  }, [dateRange.end.getTime(), dateRange.start.getTime(), dateRange.type]);
 
   const onDateChange = (event: any, picked?: Date) => {
     if (event?.type === 'dismissed') {
@@ -589,9 +593,21 @@ export default function UserDetailScreen() {
     loadRadarData();
   }, [loadRadarData]);
 
-  const loadRange = useCallback(async () => {
+  const loadRange = useCallback(async (opts?: { force?: boolean }) => {
     if (!userId) return;
+
+    const requestKey = `${userId}|${dateStrings.join(',')}`;
+    if (!opts?.force) {
+      // Avoid reloading the same range repeatedly (prevents UI flicker).
+      if (requestKey && requestKey === lastRangeLoadKeyRef.current) return;
+      if (rangeLoadInFlightRef.current) return;
+    }
+
+    lastRangeLoadKeyRef.current = requestKey;
+    rangeLoadInFlightRef.current = true;
     setLoadingRange(true);
+
+    const requestId = ++rangeLoadRequestIdRef.current;
     try {
       const results = await Promise.all(
         dateStrings.map(async (ds) => {
@@ -692,12 +708,19 @@ export default function UserDetailScreen() {
           } satisfies RangeDailyItem;
         })
       );
-      setRangeItems(results);
+      if (rangeLoadRequestIdRef.current === requestId) {
+        setRangeItems(results);
+      }
     } catch (e) {
       console.warn('Failed to load range data', e);
-      setRangeItems([]);
+      if (rangeLoadRequestIdRef.current === requestId) {
+        setRangeItems([]);
+      }
     } finally {
-      setLoadingRange(false);
+      if (rangeLoadRequestIdRef.current === requestId) {
+        rangeLoadInFlightRef.current = false;
+        setLoadingRange(false);
+      }
     }
   }, [dateStrings, userId, toUtcKeyFromLocalKey]);
 
@@ -874,7 +897,7 @@ export default function UserDetailScreen() {
 
   const handleRefresh = async () => {
     setRefreshing(true);
-    await Promise.all([loadUserStats(), checkExistingAISummary(), loadRange(), loadRadarData()]);
+    await Promise.all([loadUserStats(), checkExistingAISummary(), loadRange({ force: true }), loadRadarData()]);
     setRefreshing(false);
   };
 
@@ -887,7 +910,7 @@ export default function UserDetailScreen() {
     const startMs = Math.min(start.getTime(), end.getTime());
     const endMs = Math.max(start.getTime(), end.getTime());
       return `${formatDateDdMmYyyy(new Date(startMs))} – ${formatDateDdMmYyyy(new Date(endMs))}`;
-  }, [dateRange]);
+  }, [dateRange.end.getTime(), dateRange.start.getTime(), dateRange.type]);
 
   const activityAgg = useMemo(() => {
     let days = 0;

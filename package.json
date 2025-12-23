@@ -18,6 +18,7 @@
     "@react-native-community/slider": "5.0.1",
     "@react-native-picker/picker": "2.11.1",
     "@react-navigation/native": "^7.1.8",
+    "@shopify/react-native-skia": "2.2.12",
     "@vercel/analytics": "^1.5.0",
     "apexcharts": "^5.3.6",
     "axios": "^1.12.2",

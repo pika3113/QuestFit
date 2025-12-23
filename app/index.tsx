@@ -41,7 +41,7 @@ export default function Index() {
           Turn every workout into an exciting quest. Capture mythical creatures, 
           level up your character, and unlock epic rewards as you get fit.
         </Text>
-        <Link href="/(tabs)/home" style={styles.ctaButton}>
+        <Link href="/home" style={styles.ctaButton}>
           <Text style={styles.ctaText}>Get Started →</Text>
         </Link>
       </View>
